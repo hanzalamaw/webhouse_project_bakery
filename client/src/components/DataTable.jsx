@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Pagination } from "./Pagination";
 import { getMonthName } from "../utils/dateTime";
+import { useT } from "../context/LanguageContext";
 
 const PANEL_WIDTH = 300;
 const PANEL_EST_HEIGHT = 360;
@@ -320,6 +321,7 @@ export function DataTable({
   onPageChange,
   onRowClick,
 }) {
+  const t = useT();
   const [excluded, setExcluded] = useState({});
   const [openFilter, setOpenFilter] = useState(null);
   const [filterSearch, setFilterSearch] = useState("");
@@ -633,7 +635,7 @@ export function DataTable({
                 return (
                   <th key={colId}>
                     <div className="wh-table-th">
-                      <span className="wh-table-th__label">{col.label}</span>
+                      <span className="wh-table-th__label">{typeof col.label === "string" ? t(col.label) : col.label}</span>
                       {filterable && (
                         <button
                           type="button"
@@ -642,7 +644,7 @@ export function DataTable({
                             if (isOpen) closeFilterPanel();
                             else openFilterPanel(colId, e.currentTarget);
                           }}
-                          aria-label={`Filter ${col.label}`}
+                          aria-label={`${t("Filter")} ${typeof col.label === "string" ? t(col.label) : col.label}`}
                           aria-expanded={isOpen}
                         >
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -660,7 +662,7 @@ export function DataTable({
             {!displayRows.length ? (
               <tr>
                 <td colSpan={columns.length} className="wh-table-empty">
-                  {sourceRows?.length ? "No rows match the current filters." : emptyMessage}
+                  {sourceRows?.length ? t("No rows match the current filters.") : (typeof emptyMessage === "string" ? t(emptyMessage) : emptyMessage)}
                 </td>
               </tr>
             ) : (

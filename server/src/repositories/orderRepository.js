@@ -8,8 +8,6 @@ function tw(alias, tenantId) {
   return `${alias}.tenant_id = ? AND ${alias}.deleted_at IS NULL`;
 }
 
-const BRANCH_ASSIGNMENT_SQL = `oa.assignment_type IN ('warehouse', 'branch')`;
-
 const ORDER_LIST_SELECT = `
   SELECT o.*,
          c.customer_name,
@@ -18,20 +16,6 @@ const ORDER_LIST_SELECT = `
          (SELECT op.payment_method FROM order_payments op
             WHERE op.order_id = o.id AND op.tenant_id = o.tenant_id AND op.deleted_at IS NULL
             ORDER BY op.id DESC LIMIT 1) AS payment_method,
-         (SELECT oa.assignment_type FROM order_assignments oa
-            WHERE oa.order_id = o.id AND oa.tenant_id = o.tenant_id AND oa.deleted_at IS NULL AND ${BRANCH_ASSIGNMENT_SQL}
-            ORDER BY oa.id DESC LIMIT 1) AS warehouse_assignment_type,
-         (SELECT oa.assignment_type FROM order_assignments oa
-            WHERE oa.order_id = o.id AND oa.tenant_id = o.tenant_id AND oa.deleted_at IS NULL AND ${BRANCH_ASSIGNMENT_SQL}
-            ORDER BY oa.id DESC LIMIT 1) AS branch_assignment_type,
-         (SELECT usr.name FROM order_assignments oa
-            INNER JOIN users usr ON usr.id = oa.assigned_to AND ${joinOnTenant("oa", "usr")}
-            WHERE oa.order_id = o.id AND oa.tenant_id = o.tenant_id AND oa.deleted_at IS NULL AND ${BRANCH_ASSIGNMENT_SQL}
-            ORDER BY oa.id DESC LIMIT 1) AS warehouse_assignee,
-         (SELECT usr.name FROM order_assignments oa
-            INNER JOIN users usr ON usr.id = oa.assigned_to AND ${joinOnTenant("oa", "usr")}
-            WHERE oa.order_id = o.id AND oa.tenant_id = o.tenant_id AND oa.deleted_at IS NULL AND ${BRANCH_ASSIGNMENT_SQL}
-            ORDER BY oa.id DESC LIMIT 1) AS branch_assignee,
          EXISTS (SELECT 1 FROM order_cancellations oc
             WHERE oc.order_id = o.id AND oc.tenant_id = o.tenant_id AND oc.deleted_at IS NULL) AS has_cancellation,
          EXISTS (SELECT 1 FROM order_returns ort
@@ -346,7 +330,6 @@ export const orderRepository = {
     for (const table of [
       "order_items",
       "order_payments",
-      "order_assignments",
       "order_cancellations",
       "order_returns",
       "order_exchanges",
@@ -520,48 +503,6 @@ export const orderRepository = {
     } finally {
       connection.release();
     }
-  },
-
-  // Assignments
-  async listAssignments(tenantId) {
-    const [rows] = await readDb.query(
-      `SELECT oa.*, o.order_no, u.name AS assigned_to_name, cb.customer_name AS order_customer_name
-       FROM order_assignments oa
-       INNER JOIN orders o ON o.id = oa.order_id AND ${joinOnTenant("oa", "o")}
-       LEFT JOIN users u ON u.id = oa.assigned_to AND ${joinOnTenant("oa", "u")}
-       LEFT JOIN crm_customers cb ON cb.id = o.customer_id AND ${joinOnTenant("o", "cb")}
-       WHERE ${tw("oa", tenantId)}
-       ORDER BY oa.assigned_at DESC`,
-      [tenantId]
-    );
-    return rows;
-  },
-
-  async createAssignment(tenantId, data) {
-    const [result] = await writeDb.query(
-      `INSERT INTO order_assignments (assigned_to, assignment_type, status, order_id, tenant_id)
-       VALUES (?, ?, ?, ?, ?)`,
-      [data.assigned_to, data.assignment_type, data.status, data.order_id, tenantId]
-    );
-    return result.insertId;
-  },
-
-  async updateAssignment(tenantId, id, data) {
-    const [result] = await writeDb.query(
-      `UPDATE order_assignments SET assigned_to = ?, assignment_type = ?, status = ?
-       WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL`,
-      [data.assigned_to, data.assignment_type, data.status, id, tenantId]
-    );
-    return (result.affectedRows ?? 0) === 1;
-  },
-
-  async deleteAssignment(tenantId, id) {
-    const [result] = await writeDb.query(
-      `UPDATE order_assignments SET deleted_at = NOW()
-       WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL`,
-      [id, tenantId]
-    );
-    return (result.affectedRows ?? 0) === 1;
   },
 
   // Payments

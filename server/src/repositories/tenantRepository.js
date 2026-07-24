@@ -2,6 +2,7 @@ import { readDb, writeDb } from "../database/db.js";
 import { encrypt } from "../utils/cipher.js";
 import { cascadeSoftDeleteTenant } from "../utils/softDeleteCascade.js";
 import { subscriptionRepository } from "./subscriptionRepository.js";
+import { normalizeLanguage } from "../constants/languages.js";
 
 const PERMISSION_ACTIONS = ["view", "create", "edit", "delete", "manage"];
 const DEFAULT_TIMEZONE = "Asia/Karachi";
@@ -200,7 +201,9 @@ export const tenantRepository = {
        WHERE tenant_id = ? AND deleted_at IS NULL LIMIT 1`,
       [tenantId]
     );
-    return rows[0] || null;
+    const row = rows[0] || null;
+    if (row) row.language = normalizeLanguage(row.language);
+    return row;
   },
 
   async getLatestPayment(tenantId) {
@@ -369,7 +372,7 @@ export const tenantRepository = {
           org.logo_url || null,
           org.timezone || DEFAULT_TIMEZONE,
           org.currency || null,
-          org.language || null,
+          normalizeLanguage(org.language),
           org.fiscal_year_start || null,
           org.fiscal_year_end || null,
           tenantId,
@@ -493,7 +496,7 @@ export const tenantRepository = {
           org.logo_url || null,
           org.timezone || DEFAULT_TIMEZONE,
           org.currency || null,
-          org.language || null,
+          normalizeLanguage(org.language),
           org.fiscal_year_start || null,
           org.fiscal_year_end || null,
           tenantId,

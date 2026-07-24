@@ -120,7 +120,7 @@ export default function ManageRecipes() {
   return (
     <div className="wh-page">
       <PageHeader
-        title="Recipes (Nuskhay)"
+        title="Recipes"
         description="Manage bakery recipes and their ingredients (kacha maal)."
         actions={
           <Button onClick={() => navigate(`${MODULE_BASE}/recipes/create`)} disabled={!canCreate}>

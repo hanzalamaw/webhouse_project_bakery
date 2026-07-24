@@ -8,8 +8,6 @@ import {
   PAYMENT_STATUSES,
   FULFILLMENT_STATUSES,
   ORDER_SOURCES,
-  ASSIGNMENT_TYPES,
-  ASSIGNMENT_STATUSES,
   RETURN_STATUSES,
   EXCHANGE_STATUSES,
   REFUND_STATUSES,
@@ -171,21 +169,6 @@ function assertCanRefund(order) {
   if (!paid) {
     throw new Error("Only paid or partially paid orders can be refunded.");
   }
-}
-
-async function assertOrderUser(tenantId, userId) {
-  if (!userId) throw new Error("Assigned user is required");
-  const users = await orderRepository.listOrderUsers(tenantId);
-  if (!users.some((u) => u.id === Number(userId))) {
-    throw new Error("Assigned user must have Order Management access");
-  }
-  return Number(userId);
-}
-
-function normalizeAssignmentType(value) {
-  const t = String(value || "staff").trim().toLowerCase();
-  if (t === "warehouse") return "branch";
-  return t;
 }
 
 async function syncOrderPaymentStatus(tenantId, orderId) {
@@ -580,48 +563,6 @@ export const orderService = {
       }
     }
     return results;
-  },
-
-  // Assignments
-  listAssignments(tenantId) {
-    return orderRepository.listAssignments(tenantId);
-  },
-
-  async createAssignment(tenantId, body) {
-    await assertOrderExists(tenantId, body.order_id);
-    const assigned_to = await assertOrderUser(tenantId, body.assigned_to);
-    const assignment_type = normalizeAssignmentType(body.assignment_type || "staff");
-    const status = body.status || "pending";
-    assertOneOf(assignment_type, ASSIGNMENT_TYPES, "assignment type");
-    assertOneOf(status, ASSIGNMENT_STATUSES, "assignment status");
-    const id = await orderRepository.createAssignment(tenantId, {
-      order_id: Number(body.order_id),
-      assigned_to,
-      assignment_type,
-      status,
-    });
-    const rows = await orderRepository.listAssignments(tenantId);
-    return rows.find((r) => r.id === id);
-  },
-
-  async updateAssignment(tenantId, id, body) {
-    const assigned_to = await assertOrderUser(tenantId, body.assigned_to);
-    const assignment_type = normalizeAssignmentType(body.assignment_type || "staff");
-    const status = body.status || "pending";
-    assertOneOf(assignment_type, ASSIGNMENT_TYPES, "assignment type");
-    assertOneOf(status, ASSIGNMENT_STATUSES, "assignment status");
-    const ok = await orderRepository.updateAssignment(tenantId, id, {
-      assigned_to,
-      assignment_type,
-      status,
-    });
-    if (!ok) return null;
-    const rows = await orderRepository.listAssignments(tenantId);
-    return rows.find((r) => r.id === id) || null;
-  },
-
-  deleteAssignment(tenantId, id) {
-    return orderRepository.deleteAssignment(tenantId, id);
   },
 
   // Payments

@@ -3,7 +3,6 @@ import { parseEntityId } from "./ids.js";
 
 const ORDER_CHILD_TABLES = [
   "order_items",
-  "order_assignments",
   "order_payments",
   "order_cancellations",
   "order_returns",

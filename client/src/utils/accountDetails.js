@@ -1,5 +1,6 @@
 import { loginPortalUrl } from "../api/client";
 import { formatPKR } from "./currency";
+import { languageLabel } from "../i18n/languages";
 
 function row(label, value, options = {}) {
   const { copyValue, sensitive = false } = options;
@@ -103,7 +104,7 @@ export function buildTenantAccountSections({
             rows: [
               row("Timezone", organization.timezone),
               row("Currency", organization.currency),
-              row("Language", organization.language),
+              row("Language", languageLabel(organization.language)),
             ],
           },
         ]

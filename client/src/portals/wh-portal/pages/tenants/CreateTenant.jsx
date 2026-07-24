@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useSearchParams, useParams } from "react-router-dom";
 import { PageHeader } from "../../../../components/PageHeader";
 import { FormField } from "../../../../components/FormField";
@@ -22,6 +22,7 @@ import {
 import { formatPKR } from "../../../../utils/currency";
 import { buildTenantAccountSections } from "../../../../utils/accountDetails";
 import { formatModuleLabel, sortModulesByDisplayOrder } from "../../../tenant-portal/modules/registry";
+import { languageLabel } from "../../../../i18n/languages";
 import {
   calcBillingTotal,
   calcRenewalDate,
@@ -686,7 +687,7 @@ export default function CreateTenant() {
         <ReviewRow label="Logo URL" value={draft.organization.logo_url || "â€”"} />
         <ReviewRow label="Timezone" value={formatTimezoneDisplay(draft.organization.timezone)} />
         <ReviewRow label="Currency" value={formatCurrencyDisplay(draft.organization.currency, currencies)} />
-        <ReviewRow label="Language" value={draft.organization.language === "en" ? "English" : draft.organization.language || "â€”"} />
+        <ReviewRow label="Language" value={languageLabel(draft.organization.language)} />
         <ReviewRow label="Fiscal year start" value={formatFiscalDisplay(draft.organization.fiscal_year_start)} />
         <ReviewRow label="Fiscal year end" value={formatFiscalDisplay(draft.organization.fiscal_year_end)} />
       </ReviewBlock>
@@ -876,6 +877,10 @@ export default function CreateTenant() {
                     />
                     <FormField id="lang" label="Language" as="select" value={draft.organization.language} onChange={update("organization", "language")}>
                       <option value="en">English</option>
+                      <option value="en_ur">English and Urdu</option>
+                      <option value="roman">Roman Urdu</option>
+                      <option value="en_roman">English and Roman Urdu</option>
+                      <option value="ur">Urdu</option>
                     </FormField>
                     <div className="wh-field">
                       <span className="wh-field__label">Fiscal Year Start</span>

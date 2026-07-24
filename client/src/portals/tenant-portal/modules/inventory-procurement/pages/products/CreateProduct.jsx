@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { useAuth } from "../../../../../../context/AuthContext";
 import { apiFetch } from "../../../../../../api/client";
 import { PageHeader } from "../../../../../../components/PageHeader";
@@ -10,7 +10,9 @@ import { useInventoryReference } from "../../hooks/useInventoryReference";
 import { FormBlock } from "../../../../../../components/FormBlock";
 import { FormPageLayout, FormActions } from "../../../../../../components/FormPageLayout";
 import CreateCategoryModal from "../../components/CreateCategoryModal";
-import { ITEM_STATUS, ITEM_TYPES, ITEM_TYPE_LABELS, ITEM_UNITS, MODULE_BASE } from "../../constants";
+import { UnsavedChangesDialog } from "../../../../../../components/UnsavedChangesDialog";
+import { useUnsavedChangesGuard } from "../../../../../../hooks/useUnsavedChangesGuard";
+import { ITEM_STATUS, ITEM_TYPES, ITEM_TYPE_LABELS, ITEM_UNITS, SHELF_LIFE_UNITS, DEFAULT_SHELF_LIFE_UNIT, MODULE_BASE } from "../../constants";
 import { formatTotalPrice } from "../../utils/pricing";
 
 const INITIAL = {
@@ -28,6 +30,7 @@ const INITIAL = {
   is_produced: true,
   is_sold: true,
   shelf_life_days: "",
+  shelf_life_unit: DEFAULT_SHELF_LIFE_UNIT,
   low_stock_threshold: "0",
   variant_label: "",
   parent_item_id: "",
@@ -60,20 +63,31 @@ function mapItemToForm(item) {
     is_produced: Boolean(item.is_produced),
     is_sold: Boolean(item.is_sold),
     shelf_life_days: item.shelf_life_days ?? "",
+    shelf_life_unit: item.shelf_life_unit || DEFAULT_SHELF_LIFE_UNIT,
     low_stock_threshold: item.low_stock_threshold ?? "0",
     variant_label: item.variant_label || "",
     parent_item_id: item.parent_item_id ? String(item.parent_item_id) : "",
   };
 }
 
+function serializeItemState(form, openingStock) {
+  return JSON.stringify({
+    form,
+    openingStock: (openingStock || []).map((row) => ({
+      branch_id: row.branch_id || "",
+      qty: row.qty || "0",
+    })),
+  });
+}
+
 export default function CreateProduct() {
-  const navigate = useNavigate();
   const { itemId, productId } = useParams();
   const resolvedId = itemId || productId;
   const isEdit = Boolean(resolvedId);
   const { authFetch } = useAuth();
   const { categories, branches, items, loading: refLoading, reload } = useInventoryReference();
   const [form, setForm] = useState(INITIAL);
+  const [baseline, setBaseline] = useState(null);
   const [stockLevels, setStockLevels] = useState([]);
   const branchKeyRef = useRef(0);
   const makeBranchEntry = useCallback(() => {
@@ -118,11 +132,27 @@ export default function CreateProduct() {
     apiFetch(`/inventory/items/${resolvedId}`, {}, authFetch)
       .then((data) => {
         setStockLevels(data.stock_levels || []);
-        setForm(mapItemToForm(data));
+        const next = mapItemToForm(data);
+        setForm(next);
+        setBaseline(serializeItemState(next, []));
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoadingItem(false));
   }, [isEdit, resolvedId, authFetch]);
+
+  useEffect(() => {
+    if (isEdit || baseline !== null) return;
+    setBaseline(serializeItemState(INITIAL, [emptyBranchEntry("br-1")]));
+  }, [isEdit, baseline]);
+
+  const isDirty = useMemo(() => {
+    if (baseline === null) return false;
+    return serializeItemState(form, openingStock) !== baseline;
+  }, [baseline, form, openingStock]);
+
+  const { dialogOpen, stayOnPage, leavePage, reloadPending, navigateSafely } = useUnsavedChangesGuard(isDirty, {
+    enabled: !loadingItem && baseline !== null,
+  });
 
   const updateOpening = (key, field, value) => {
     setOpeningStock((rows) => rows.map((row) => (row._key === key ? { ...row, [field]: value } : row)));
@@ -140,6 +170,8 @@ export default function CreateProduct() {
     }
     return "";
   };
+
+  const goManage = () => navigateSafely(`${MODULE_BASE}/items/manage`);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -167,6 +199,7 @@ export default function CreateProduct() {
         is_produced: Boolean(form.is_produced),
         is_sold: Boolean(form.is_sold),
         shelf_life_days: form.shelf_life_days === "" ? null : Number(form.shelf_life_days),
+        shelf_life_unit: form.shelf_life_unit || DEFAULT_SHELF_LIFE_UNIT,
         low_stock_threshold: Number(form.low_stock_threshold) || 0,
         variant_label: form.variant_label || null,
         parent_item_id: form.parent_item_id ? Number(form.parent_item_id) : null,
@@ -195,7 +228,8 @@ export default function CreateProduct() {
         setMessage("Item created successfully.");
         await reload();
       }
-      setTimeout(() => navigate(`${MODULE_BASE}/items/manage`), 700);
+      setBaseline(serializeItemState(form, openingStock));
+      setTimeout(() => navigateSafely(`${MODULE_BASE}/items/manage`), 700);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -224,7 +258,7 @@ export default function CreateProduct() {
               : "Add an ingredient, finished product, or packaging item."
           }
           actions={
-            <Button variant="secondary" onClick={() => navigate(`${MODULE_BASE}/items/manage`)}>
+            <Button variant="secondary" onClick={goManage}>
               Manage Items
             </Button>
           }
@@ -250,15 +284,33 @@ export default function CreateProduct() {
                   <option key={s} value={s}>{s}</option>
                 ))}
               </FormField>
-              <FormField
-                id="shelf_life_days"
-                label="Shelf life (days)"
-                type="number"
-                min="0"
-                value={form.shelf_life_days}
-                onChange={(e) => set("shelf_life_days", e.target.value)}
-                placeholder="e.g. 3 for fresh cake"
-              />
+              <div className="wh-field">
+                <span className="wh-field__label">Shelf life</span>
+                <div className="wh-month-day-row">
+                  <FormField
+                    id="shelf_life_days"
+                    type="number"
+                    min="0"
+                    value={form.shelf_life_days}
+                    onChange={(e) => set("shelf_life_days", e.target.value)}
+                    placeholder="e.g. 3"
+                    aria-label="Shelf life value"
+                  />
+                  <FormField
+                    id="shelf_life_unit"
+                    as="select"
+                    value={form.shelf_life_unit}
+                    onChange={(e) => set("shelf_life_unit", e.target.value)}
+                    aria-label="Shelf life unit"
+                  >
+                    {SHELF_LIFE_UNITS.map((u) => (
+                      <option key={u.value} value={u.value}>
+                        {u.label}
+                      </option>
+                    ))}
+                  </FormField>
+                </div>
+              </div>
               <FormField
                 id="low_stock_threshold"
                 label="Low stock alert"
@@ -267,7 +319,7 @@ export default function CreateProduct() {
                 value={form.low_stock_threshold}
                 onChange={(e) => set("low_stock_threshold", e.target.value)}
               />
-              <FormField id="variant_label" label="Variant label" value={form.variant_label} onChange={(e) => set("variant_label", e.target.value)} placeholder="e.g. 1kg / Chocolate" />
+              <FormField id="variant_label" label="Variant label" value={form.variant_label} onChange={(e) => set("variant_label", e.target.value)} placeholder="e.g. 1kg / Slice" />
             </div>
             <div className="wh-form-grid" style={{ marginTop: 12 }}>
               <label className="wh-checkbox-item">
@@ -408,7 +460,7 @@ export default function CreateProduct() {
           {message && <p className="wh-form-message">{message}</p>}
 
           <FormActions>
-            <Button type="button" variant="secondary" onClick={() => navigate(`${MODULE_BASE}/items/manage`)}>
+            <Button type="button" variant="secondary" onClick={goManage}>
               Cancel
             </Button>
             <Button type="submit" disabled={submitting}>
@@ -427,6 +479,7 @@ export default function CreateProduct() {
           }}
         />
       </FormPageLayout>
+      <UnsavedChangesDialog open={dialogOpen} onStay={stayOnPage} onDiscard={leavePage} reloadPending={reloadPending} />
     </div>
   );
 }

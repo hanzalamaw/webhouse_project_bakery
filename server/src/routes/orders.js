@@ -26,11 +26,6 @@ export function registerOrderRoutes(app, verifyToken) {
   app.post(`${base}/customers`, ...auth, create, orderController.quickCreateCustomer);
   app.put(`${base}/customers/:id`, ...auth, edit, orderController.quickUpdateCustomer);
 
-  app.get(`${base}/assignments/list`, ...auth, view, orderController.listAssignments);
-  app.post(`${base}/assignments`, ...auth, create, orderController.createAssignment);
-  app.put(`${base}/assignments/:id`, ...auth, edit, orderController.updateAssignment);
-  app.delete(`${base}/assignments/:id`, ...auth, del, orderController.deleteAssignment);
-
   app.get(`${base}/payments/summary`, ...auth, view, orderController.paymentSummary);
   app.get(`${base}/payments/transactions`, ...auth, view, orderController.listPaymentTransactions);
   app.get(`${base}/payments/order/:orderId`, ...auth, view, orderController.listPaymentsForOrder);

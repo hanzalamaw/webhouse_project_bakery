@@ -1,4 +1,5 @@
 import { readDb, writeDb } from "../database/db.js";
+import { normalizeLanguage } from "../constants/languages.js";
 
 export const organizationSettingsRepository = {
   async getByTenant(tenantId) {
@@ -8,7 +9,9 @@ export const organizationSettingsRepository = {
        WHERE tenant_id = ? AND deleted_at IS NULL LIMIT 1`,
       [tenantId]
     );
-    return rows[0] || null;
+    const row = rows[0] || null;
+    if (row) row.language = normalizeLanguage(row.language);
+    return row;
   },
 
   async upsert(tenantId, data) {
@@ -30,7 +33,7 @@ export const organizationSettingsRepository = {
         data.logo_url || null,
         data.timezone || "Asia/Karachi",
         data.currency || null,
-        data.language || "en",
+        normalizeLanguage(data.language),
         data.fiscal_year_start || null,
         data.fiscal_year_end || null,
         tenantId,

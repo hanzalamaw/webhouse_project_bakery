@@ -18,10 +18,6 @@ export const ORDER_SOURCES = [
 export const PAYMENT_METHODS = ["cod", "card", "bank_transfer", "cash", "online", "other"];
 export const PAYMENT_RECORD_STATUSES = ["pending", "paid", "partial", "failed", "refunded"];
 
-/** Primary types; "warehouse" accepted as alias of "branch" in service validation */
-export const ASSIGNMENT_TYPES = ["staff", "branch", "fulfillment", "courier", "verification"];
-export const ASSIGNMENT_STATUSES = ["pending", "active", "completed", "cancelled"];
-
 export const RETURN_STATUSES = ["requested", "approved", "received", "rejected", "completed"];
 export const EXCHANGE_STATUSES = ["requested", "approved", "completed", "rejected"];
 export const REFUND_STATUSES = ["pending", "processed", "failed", "cancelled"];
@@ -58,13 +54,4 @@ export const ORDER_SOURCE_LABELS = {
   pos: "Counter (POS)",
   csv_import: "CSV Import",
   other: "Other",
-};
-
-export const ASSIGNMENT_TYPE_LABELS = {
-  staff: "Staff",
-  branch: "Branch Team",
-  warehouse: "Branch Team",
-  fulfillment: "Fulfillment Team",
-  courier: "Rider / Courier",
-  verification: "Verification",
 };

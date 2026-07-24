@@ -8,7 +8,7 @@ const ITEM_SELECT = `
   i.id, i.item_name, i.item_type, i.sku, i.unit,
   i.cost_price, i.selling_price, i.tax, i.discount,
   i.is_purchased, i.is_produced, i.is_sold,
-  i.shelf_life_days, i.low_stock_threshold,
+  i.shelf_life_days, i.shelf_life_unit, i.low_stock_threshold,
   i.parent_item_id, i.variant_label, i.status,
   i.created_at, i.updated_at, i.category_id, i.tenant_id,
   c.category_name,
@@ -278,12 +278,12 @@ export const inventoryRepository = {
     const [r] = await writeDb.query(
       `INSERT INTO items
          (item_name, item_type, sku, unit, cost_price, selling_price, tax, discount,
-          is_purchased, is_produced, is_sold, shelf_life_days, low_stock_threshold,
+          is_purchased, is_produced, is_sold, shelf_life_days, shelf_life_unit, low_stock_threshold,
           parent_item_id, variant_label, status, category_id, tenant_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [d.item_name, d.item_type, d.sku || null, d.unit, d.cost_price, d.selling_price,
        d.tax ?? 0, d.discount ?? 0, d.is_purchased ? 1 : 0, d.is_produced ? 1 : 0, d.is_sold ? 1 : 0,
-       d.shelf_life_days ?? null, d.low_stock_threshold ?? 0, d.parent_item_id ?? null,
+       d.shelf_life_days ?? null, d.shelf_life_unit || "days", d.low_stock_threshold ?? 0, d.parent_item_id ?? null,
        d.variant_label ?? null, d.status, d.category_id, tenantId]
     );
     return r.insertId;
@@ -293,12 +293,12 @@ export const inventoryRepository = {
     await writeDb.query(
       `UPDATE items SET item_name = ?, item_type = ?, sku = ?, unit = ?, cost_price = ?,
          selling_price = ?, tax = ?, discount = ?, is_purchased = ?, is_produced = ?, is_sold = ?,
-         shelf_life_days = ?, low_stock_threshold = ?, parent_item_id = ?, variant_label = ?,
+         shelf_life_days = ?, shelf_life_unit = ?, low_stock_threshold = ?, parent_item_id = ?, variant_label = ?,
          status = ?, category_id = ?
        WHERE id = ? AND ${tw("items")}`,
       [d.item_name, d.item_type, d.sku || null, d.unit, d.cost_price, d.selling_price,
        d.tax ?? 0, d.discount ?? 0, d.is_purchased ? 1 : 0, d.is_produced ? 1 : 0, d.is_sold ? 1 : 0,
-       d.shelf_life_days ?? null, d.low_stock_threshold ?? 0, d.parent_item_id ?? null,
+       d.shelf_life_days ?? null, d.shelf_life_unit || "days", d.low_stock_threshold ?? 0, d.parent_item_id ?? null,
        d.variant_label ?? null, d.status, d.category_id, id, tenantId]
     );
   },
@@ -319,7 +319,7 @@ export const inventoryRepository = {
     if (purchasable) extra += ` AND i.is_purchased = 1`;
     const [rows] = await readDb.query(
       `SELECT i.id, i.item_name, i.sku, i.unit, i.item_type, i.selling_price, i.cost_price,
-              i.shelf_life_days, i.is_sold, i.is_purchased, i.is_produced, i.category_id, c.category_name
+              i.shelf_life_days, i.shelf_life_unit, i.is_sold, i.is_purchased, i.is_produced, i.category_id, c.category_name
        FROM items i
        LEFT JOIN item_categories c ON c.id = i.category_id AND c.deleted_at IS NULL
        WHERE ${tw("i")}${extra} ORDER BY i.item_name ASC`,

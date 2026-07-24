@@ -3,25 +3,18 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../../../../../context/AuthContext";
 import { apiFetch } from "../../../../../api/client";
 import { PageHeader } from "../../../../../components/PageHeader";
-import { BarChart, DonutChart, HBars, CHART_COLORS } from "../../../../../components/charts";
+import { KpiCard, Panel } from "../../../../../components/KpiPanel";
+import { BarChart } from "../../../../../components/charts";
 import { StatusBadge } from "../../../../../components/Badge";
 import { formatPKR } from "../../../../../utils/currency";
 import { formatDateTime } from "../../../../../utils/dateTime";
 import { DashboardFilter } from "../../../../../components/DashboardFilter";
 import { EMPTY_DASHBOARD_FILTER, filterRowsByDashboard } from "../../../../../utils/dashboardFilter";
 import { useFiscalYear } from "../../../../../context/FiscalYearContext";
-import { MODULE_BASE, CUSTOMER_TYPE_LABELS, LEAD_SOURCE_LABELS } from "../constants";
-import { TenantsIcon, SupportIcon, LogsIcon, ImpersonateIcon } from "../../../../../components/icons";
+import { MODULE_BASE, CUSTOMER_TYPE_LABELS } from "../constants";
+import { TenantsIcon, SupportIcon } from "../../../../../components/icons";
 
 const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-const LEAD_STATUS_COLORS = {
-  new: "var(--color-accent)",
-  contacted: "var(--color-warning)",
-  qualified: "var(--color-success)",
-  lost: "var(--color-danger)",
-  converted: "var(--color-success)",
-};
 
 function lastNMonths(n) {
   const out = [];
@@ -37,33 +30,7 @@ function lastNMonths(n) {
   return out;
 }
 
-function KpiCard({ label, value, hint, icon, tone = "default" }) {
-  return (
-    <div className={`wh-kpi wh-kpi--${tone}`}>
-      <div className="wh-kpi__top">
-        <span className="wh-kpi__label">{label}</span>
-        {icon && <span className="wh-kpi__icon">{icon}</span>}
-      </div>
-      <span className="wh-kpi__value">{value}</span>
-      {hint && <span className="wh-kpi__hint">{hint}</span>}
-    </div>
-  );
-}
 
-function Panel({ title, subtitle, action, flush, children }) {
-  return (
-    <div className="wh-panel">
-      <div className="wh-panel__head">
-        <div>
-          <h3 className="wh-panel__title">{title}</h3>
-          {subtitle && <p className="wh-panel__subtitle">{subtitle}</p>}
-        </div>
-        {action}
-      </div>
-      <div className={`wh-panel__body${flush ? " wh-panel__body--flush" : ""}`}>{children}</div>
-    </div>
-  );
-}
 
 export default function CrmDashboard() {
   const { authFetch } = useAuth();
@@ -98,7 +65,6 @@ export default function CrmDashboard() {
   const stats = data?.stats || {};
   const activeDays = stats.active_customer_days || 30;
   const dash = (n) => (loading ? "—" : n ?? 0);
-  const pct = (n) => (loading ? "—" : `${n ?? 0}%`);
   const money = (n) => (loading ? "—" : formatPKR(n));
 
   const growthSeries = useMemo(() => {
@@ -110,36 +76,6 @@ export default function CrmDashboard() {
     }
     return buckets.map((b) => ({ label: b.label, value: b.value }));
   }, [data?.customer_growth]);
-
-  const sourceSegments = useMemo(
-    () =>
-      (data?.leads_by_source || []).map((r, i) => ({
-        label: LEAD_SOURCE_LABELS[r.label] || r.label,
-        value: Number(r.count) || 0,
-        color: CHART_COLORS[i % CHART_COLORS.length],
-      })),
-    [data?.leads_by_source]
-  );
-
-  const statusSegments = useMemo(
-    () =>
-      (data?.leads_by_status || []).map((r) => ({
-        label: r.label,
-        value: Number(r.count) || 0,
-        color: LEAD_STATUS_COLORS[r.label] || "var(--text-muted)",
-      })),
-    [data?.leads_by_status]
-  );
-
-  const statusBars = useMemo(
-    () =>
-      (data?.leads_by_status || []).map((r) => ({
-        label: r.label,
-        value: Number(r.count) || 0,
-        color: LEAD_STATUS_COLORS[r.label] || "var(--color-accent)",
-      })),
-    [data?.leads_by_status]
-  );
 
   const filteredActivities = useMemo(() => {
     const rows = data?.recent_activities || [];
@@ -155,14 +91,12 @@ export default function CrmDashboard() {
   );
 
   const topCustomers = data?.top_customers || [];
-  const totalLeads = Number(stats.total_leads) || 0;
-  const conversionRate = Number(stats.lead_conversion_rate) || 0;
 
   return (
     <div className="wh-page wh-page--wide">
       <PageHeader
         title="Dashboard"
-        description={`CRM overview — customers, leads, and support. Active customers placed an order in the last ${activeDays} days.`}
+        description={`CRM overview — customers and support. Active customers placed an order in the last ${activeDays} days.`}
       />
 
       {error && <div className="wh-alert wh-alert--error">{error}</div>}
@@ -195,10 +129,9 @@ export default function CrmDashboard() {
         </div>
         <div className="wh-dash-col-3">
           <KpiCard
-            label="New Leads (30d)"
-            value={dash(stats.new_leads_30d)}
-            hint={`${dash(stats.converted_leads)} converted all-time`}
-            icon={<LogsIcon />}
+            label="Customers This Month"
+            value={dash(stats.customers_this_month)}
+            icon={<TenantsIcon />}
           />
         </div>
         <div className="wh-dash-col-3">
@@ -215,28 +148,6 @@ export default function CrmDashboard() {
       <div className="wh-dash-grid">
         <div className="wh-dash-col-3">
           <KpiCard
-            label="Lead Conversion"
-            value={pct(conversionRate)}
-            hint={`${dash(stats.converted_leads)} of ${dash(totalLeads)} leads`}
-            icon={<ImpersonateIcon />}
-          />
-        </div>
-        <div className="wh-dash-col-3">
-          <KpiCard
-            label="Customers This Month"
-            value={dash(stats.customers_this_month)}
-            icon={<TenantsIcon />}
-          />
-        </div>
-        <div className="wh-dash-col-3">
-          <KpiCard
-            label="Total Leads"
-            value={dash(totalLeads)}
-            icon={<LogsIcon />}
-          />
-        </div>
-        <div className="wh-dash-col-3">
-          <KpiCard
             label="Top Customer Revenue"
             value={topCustomers.length ? money(topCustomers[0].total_revenue) : money(0)}
             hint={topCustomers[0]?.customer_name || "No orders in period"}
@@ -250,44 +161,6 @@ export default function CrmDashboard() {
         <div className="wh-dash-col-8">
           <Panel title="Customer Growth" subtitle="New customers over the last 6 months">
             <BarChart data={growthSeries} formatValue={(v) => String(v)} />
-          </Panel>
-        </div>
-        <div className="wh-dash-col-4">
-          <Panel title="Leads by Source">
-            {sourceSegments.length ? (
-              <DonutChart
-                segments={sourceSegments}
-                centerValue={sourceSegments.reduce((s, x) => s + x.value, 0)}
-                centerLabel="leads"
-              />
-            ) : (
-              <p className="wh-panel__empty">No leads yet</p>
-            )}
-          </Panel>
-        </div>
-      </div>
-
-      <div className="wh-dash-grid">
-        <div className="wh-dash-col-4">
-          <Panel title="Lead Pipeline">
-            {statusSegments.length ? (
-              <DonutChart
-                segments={statusSegments}
-                centerValue={statusSegments.reduce((s, x) => s + x.value, 0)}
-                centerLabel="leads"
-              />
-            ) : (
-              <p className="wh-panel__empty">No leads in pipeline</p>
-            )}
-          </Panel>
-        </div>
-        <div className="wh-dash-col-4">
-          <Panel title="Leads by Status">
-            {statusBars.length ? (
-              <HBars data={statusBars} />
-            ) : (
-              <p className="wh-panel__empty">No lead status data</p>
-            )}
           </Panel>
         </div>
         <div className="wh-dash-col-4">
@@ -315,7 +188,7 @@ export default function CrmDashboard() {
       </div>
 
       <div className="wh-dash-grid">
-        <div className="wh-dash-col-8">
+        <div className="wh-dash-col-12">
           <Panel title="Top Customers" subtitle={`By revenue in the last ${activeDays} days`} flush>
             {loading ? (
               <p className="wh-panel__empty">Loading…</p>
@@ -342,35 +215,6 @@ export default function CrmDashboard() {
             ) : (
               <p className="wh-panel__empty">No customer orders in this period</p>
             )}
-          </Panel>
-        </div>
-        <div className="wh-dash-col-4">
-          <Panel title="Lead Conversion" subtitle="Share of leads converted to customers">
-            <div className="wh-hbars">
-              <div>
-                <div className="wh-hbar__top">
-                  <span className="wh-hbar__label">Conversion rate</span>
-                  <span className="wh-hbar__val">{pct(conversionRate)}</span>
-                </div>
-                <div className="wh-hbar__track">
-                  <div
-                    className="wh-hbar__fill"
-                    style={{
-                      width: `${Math.min(100, conversionRate)}%`,
-                      background:
-                        conversionRate >= 50
-                          ? "var(--color-success)"
-                          : conversionRate >= 25
-                            ? "var(--color-warning)"
-                            : "var(--color-accent)",
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-            <p className="wh-muted wh-mt">
-              {dash(stats.converted_leads)} converted · {dash(totalLeads)} total leads
-            </p>
           </Panel>
         </div>
       </div>

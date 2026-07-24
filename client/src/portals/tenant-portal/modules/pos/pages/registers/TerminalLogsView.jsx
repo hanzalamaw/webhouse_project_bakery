@@ -3,20 +3,13 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../../../../../../context/AuthContext";
 import { apiFetch } from "../../../../../../api/client";
 import { PageHeader } from "../../../../../../components/PageHeader";
+import { KpiCard, Panel } from "../../../../../../components/KpiPanel";
 import { Button } from "../../../../../../components/Button";
 import { StatusBadge } from "../../../../../../components/Badge";
 import { formatPKR } from "../../../../../../utils/currency";
 import { formatDateTime } from "../../../../../../utils/dateTime";
 import { MODULE_BASE } from "../../constants";
 
-function Panel({ title, children, flush }) {
-  return (
-    <div className="wh-panel" style={{ marginBottom: 16 }}>
-      <div className="wh-panel__head"><h3 className="wh-panel__title">{title}</h3></div>
-      <div className={`wh-panel__body${flush ? " wh-panel__body--flush" : ""}`}>{children}</div>
-    </div>
-  );
-}
 
 export default function TerminalLogsView() {
   const { terminalId } = useParams();

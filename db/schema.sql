@@ -561,6 +561,7 @@ CREATE TABLE IF NOT EXISTS `items` (
   `is_produced` TINYINT(1) NOT NULL DEFAULT 0,
   `is_sold` TINYINT(1) NOT NULL DEFAULT 0,
   `shelf_life_days` INT NULL DEFAULT NULL,
+  `shelf_life_unit` VARCHAR(20) NOT NULL DEFAULT 'days',
   `low_stock_threshold` DECIMAL(12,3) NOT NULL DEFAULT 0.000,
   `parent_item_id` INT NULL DEFAULT NULL,
   `variant_label` VARCHAR(100) NULL DEFAULT NULL,
@@ -1153,46 +1154,6 @@ CREATE TABLE IF NOT EXISTS `crm_customer_addresses` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- -----------------------------------------------------
--- Table `crm_leads`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `crm_leads` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `lead_name` VARCHAR(100) NOT NULL,
-  `phone` VARCHAR(45) NULL DEFAULT NULL,
-  `email` VARCHAR(100) NULL DEFAULT NULL,
-  `company_name` VARCHAR(100) NULL DEFAULT NULL,
-  `source` VARCHAR(100) NULL DEFAULT NULL,
-  `status` VARCHAR(45) NOT NULL,
-  `notes` TEXT NULL DEFAULT NULL,
-  `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `assigned_to` INT NULL DEFAULT NULL,
-  `converted_customer_id` INT NULL DEFAULT NULL,
-  `converted_at` TIMESTAMP NULL DEFAULT NULL,
-  `tenant_id` INT NOT NULL,
-  `deleted_at` TIMESTAMP NULL DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  INDEX `fk_crm_leads_users1_idx` (`assigned_to` ASC),
-  INDEX `fk_crm_leads_converted_customer_idx` (`converted_customer_id` ASC),
-  INDEX `fk_crm_leads_wh_tenants1_idx` (`tenant_id` ASC),
-  CONSTRAINT `fk_crm_leads_users1`
-    FOREIGN KEY (`assigned_to`)
-    REFERENCES `users` (`id`)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE,
-  CONSTRAINT `fk_crm_leads_converted_customer`
-    FOREIGN KEY (`converted_customer_id`)
-    REFERENCES `crm_customers` (`id`)
-    ON DELETE SET NULL
-    ON UPDATE CASCADE,
-  CONSTRAINT `fk_crm_leads_wh_tenants1`
-    FOREIGN KEY (`tenant_id`)
-    REFERENCES `wh_tenants` (`id`)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- -----------------------------------------------------
 -- Table `crm_customer_complaints`
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `crm_customer_complaints` (
@@ -1324,39 +1285,6 @@ CREATE TABLE IF NOT EXISTS `order_items` (
     ON DELETE SET NULL
     ON UPDATE CASCADE,
   CONSTRAINT `fk_order_items_wh_tenants1`
-    FOREIGN KEY (`tenant_id`)
-    REFERENCES `wh_tenants` (`id`)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- -----------------------------------------------------
--- Table `order_assignments`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `order_assignments` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `assigned_to` INT NOT NULL,
-  `assignment_type` VARCHAR(45) NOT NULL,
-  `assigned_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
-  `status` VARCHAR(45) NOT NULL,
-  `order_id` INT NOT NULL,
-  `tenant_id` INT NOT NULL,
-  `deleted_at` TIMESTAMP NULL DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  INDEX `fk_order_assignments_orders1_idx` (`order_id` ASC),
-  INDEX `fk_order_assignments_users1_idx` (`assigned_to` ASC),
-  INDEX `fk_order_assignments_wh_tenants1_idx` (`tenant_id` ASC),
-  CONSTRAINT `fk_order_assignments_orders1`
-    FOREIGN KEY (`order_id`)
-    REFERENCES `orders` (`id`)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE,
-  CONSTRAINT `fk_order_assignments_users1`
-    FOREIGN KEY (`assigned_to`)
-    REFERENCES `users` (`id`)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE,
-  CONSTRAINT `fk_order_assignments_wh_tenants1`
     FOREIGN KEY (`tenant_id`)
     REFERENCES `wh_tenants` (`id`)
     ON DELETE CASCADE

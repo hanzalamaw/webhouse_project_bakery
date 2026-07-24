@@ -9,31 +9,31 @@ import {
 
 const base = "/app/m/admin";
 
-/** Flat menu aligned with Admin module spec. */
+/** Flat menu aligned with Admin module spec. Labels are i18n keys. */
 export function getNavItems() {
   return [
-    { id: "dashboard", label: "Dashboard", path: `${base}/dashboard`, icon: DashboardIcon },
-    { id: "user-management", label: "User Management", path: `${base}/user-management`, icon: TenantsIcon },
+    { id: "dashboard", labelKey: "nav.dashboard", path: `${base}/dashboard`, icon: DashboardIcon },
+    { id: "user-management", labelKey: "nav.userManagement", path: `${base}/user-management`, icon: TenantsIcon },
     {
       id: "roles-and-permissions",
-      label: "Roles & Permissions",
+      labelKey: "nav.rolesPermissions",
       path: `${base}/roles-and-permissions`,
       icon: ImpersonateIcon,
     },
-    { id: "audit-logs", label: "Audit Logs", path: `${base}/audit-logs`, icon: LogsIcon },
-    { id: "sessions", label: "Sessions", path: `${base}/sessions`, icon: ImpersonateIcon },
+    { id: "audit-logs", labelKey: "nav.auditLogs", path: `${base}/audit-logs`, icon: LogsIcon },
+    { id: "sessions", labelKey: "nav.sessions", path: `${base}/sessions`, icon: ImpersonateIcon },
     {
       id: "organization-settings",
-      label: "Organization Settings",
+      labelKey: "nav.organizationSettings",
       path: `${base}/organization-settings`,
       icon: TenantsIcon,
     },
     {
       id: "plan-subscription",
-      label: "Plan & Subscription",
+      labelKey: "nav.planSubscription",
       path: `${base}/plan-subscription`,
       icon: SubscriptionIcon,
     },
-    { id: "activity-alerts", label: "Activity Alerts", path: `${base}/activity-alerts`, icon: SupportIcon },
+    { id: "activity-alerts", labelKey: "nav.activityAlerts", path: `${base}/activity-alerts`, icon: SupportIcon },
   ];
 }

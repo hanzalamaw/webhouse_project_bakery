@@ -1,8 +1,6 @@
 import CreateOrder from "./pages/orders/CreateOrder";
 import ManageOrders from "./pages/orders/ManageOrders";
 import OrderView from "./pages/orders/OrderView";
-import ManageAssignments from "./pages/assignments/ManageAssignments";
-import CreateAssignment from "./pages/assignments/CreateAssignment";
 import ManagePayments from "./pages/payments/ManagePayments";
 import CreatePayment from "./pages/payments/CreatePayment";
 import ManageCancellations from "./pages/cancellations/ManageCancellations";
@@ -21,9 +19,6 @@ export const ORDER_MANAGEMENT_ROUTES = [
   { path: "orders/create", element: <CreateOrder /> },
   { path: "orders/edit/:orderId", element: <CreateOrder /> },
   { path: "orders/view/:orderId", element: <OrderView /> },
-  { path: "assignments/manage", element: <ManageAssignments /> },
-  { path: "assignments/create", element: <CreateAssignment /> },
-  { path: "assignments/edit/:assignmentId", element: <CreateAssignment /> },
   { path: "payments/manage", element: <ManagePayments /> },
   { path: "payments/create", element: <CreatePayment /> },
   { path: "payments/edit/:paymentId", element: <CreatePayment /> },

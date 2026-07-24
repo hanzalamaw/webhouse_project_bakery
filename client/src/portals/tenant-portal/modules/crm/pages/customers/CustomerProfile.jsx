@@ -32,7 +32,6 @@ import { formatDateTime, formatDate } from "../../../../../../utils/dateTime";
 import { formatPKR } from "../../../../../../utils/currency";
 import {
   MODULE_BASE,
-  LEAD_SOURCE_LABELS,
   ISSUE_TYPE_LABELS,
 } from "../../constants";
 import { formatCustomerType } from "../../utils/typeFields";
@@ -275,16 +274,6 @@ export default function CustomerProfile() {
           },
         ]}
       />
-
-      {customer.converted_from_lead && (
-        <div className="wh-entity-banner">
-          Converted from lead <strong>{customer.converted_from_lead.lead_name}</strong>
-          {" · "}
-          {LEAD_SOURCE_LABELS[customer.converted_from_lead.source] || customer.converted_from_lead.source}
-          {" · "}
-          {formatDateTime(customer.converted_from_lead.converted_at)}
-        </div>
-      )}
 
       <EntityPanel title="Order overview" subtitle="Orders for this customer in the selected period" flush>
         {filteredOrders.length ? (

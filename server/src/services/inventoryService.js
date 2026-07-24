@@ -10,6 +10,7 @@ import {
   TRANSFER_STATUSES,
   PO_STATUSES,
   WASTAGE_REASONS,
+  normalizeShelfLifeUnit,
 } from "../utils/stockConstants.js";
 
 function assertStatus(status, label = "status") {
@@ -198,6 +199,9 @@ export const inventoryService = {
       is_sold: body.is_sold ?? existing?.is_sold ?? (item_type === "finished"),
       shelf_life_days: body.shelf_life_days != null && body.shelf_life_days !== ""
         ? Number(body.shelf_life_days) : (existing?.shelf_life_days ?? null),
+      shelf_life_unit: normalizeShelfLifeUnit(
+        body.shelf_life_unit ?? existing?.shelf_life_unit ?? "days"
+      ),
       low_stock_threshold: nonNegInt(body.low_stock_threshold ?? existing?.low_stock_threshold ?? 0, "Low stock alert level"),
       parent_item_id: body.parent_item_id ? Number(body.parent_item_id) : (existing?.parent_item_id ?? null),
       variant_label: body.variant_label ? String(body.variant_label).trim() : (existing?.variant_label ?? null),
@@ -215,7 +219,7 @@ export const inventoryService = {
         const qty = Number(line.qty);
         if (!branch_id || !qty || qty <= 0) continue;
         await ensureBranch(tenantId, branch_id);
-        const expiry = line.expiry_date || computeExpiry(new Date(), data.shelf_life_days);
+        const expiry = line.expiry_date || computeExpiry(new Date(), data.shelf_life_days, data.shelf_life_unit);
         await addStock(conn, tenantId, {
           itemId, branchId: branch_id, qty, unitCost: data.cost_price,
           sourceType: "opening", movementType: "opening", expiryDate: expiry,
@@ -316,7 +320,7 @@ export const inventoryService = {
     const qty = assertQty(body.qty);
     const unitCost = assertMoney(body.unit_cost ?? item.cost_price ?? 0, "Unit cost");
     const madeOn = body.made_on || null;
-    const expiry = body.expiry_date || computeExpiry(madeOn || new Date(), item.shelf_life_days);
+    const expiry = body.expiry_date || computeExpiry(madeOn || new Date(), item.shelf_life_days, item.shelf_life_unit);
     return withTransaction(async (conn) => {
       const batchId = await addStock(conn, tenantId, {
         itemId: item.id, branchId: Number(body.branch_id), qty, unitCost,
@@ -349,7 +353,7 @@ export const inventoryService = {
         const item = await ensureItem(tenantId, Number(line.item_id));
         const qty = assertQty(line.qty, `Quantity for ${item.item_name}`);
         const unitCost = assertMoney(line.unit_cost ?? item.cost_price ?? 0, "Unit cost");
-        const expiry = line.expiry_date || computeExpiry(line.made_on || new Date(), item.shelf_life_days);
+        const expiry = line.expiry_date || computeExpiry(line.made_on || new Date(), item.shelf_life_days, item.shelf_life_unit);
         const batchId = await addStock(conn, tenantId, {
           itemId: item.id, branchId: branch_id, qty, unitCost,
           sourceType: "purchase", movementType: "purchase_in",
@@ -555,7 +559,7 @@ export const inventoryService = {
           : Number(line.qty) - Number(line.received_qty);
         if (toReceive > 0) {
           const itemRow = await ensureItem(tenantId, line.item_id);
-          const expiry = line.expiry_date || computeExpiry(new Date(), itemRow.shelf_life_days);
+          const expiry = line.expiry_date || computeExpiry(new Date(), itemRow.shelf_life_days, itemRow.shelf_life_unit);
           await addStock(conn, tenantId, {
             itemId: line.item_id, branchId: po.branch_id, qty: toReceive, unitCost: line.unit_cost,
             sourceType: "purchase", sourceRefId: id, movementType: "purchase_in",

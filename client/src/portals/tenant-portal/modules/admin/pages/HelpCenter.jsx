@@ -3,7 +3,7 @@ import ModulePlaceholder from "../../../pages/ModulePlaceholder";
 export default function HelpCenter() {
   return (
     <ModulePlaceholder
-      title="Help Center"
+      title="Madad"
       description="Support documentation and help articles will be available here."
     />
   );

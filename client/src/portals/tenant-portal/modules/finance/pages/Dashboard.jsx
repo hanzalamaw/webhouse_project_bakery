@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../../../../../context/AuthContext";
 import { apiFetch } from "../../../../../api/client";
 import { PageHeader } from "../../../../../components/PageHeader";
+import { KpiCard, Panel } from "../../../../../components/KpiPanel";
 import { DashboardFilter } from "../../../../../components/DashboardFilter";
 import { DonutChart } from "../../../../../components/charts";
 import { formatPKR } from "../../../../../utils/currency";
@@ -12,33 +13,7 @@ import { useFiscalYear } from "../../../../../context/FiscalYearContext";
 import { SubscriptionIcon, LogsIcon, TransferIcon, ProductIcon } from "../../../../../components/icons";
 import { MODULE_BASE, TRANSACTION_TYPE_LABELS, labelFor } from "../constants";
 
-function KpiCard({ label, value, hint, icon, tone = "default" }) {
-  return (
-    <div className={`wh-kpi wh-kpi--${tone}`}>
-      <div className="wh-kpi__top">
-        <span className="wh-kpi__label">{label}</span>
-        {icon && <span className="wh-kpi__icon">{icon}</span>}
-      </div>
-      <span className="wh-kpi__value">{value}</span>
-      {hint && <span className="wh-kpi__hint">{hint}</span>}
-    </div>
-  );
-}
 
-function Panel({ title, subtitle, children, flush, action }) {
-  return (
-    <div className="wh-panel">
-      <div className="wh-panel__head">
-        <div>
-          <h3 className="wh-panel__title">{title}</h3>
-          {subtitle && <p className="wh-panel__subtitle">{subtitle}</p>}
-        </div>
-        {action}
-      </div>
-      <div className={`wh-panel__body${flush ? " wh-panel__body--flush" : ""}`}>{children}</div>
-    </div>
-  );
-}
 
 export default function FinanceDashboard() {
   const { authFetch } = useAuth();

@@ -140,7 +140,7 @@ export const TENANT_MODULE_DEFINITIONS = [
     name: "Finance & Accounting",
     displayNumber: 8,
     letter: "F",
-    aliases: [],
+    aliases: ["Finance", "Accounting", "Hisaab"],
     Dashboard: FinanceDashboard,
     getNavItems: getFinanceNav,
     routes: FINANCE_ROUTES,

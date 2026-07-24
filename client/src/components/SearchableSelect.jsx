@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useT } from "../context/LanguageContext";
 
 export function SearchableSelect({
   id: idProp,
@@ -13,17 +14,23 @@ export function SearchableSelect({
   allowEmpty = false,
   emptyOptionLabel = "No one",
 }) {
+  const t = useT();
   const autoId = useId();
   const id = idProp || autoId;
   const rootRef = useRef(null);
   const inputRef = useRef(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const labelText = typeof label === "string" ? t(label) : label;
+  const placeholderText = typeof placeholder === "string" ? t(placeholder) : placeholder;
+  const emptyMessageText = typeof emptyMessage === "string" ? t(emptyMessage) : emptyMessage;
+  const emptyOptionLabelText = typeof emptyOptionLabel === "string" ? t(emptyOptionLabel) : emptyOptionLabel;
+  const loadingText = t("Loading…");
 
   const listOptions = useMemo(() => {
     if (!allowEmpty) return options;
-    return [{ value: "", label: emptyOptionLabel }, ...options.filter((o) => o.value !== "")];
-  }, [allowEmpty, emptyOptionLabel, options]);
+    return [{ value: "", label: emptyOptionLabelText }, ...options.filter((o) => o.value !== "")];
+  }, [allowEmpty, emptyOptionLabelText, options]);
 
   const selected = useMemo(
     () => (value === "" || value == null ? null : listOptions.find((o) => o.value === value) || null),
@@ -64,19 +71,19 @@ export function SearchableSelect({
 
   return (
     <div className="wh-field wh-search-select" ref={rootRef}>
-      {label && (
+      {labelText ? (
         <label className="wh-field__label" htmlFor={id}>
-          {label}
+          {labelText}
         </label>
-      )}
+      ) : null}
       <div className={`wh-search-select__control${open ? " open" : ""}${disabled ? " disabled" : ""}`}>
         <input
           ref={inputRef}
           id={id}
           type="text"
           className="wh-field__input wh-search-select__input"
-          value={loading ? "Loading…" : displayValue}
-          placeholder={loading ? "Loading…" : placeholder}
+          value={loading ? loadingText : displayValue}
+          placeholder={loading ? loadingText : placeholderText}
           disabled={disabled || loading}
           autoComplete="off"
           onFocus={() => {
@@ -118,7 +125,7 @@ export function SearchableSelect({
       {open && !loading && (
         <ul className="wh-search-select__list" role="listbox">
           {filtered.length === 0 ? (
-            <li className="wh-search-select__empty">{emptyMessage}</li>
+            <li className="wh-search-select__empty">{emptyMessageText}</li>
           ) : (
             filtered.slice(0, 120).map((option) => (
               <li key={option.value}>

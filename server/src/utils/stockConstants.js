@@ -42,6 +42,13 @@ export const WASTAGE_REASONS = ["expired", "damaged", "spoiled", "other"];
 
 export const BATCH_SOURCE_TYPES = ["purchase", "production", "transfer", "opening", "adjustment"];
 
+export const SHELF_LIFE_UNITS = ["hours", "days", "weeks", "months"];
+
+export function normalizeShelfLifeUnit(value) {
+  const unit = String(value || "days").trim().toLowerCase();
+  return SHELF_LIFE_UNITS.includes(unit) ? unit : "days";
+}
+
 export function isValidItemType(value) {
   return ITEM_TYPES.includes(value);
 }

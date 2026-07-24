@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { getYearsFromRows, getFilterOptions } from "../utils/tableFilters";
 import { getFiscalYearsFromRows } from "../utils/fiscalYearFilter";
 import { useFiscalYear } from "../context/FiscalYearContext";
+import { useT } from "../context/LanguageContext";
 
 export function TableToolbar({
   rows = [],
@@ -11,6 +12,7 @@ export function TableToolbar({
   filters = [],
   searchPlaceholder = "Search…",
 }) {
+  const t = useT();
   const fiscalYearStart = useFiscalYear();
   const years = useMemo(() => {
     if (fiscalYearStart) {
@@ -52,7 +54,7 @@ export function TableToolbar({
         <input
           type="search"
           className="wh-table-toolbar__input"
-          placeholder={searchPlaceholder}
+          placeholder={t(searchPlaceholder)}
           value={value.search || ""}
           onChange={(e) => set({ search: e.target.value })}
         />
@@ -62,12 +64,12 @@ export function TableToolbar({
           className="wh-table-toolbar__select"
           value={value.year || ""}
           onChange={(e) => set({ year: e.target.value })}
-          aria-label="Filter by year"
+          aria-label={t("Filter by year")}
         >
-          <option value="">All years</option>
+          <option value="">{t("All years")}</option>
           {years.map((y) => (
             <option key={y} value={y}>
-              {fiscalYearStart ? `FY ${y}` : y}
+              {fiscalYearStart ? `${t("FY")} ${y}` : y}
             </option>
           ))}
         </select>
@@ -76,34 +78,41 @@ export function TableToolbar({
           className="wh-table-toolbar__date"
           value={value.dateFrom || ""}
           onChange={(e) => set({ dateFrom: e.target.value })}
-          aria-label="From date"
-          title="From date"
+          aria-label={t("From date")}
+          title={t("From date")}
         />
         <input
           type="date"
           className="wh-table-toolbar__date"
           value={value.dateTo || ""}
           onChange={(e) => set({ dateTo: e.target.value })}
-          aria-label="To date"
-          title="To date"
+          aria-label={t("To date")}
+          title={t("To date")}
         />
-        {filters.map((f) => (
-          <select
-            key={f.key}
-            className="wh-table-toolbar__select"
-            value={value[f.key] || ""}
-            onChange={(e) => set({ [f.key]: e.target.value })}
-            aria-label={f.label}
-          >
-            <option value="">All {f.label.toLowerCase()}</option>
-            {(filterOptions[f.key] || []).map((opt) => (
-              <option key={opt} value={opt}>{opt}</option>
-            ))}
-          </select>
-        ))}
+        {filters.map((f) => {
+          const filterLabel = typeof f.label === "string" ? t(f.label) : f.label;
+          return (
+            <select
+              key={f.key}
+              className="wh-table-toolbar__select"
+              value={value[f.key] || ""}
+              onChange={(e) => set({ [f.key]: e.target.value })}
+              aria-label={filterLabel}
+            >
+              <option value="">
+                {t("All")} {typeof f.label === "string" ? t(f.label).toLowerCase() : String(f.label || "").toLowerCase()}
+              </option>
+              {(filterOptions[f.key] || []).map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </select>
+          );
+        })}
         {hasActive && (
           <button type="button" className="wh-table-toolbar__clear" onClick={clear}>
-            Clear
+            {t("Clear")}
           </button>
         )}
       </div>

@@ -1,6 +1,7 @@
 import { createBrowserRouter, RouterProvider, Navigate, useLocation, Outlet } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
+import { LanguageProvider } from "./context/LanguageContext";
 import MainLayout from "./components/layout/MainLayout";
 import Login from "./portals/wh-portal/pages/Login";
 import Dashboard from "./portals/wh-portal/pages/Dashboard";
@@ -47,7 +48,7 @@ function TenantProtectedRoute({ children }) {
   if (!user || user.portal !== "tenant") {
     return <Navigate to="/erp1" replace />;
   }
-  return children;
+  return <LanguageProvider>{children}</LanguageProvider>;
 }
 
 function AuthRouteLoading() {

@@ -2,43 +2,20 @@ import { useState, useEffect, useMemo } from "react";
 import { PageHeader } from "../../../../../components/PageHeader";
 import { DataTable } from "../../../../../components/DataTable";
 import { StatusBadge } from "../../../../../components/Badge";
+import { KpiCard, Panel } from "../../../../../components/KpiPanel";
 import { useAuth } from "../../../../../context/AuthContext";
+import { useT } from "../../../../../context/LanguageContext";
 import { apiFetch } from "../../../../../api/client";
 import { formatPKR } from "../../../../../utils/currency";
 import { formatDate, formatDateTime } from "../../../../../utils/dateTime";
 import { ModuleIcon, SubscriptionIcon } from "../../../../../components/icons";
-
-function KpiCard({ label, value, hint, icon, tone = "default" }) {
-  return (
-    <div className={`wh-kpi wh-kpi--${tone}`}>
-      <div className="wh-kpi__top">
-        <span className="wh-kpi__label">{label}</span>
-        {icon && <span className="wh-kpi__icon">{icon}</span>}
-      </div>
-      <span className="wh-kpi__value">{value}</span>
-      {hint && <span className="wh-kpi__hint">{hint}</span>}
-    </div>
-  );
-}
-
-function Panel({ title, subtitle, children, flush }) {
-  return (
-    <div className="wh-panel">
-      <div className="wh-panel__head">
-        <div>
-          <h3 className="wh-panel__title">{title}</h3>
-          {subtitle && <p className="wh-panel__subtitle">{subtitle}</p>}
-        </div>
-      </div>
-      <div className={`wh-panel__body${flush ? " wh-panel__body--flush" : ""}`}>{children}</div>
-    </div>
-  );
-}
+import { translateModuleName } from "../../../../../i18n/moduleNames";
 
 function SummaryRow({ label, value, accent, danger }) {
+  const t = useT();
   return (
     <div className="wh-tx-summary-item">
-      <span className="wh-tx-summary-item__label">{label}</span>
+      <span className="wh-tx-summary-item__label">{typeof label === "string" ? t(label) : label}</span>
       <span
         className={`wh-tx-summary-item__value${accent ? " wh-tx-summary-item__value--accent" : ""}${
           danger ? " wh-sub-value--danger" : ""
@@ -51,6 +28,7 @@ function SummaryRow({ label, value, accent, danger }) {
 }
 
 function LimitMeter({ label, used, max }) {
+  const t = useT();
   const hasMax = max != null && max > 0;
   const pct = hasMax ? Math.min(100, (used / max) * 100) : 0;
   const tone = pct >= 90 ? "danger" : pct >= 70 ? "warning" : "accent";
@@ -58,7 +36,7 @@ function LimitMeter({ label, used, max }) {
   return (
     <div className="wh-limit-meter">
       <div className="wh-limit-meter__head">
-        <span className="wh-limit-meter__label">{label}</span>
+        <span className="wh-limit-meter__label">{typeof label === "string" ? t(label) : label}</span>
         <strong className="wh-limit-meter__value">
           {hasMax ? `${used} / ${max}` : used ?? "—"}
         </strong>
@@ -73,9 +51,10 @@ function LimitMeter({ label, used, max }) {
 }
 
 function LimitStat({ label, value }) {
+  const t = useT();
   return (
     <div className="wh-limit-stat">
-      <span className="wh-limit-stat__label">{label}</span>
+      <span className="wh-limit-stat__label">{typeof label === "string" ? t(label) : label}</span>
       <strong className="wh-limit-stat__value">{value ?? "—"}</strong>
     </div>
   );
@@ -109,6 +88,7 @@ function titleCase(value) {
 
 export default function PlanSubscription() {
   const { authFetch } = useAuth();
+  const t = useT();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -120,7 +100,7 @@ export default function PlanSubscription() {
         if (active) setData(res.data);
       })
       .catch((err) => {
-        if (active) setError(err.message || "Failed to load subscription");
+        if (active) setError(err.message || t("Failed to load subscription"));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -128,7 +108,7 @@ export default function PlanSubscription() {
     return () => {
       active = false;
     };
-  }, [authFetch]);
+  }, [authFetch, t]);
 
   const billing = data?.billing;
   const limits = data?.limits || {};
@@ -161,6 +141,25 @@ export default function PlanSubscription() {
   const dash = (v) => (loading ? "—" : v);
   const money = (n) => (loading ? "—" : formatPKR(n));
 
+  const renewalHint = (() => {
+    if (renewalDays == null) return t("Renewal date not set");
+    if (renewalDays > 0) {
+      return renewalDays === 1
+        ? t("{{n}} day remaining", { n: renewalDays })
+        : t("{{n}} days remaining", { n: renewalDays });
+    }
+    if (renewalDays === 0) return t("Renews today");
+    const past = Math.abs(renewalDays);
+    return past === 1
+      ? t("{{n}} day past renewal", { n: past })
+      : t("{{n}} days past renewal", { n: past });
+  })();
+
+  const modulesSubtitle =
+    modules.length === 1
+      ? t("{{n}} module on your plan", { n: modules.length })
+      : t("{{n}} modules on your plan", { n: modules.length });
+
   return (
     <div className="wh-page wh-page--wide">
       <PageHeader
@@ -171,7 +170,7 @@ export default function PlanSubscription() {
       {error && <div className="wh-alert wh-alert--error">{error}</div>}
 
       {loading ? (
-        <p className="wh-muted wh-sub-loading">Loading subscription details…</p>
+        <p className="wh-muted wh-sub-loading">{t("Loading subscription details…")}</p>
       ) : (
         <>
           <div className="wh-dash-grid">
@@ -179,33 +178,33 @@ export default function PlanSubscription() {
               <div className="wh-plan-hero">
                 <div className="wh-plan-hero__top">
                   <div>
-                    <p className="wh-plan-hero__eyebrow">Current plan</p>
+                    <p className="wh-plan-hero__eyebrow">{t("Current plan")}</p>
                     <h2 className="wh-plan-hero__name">{planName}</h2>
                   </div>
                   <StatusBadge status={subscriptionStatus || "—"} />
                 </div>
                 <div className="wh-plan-hero__meta">
                   <div className="wh-plan-hero__meta-item">
-                    <span>Billing cycle</span>
-                    <strong>{titleCase(billingCycle)}</strong>
+                    <span>{t("Billing cycle")}</span>
+                    <strong>{t(titleCase(billingCycle))}</strong>
                   </div>
                   <div className="wh-plan-hero__meta-item">
-                    <span>Plan price</span>
+                    <span>{t("Plan price")}</span>
                     <strong>{planPrice != null ? formatPKR(planPrice) : "—"}</strong>
                   </div>
                   <div className="wh-plan-hero__meta-item">
-                    <span>Period start</span>
+                    <span>{t("Period start")}</span>
                     <strong>{formatDate(periodStart)}</strong>
                   </div>
                   <div className="wh-plan-hero__meta-item">
-                    <span>Period end</span>
+                    <span>{t("Period end")}</span>
                     <strong>{formatDate(periodEnd)}</strong>
                   </div>
                 </div>
                 {billing?.cycle_start && billing?.cycle_end && (
                   <div className="wh-plan-hero__cycle">
                     <div className="wh-plan-hero__cycle-head">
-                      <span>Current billing cycle</span>
+                      <span>{t("Current billing cycle")}</span>
                       <span className="wh-muted">
                         {formatDate(billing.cycle_start)} — {formatDate(billing.cycle_end)}
                       </span>
@@ -223,17 +222,9 @@ export default function PlanSubscription() {
                 <span className="wh-kpi__icon wh-plan-renewal__icon">
                   <SubscriptionIcon />
                 </span>
-                <p className="wh-plan-renewal__label">Next renewal</p>
+                <p className="wh-plan-renewal__label">{t("Next renewal")}</p>
                 <p className="wh-plan-renewal__date">{formatDate(periodEnd)}</p>
-                <p className="wh-plan-renewal__hint">
-                  {renewalDays == null
-                    ? "Renewal date not set"
-                    : renewalDays > 0
-                      ? `${renewalDays} day${renewalDays === 1 ? "" : "s"} remaining`
-                      : renewalDays === 0
-                        ? "Renews today"
-                        : `${Math.abs(renewalDays)} day${Math.abs(renewalDays) === 1 ? "" : "s"} past renewal`}
-                </p>
+                <p className="wh-plan-renewal__hint">{renewalHint}</p>
                 {tenant.company_name && (
                   <p className="wh-plan-renewal__org">{tenant.company_name}</p>
                 )}
@@ -255,7 +246,7 @@ export default function PlanSubscription() {
               <KpiCard
                 label="Current Cycle Due"
                 value={money(cycleDue)}
-                hint={`Paid ${money(billing?.current_cycle_received)} this cycle`}
+                hint={`${t("Paid")} ${money(billing?.current_cycle_received)} ${t("this cycle")}`}
                 icon={<SubscriptionIcon />}
                 tone={cycleDue > 0 ? "danger" : "success"}
               />
@@ -264,7 +255,7 @@ export default function PlanSubscription() {
               <KpiCard
                 label="Total Paid"
                 value={money(billing?.total_received)}
-                hint={`Billed ${money(billing?.total_billing_amount)} to date`}
+                hint={`${t("Billed")} ${money(billing?.total_billing_amount)} ${t("to date")}`}
                 icon={<SubscriptionIcon />}
                 tone="accent"
               />
@@ -295,21 +286,18 @@ export default function PlanSubscription() {
             </div>
 
             <div className="wh-dash-col-6">
-              <Panel
-                title="Included modules"
-                subtitle={`${modules.length} module${modules.length === 1 ? "" : "s"} on your plan`}
-              >
+              <Panel title="Included modules" subtitle={modulesSubtitle}>
                 {modules.length ? (
                   <ul className="wh-module-chip-list">
                     {modules.map((m) => (
                       <li key={m.module_id || m.id} className="wh-module-chip">
                         <ModuleIcon />
-                        <span>{m.module_name}</span>
+                        <span>{translateModuleName(t, m.module_name)}</span>
                       </li>
                     ))}
                   </ul>
                 ) : (
-                  <p className="wh-panel__empty">No modules assigned to this plan.</p>
+                  <p className="wh-panel__empty">{t("No modules assigned to this plan.")}</p>
                 )}
               </Panel>
             </div>
@@ -360,7 +348,7 @@ export default function PlanSubscription() {
                     onPageChange={() => {}}
                   />
                 ) : (
-                  <p className="wh-panel__empty wh-sub-empty">No payments recorded yet.</p>
+                  <p className="wh-panel__empty wh-sub-empty">{t("No payments recorded yet.")}</p>
                 )}
               </Panel>
             </div>

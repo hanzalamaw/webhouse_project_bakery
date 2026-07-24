@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../../../../../context/AuthContext";
 import { apiFetch } from "../../../../../api/client";
 import { PageHeader } from "../../../../../components/PageHeader";
+import { KpiCard, Panel } from "../../../../../components/KpiPanel";
 import { DashboardFilter } from "../../../../../components/DashboardFilter";
 import { EMPTY_DASHBOARD_FILTER, filterRowsByDashboard } from "../../../../../utils/dashboardFilter";
 import { useFiscalYear } from "../../../../../context/FiscalYearContext";
@@ -12,33 +13,7 @@ import { formatDateTime } from "../../../../../utils/dateTime";
 import { ProductIcon, ProcurementIcon, LogsIcon } from "../../../../../components/icons";
 import { MODULE_BASE } from "../constants";
 
-function Kpi({ label, value, hint, tone = "default", icon }) {
-  return (
-    <div className={`wh-kpi wh-kpi--${tone}`}>
-      <div className="wh-kpi__top">
-        <span className="wh-kpi__label">{label}</span>
-        {icon && <span className="wh-kpi__icon">{icon}</span>}
-      </div>
-      <span className="wh-kpi__value">{value}</span>
-      {hint && <span className="wh-kpi__hint">{hint}</span>}
-    </div>
-  );
-}
 
-function Panel({ title, subtitle, children, flush, action }) {
-  return (
-    <div className="wh-panel">
-      <div className="wh-panel__head">
-        <div>
-          <h3 className="wh-panel__title">{title}</h3>
-          {subtitle && <p className="wh-panel__subtitle">{subtitle}</p>}
-        </div>
-        {action}
-      </div>
-      <div className={`wh-panel__body${flush ? " wh-panel__body--flush" : ""}`}>{children}</div>
-    </div>
-  );
-}
 
 export default function ProductionDashboard() {
   const { authFetch } = useAuth();
@@ -92,7 +67,7 @@ export default function ProductionDashboard() {
     <div className="wh-page wh-page--wide">
       <PageHeader
         title="Production (Baking)"
-        description="Recipes (nuskhay) and baking runs — turn ingredients (kacha maal) into finished bakery items."
+        description="Recipes and baking runs — turn ingredients into finished bakery items."
       />
 
       {loadError && <p className="wh-field__error">{loadError}</p>}
@@ -106,7 +81,7 @@ export default function ProductionDashboard() {
 
       <div className="wh-dash-grid">
         <div className="wh-dash-col-3">
-          <Kpi
+          <KpiCard
             label="Recipes"
             value={dash(stats.recipe_count)}
             hint="Active nuskhay"
@@ -115,7 +90,7 @@ export default function ProductionDashboard() {
           />
         </div>
         <div className="wh-dash-col-3">
-          <Kpi
+          <KpiCard
             label="Total Bakes"
             value={dash(stats.run_count)}
             hint="All production runs"
@@ -123,7 +98,7 @@ export default function ProductionDashboard() {
           />
         </div>
         <div className="wh-dash-col-3">
-          <Kpi
+          <KpiCard
             label="Bakes Today"
             value={dash(stats.runs_today)}
             hint={`${num(stats.produced_today)} pieces made`}
@@ -132,7 +107,7 @@ export default function ProductionDashboard() {
           />
         </div>
         <div className="wh-dash-col-3">
-          <Kpi
+          <KpiCard
             label="Cost (30 days)"
             value={money(stats.cost_30d)}
             hint="Ingredient cost used"

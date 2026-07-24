@@ -61,19 +61,6 @@ export async function cascadeSoftDeleteCrmCustomer(rawCustomerId, tenantId) {
   }
 }
 
-/** Soft-delete one lead. */
-export async function cascadeSoftDeleteCrmLead(rawLeadId, tenantId) {
-  const leadId = parseEntityId(rawLeadId, "lead id");
-  const tid = parseEntityId(tenantId, "tenant id");
-  const pool = getPool();
-  const [result] = await pool.execute(
-    `UPDATE crm_leads SET deleted_at = NOW()
-     WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL`,
-    [leadId, tid]
-  );
-  return (result.affectedRows ?? 0) === 1;
-}
-
 /** Soft-delete one complaint. */
 export async function cascadeSoftDeleteCrmComplaint(rawComplaintId, tenantId) {
   const complaintId = parseEntityId(rawComplaintId, "complaint id");

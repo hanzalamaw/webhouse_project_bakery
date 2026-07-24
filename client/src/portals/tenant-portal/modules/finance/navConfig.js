@@ -10,13 +10,13 @@ import { MODULE_BASE } from "./constants";
 
 export function getNavItems() {
   return [
-    { id: "dashboard", label: "Dashboard", path: `${MODULE_BASE}/dashboard`, icon: DashboardIcon },
-    { id: "customer-payments", label: "Customer Payments (Wasooli)", path: `${MODULE_BASE}/customer-payments`, icon: SubscriptionIcon },
-    { id: "vendor-bills", label: "Vendor Bills (Supplier Bills)", path: `${MODULE_BASE}/vendor-bills`, icon: TransferIcon },
-    { id: "expenses", label: "Expenses (Kharchay)", path: `${MODULE_BASE}/expenses`, icon: ProductIcon },
-    { id: "expense-categories", label: "Expense Categories", path: `${MODULE_BASE}/expense-categories`, icon: ProductIcon },
-    { id: "recurring-expenses", label: "Recurring Expenses", path: `${MODULE_BASE}/recurring-expenses`, icon: LogsIcon },
-    { id: "bank-accounts", label: "Bank Accounts", path: `${MODULE_BASE}/bank-accounts`, icon: WarehouseIcon },
-    { id: "transactions", label: "Transactions", path: `${MODULE_BASE}/transactions`, icon: LogsIcon },
+    { id: "dashboard", labelKey: "nav.dashboard", path: `${MODULE_BASE}/dashboard`, icon: DashboardIcon },
+    { id: "customer-payments", labelKey: "nav.customerPayments", path: `${MODULE_BASE}/customer-payments`, icon: SubscriptionIcon },
+    { id: "vendor-bills", labelKey: "nav.vendorBills", path: `${MODULE_BASE}/vendor-bills`, icon: TransferIcon },
+    { id: "expenses", labelKey: "nav.expenses", path: `${MODULE_BASE}/expenses`, icon: ProductIcon },
+    { id: "expense-categories", labelKey: "nav.expenseCategories", path: `${MODULE_BASE}/expense-categories`, icon: ProductIcon },
+    { id: "recurring-expenses", labelKey: "nav.recurringExpenses", path: `${MODULE_BASE}/recurring-expenses`, icon: LogsIcon },
+    { id: "bank-accounts", labelKey: "nav.bankAccounts", path: `${MODULE_BASE}/bank-accounts`, icon: WarehouseIcon },
+    { id: "transactions", labelKey: "nav.transactions", path: `${MODULE_BASE}/transactions`, icon: LogsIcon },
   ];
 }

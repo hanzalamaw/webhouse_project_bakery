@@ -1,5 +1,6 @@
 import { StatusBadge } from "./Badge";
 import { LogsIcon, SupportIcon, TenantsIcon, SubscriptionIcon, ProductIcon } from "./icons";
+import { useT } from "../context/LanguageContext";
 
 const CONTACT_ICONS = {
   phone: (
@@ -36,6 +37,7 @@ const CONTACT_ICONS = {
 };
 
 function StatCard({ label, value, hint, hintTone, tone = "default", icon, valueVariant }) {
+  const t = useT();
   const valueClass = [
     "wh-entity-profile__stat-value",
     valueVariant === "date" ? "wh-entity-profile__stat-value--date" : "",
@@ -50,10 +52,10 @@ function StatCard({ label, value, hint, hintTone, tone = "default", icon, valueV
     <div className={`wh-entity-profile__stat wh-entity-profile__stat--${tone}`}>
       <div className="wh-entity-profile__stat-head">
         {icon && <span className="wh-entity-profile__stat-icon">{icon}</span>}
-        <span className="wh-entity-profile__stat-label">{label}</span>
+        <span className="wh-entity-profile__stat-label">{typeof label === "string" ? t(label) : label}</span>
       </div>
       <span className={valueClass}>{value}</span>
-      {hint && <span className={hintClass}>{hint}</span>}
+      {hint ? <span className={hintClass}>{typeof hint === "string" ? t(hint) : hint}</span> : null}
     </div>
   );
 }
@@ -68,6 +70,7 @@ export function ProfileHero({
   className = "",
   variant = "stacked",
 }) {
+  const t = useT();
   const isSplit = variant === "split";
   const hasMetrics = highlights.length > 0 || kpis.length > 0;
   const rootClass = [
@@ -117,7 +120,7 @@ export function ProfileHero({
                       {CONTACT_ICONS[item.icon] || CONTACT_ICONS.user}
                     </span>
                     <div>
-                      <span className="wh-entity-profile__contact-label">{item.label}</span>
+                      <span className="wh-entity-profile__contact-label">{typeof item.label === "string" ? t(item.label) : item.label}</span>
                       <span className="wh-entity-profile__contact-value">{item.value || "—"}</span>
                     </div>
                   </div>
@@ -143,25 +146,29 @@ export function ProfileHero({
 }
 
 export function EntityKpi({ label, value, hint, tone = "default", icon }) {
+  const t = useT();
   return (
     <div className={`wh-kpi wh-kpi--${tone}`}>
       <div className="wh-kpi__top">
-        <span className="wh-kpi__label">{label}</span>
+        <span className="wh-kpi__label">{typeof label === "string" ? t(label) : label}</span>
         {icon && <span className="wh-kpi__icon">{icon}</span>}
       </div>
       <span className="wh-kpi__value">{value}</span>
-      {hint && <span className="wh-kpi__hint">{hint}</span>}
+      {hint ? <span className="wh-kpi__hint">{typeof hint === "string" ? t(hint) : hint}</span> : null}
     </div>
   );
 }
 
 export function EntityPanel({ title, subtitle, action, flush, children }) {
+  const t = useT();
+  const titleText = typeof title === "string" ? t(title) : title;
+  const subtitleText = typeof subtitle === "string" ? t(subtitle) : subtitle;
   return (
     <div className="wh-panel wh-entity-panel">
       <div className="wh-panel__head">
         <div>
-          <h3 className="wh-panel__title">{title}</h3>
-          {subtitle && <p className="wh-panel__subtitle">{subtitle}</p>}
+          <h3 className="wh-panel__title">{titleText}</h3>
+          {subtitleText ? <p className="wh-panel__subtitle">{subtitleText}</p> : null}
         </div>
         {action}
       </div>
@@ -171,11 +178,12 @@ export function EntityPanel({ title, subtitle, action, flush, children }) {
 }
 
 export function EntityDetailGrid({ rows }) {
+  const t = useT();
   return (
     <div className="wh-entity-detail-grid">
       {rows.map((row) => (
         <div key={row.label} className="wh-entity-detail-grid__item">
-          <span className="wh-entity-detail-grid__label">{row.label}</span>
+          <span className="wh-entity-detail-grid__label">{typeof row.label === "string" ? t(row.label) : row.label}</span>
           <span className="wh-entity-detail-grid__value">{row.value ?? "—"}</span>
         </div>
       ))}

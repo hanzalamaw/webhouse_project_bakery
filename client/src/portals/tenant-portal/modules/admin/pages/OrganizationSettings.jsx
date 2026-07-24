@@ -6,11 +6,13 @@ import { FormBlock } from "../../../../../components/FormBlock";
 import { FormPageLayout, FormPageAlerts, FormActions } from "../../../../../components/FormPageLayout";
 import { SearchableSelect } from "../../../../../components/SearchableSelect";
 import { useAuth } from "../../../../../context/AuthContext";
+import { useT } from "../../../../../context/LanguageContext";
 import { useModulePermission } from "../../../../../hooks/useModulePermission";
 import { useReferenceData, DEFAULT_CURRENCY, DEFAULT_TIMEZONE } from "../../../../../hooks/useReferenceData";
 import { apiFetch } from "../../../../../api/client";
 import { useUnsavedChangesGuard } from "../../../../../hooks/useUnsavedChangesGuard";
 import { UnsavedChangesDialog } from "../../../../../components/UnsavedChangesDialog";
+import { LANGUAGE_OPTIONS, DEFAULT_LANGUAGE, normalizeLanguage } from "../../../../../i18n/languages";
 import {
   fiscalToStorage,
   fiscalFromStorage,
@@ -32,7 +34,7 @@ const MONTHS = [
   { value: 12, label: "December" },
 ];
 
-function MonthDayFields({ month, day, onChange, idPrefix, disabled = false }) {
+function MonthDayFields({ month, day, onChange, idPrefix, disabled = false, t }) {
   const daysInMonth = new Date(2000, month, 0).getDate();
   return (
     <div className="wh-month-day-row">
@@ -41,7 +43,7 @@ function MonthDayFields({ month, day, onChange, idPrefix, disabled = false }) {
         as="select"
         value={month}
         onChange={(e) => onChange(Number(e.target.value), day)}
-        aria-label="Month"
+        aria-label={t("org.month")}
         disabled={disabled}
       >
         {MONTHS.map((m) => (
@@ -55,7 +57,7 @@ function MonthDayFields({ month, day, onChange, idPrefix, disabled = false }) {
         as="select"
         value={day}
         onChange={(e) => onChange(month, Number(e.target.value))}
-        aria-label="Day"
+        aria-label={t("org.day")}
         disabled={disabled}
       >
         {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => (
@@ -73,13 +75,14 @@ const EMPTY_FORM = {
   logo_url: "",
   timezone: DEFAULT_TIMEZONE,
   currency: DEFAULT_CURRENCY,
-  language: "en",
+  language: DEFAULT_LANGUAGE,
   fiscal_year_start: fiscalToStorage(1, 1),
   fiscal_year_end: fiscalToStorage(12, 31),
 };
 
 export default function OrganizationSettings() {
   const { authFetch } = useAuth();
+  const t = useT();
   const { canEdit } = useModulePermission("admin");
   const { currencies, timezones, loading: refLoading } = useReferenceData();
   const [form, setForm] = useState(EMPTY_FORM);
@@ -100,16 +103,16 @@ export default function OrganizationSettings() {
           logo_url: data.logo_url || "",
           timezone: data.timezone || DEFAULT_TIMEZONE,
           currency: data.currency || DEFAULT_CURRENCY,
-          language: data.language || "en",
+          language: normalizeLanguage(data.language),
           fiscal_year_start: data.fiscal_year_start || fiscalToStorage(1, 1),
           fiscal_year_end: data.fiscal_year_end || fiscalToStorage(12, 31),
         };
         setForm(next);
         setBaseline(JSON.stringify(next));
       })
-      .catch((err) => setError(err.message || "Failed to load settings"))
+      .catch((err) => setError(err.message || t("org.loadFailed")))
       .finally(() => setLoading(false));
-  }, [authFetch]);
+  }, [authFetch, t]);
 
   useEffect(() => {
     load();
@@ -132,7 +135,7 @@ export default function OrganizationSettings() {
 
   const save = async () => {
     if (!form.company_name.trim()) {
-      setError("Company name is required.");
+      setError(t("org.companyNameRequired"));
       return;
     }
     setSaving(true);
@@ -148,18 +151,18 @@ export default function OrganizationSettings() {
             logo_url: form.logo_url.trim() || null,
             timezone: form.timezone || DEFAULT_TIMEZONE,
             currency: form.currency || DEFAULT_CURRENCY,
-            language: form.language || "en",
+            language: normalizeLanguage(form.language),
             fiscal_year_start: form.fiscal_year_start,
             fiscal_year_end: form.fiscal_year_end,
           }),
         },
         authFetch
       );
-      setMessage("Organization settings saved.");
+      setMessage(t("org.saved"));
       setBaseline(JSON.stringify(form));
       window.dispatchEvent(new CustomEvent("tenant-org-updated"));
     } catch (err) {
-      setError(err.message || "Save failed");
+      setError(err.message || t("org.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -169,11 +172,11 @@ export default function OrganizationSettings() {
     <div className="wh-page">
       <FormPageLayout wide>
         <PageHeader
-          title="Organization Settings"
-          description="Company profile, logo, timezone, currency, language, and fiscal year."
+          title={t("org.title")}
+          description={t("org.description")}
         />
         {loading ? (
-          <p className="wh-muted">Loading…</p>
+          <p className="wh-muted">{t("common.loading")}</p>
         ) : (
           <form
             className="wh-form-stack"
@@ -183,11 +186,11 @@ export default function OrganizationSettings() {
             }}
           >
             <FormPageAlerts error={error} message={message} />
-            <FormBlock title="Company profile" description="How your organization appears across the system.">
+            <FormBlock title={t("org.companyProfile")} description={t("org.companyProfileDesc")}>
               <div className="wh-form-grid">
                 <FormField
                   id="company_name"
-                  label="Company name"
+                  label={t("org.companyName")}
                   value={form.company_name}
                   onChange={(e) => setForm((f) => ({ ...f, company_name: e.target.value }))}
                   required
@@ -195,7 +198,7 @@ export default function OrganizationSettings() {
                 />
                 <FormField
                   id="logo_url"
-                  label="Logo URL"
+                  label={t("org.logoUrl")}
                   value={form.logo_url}
                   onChange={(e) => setForm((f) => ({ ...f, logo_url: e.target.value }))}
                   placeholder="https://example.com/logo.png"
@@ -203,7 +206,7 @@ export default function OrganizationSettings() {
                 />
                 {form.logo_url && (
                   <div className="wh-logo-preview wh-form-grid__full">
-                    <span className="wh-field__label">Logo preview</span>
+                    <span className="wh-field__label">{t("org.logoPreview")}</span>
                     <img
                       src={form.logo_url}
                       alt="Organization logo"
@@ -215,7 +218,7 @@ export default function OrganizationSettings() {
                 )}
                 <SearchableSelect
                   id="timezone"
-                  label="Timezone"
+                  label={t("org.timezone")}
                   value={form.timezone}
                   onChange={(v) => setForm((f) => ({ ...f, timezone: v || DEFAULT_TIMEZONE }))}
                   options={timezones}
@@ -224,7 +227,7 @@ export default function OrganizationSettings() {
                 />
                 <SearchableSelect
                   id="currency"
-                  label="Currency"
+                  label={t("org.currency")}
                   value={form.currency}
                   onChange={(v) => setForm((f) => ({ ...f, currency: v }))}
                   options={currencies}
@@ -233,44 +236,50 @@ export default function OrganizationSettings() {
                 />
                 <FormField
                   id="language"
-                  label="Language"
+                  label={t("org.language")}
                   as="select"
                   value={form.language}
                   onChange={(e) => setForm((f) => ({ ...f, language: e.target.value }))}
                   disabled={!canEdit}
                 >
-                  <option value="en">English</option>
+                  {LANGUAGE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
                 </FormField>
               </div>
             </FormBlock>
-            <FormBlock title="Fiscal year" description="Used for reporting and billing periods.">
+            <FormBlock title={t("org.fiscalYear")} description={t("org.fiscalYearDesc")}>
               <div className="wh-form-grid">
                 <div className="wh-field">
-                  <span className="wh-field__label">Fiscal year start</span>
+                  <span className="wh-field__label">{t("org.fiscalYearStart")}</span>
                   <MonthDayFields
                     idPrefix="fys"
                     {...fiscalFromStorage(form.fiscal_year_start)}
                     onChange={setFiscalStart}
                     disabled={!canEdit}
+                    t={t}
                   />
                 </div>
                 <div className="wh-field">
-                  <span className="wh-field__label">Fiscal year end</span>
+                  <span className="wh-field__label">{t("org.fiscalYearEnd")}</span>
                   <MonthDayFields
                     idPrefix="fye"
                     {...fiscalFromStorage(form.fiscal_year_end)}
                     onChange={() => {}}
                     disabled
+                    t={t}
                   />
                   <p className="wh-muted" style={{ marginTop: 6 }}>
-                    Calculated automatically from the fiscal year start.
+                    {t("org.fiscalYearHint")}
                   </p>
                 </div>
               </div>
             </FormBlock>
             <FormActions>
               <Button type="submit" disabled={!canEdit || saving}>
-                {saving ? "Saving…" : "Save settings"}
+                {saving ? t("common.saving") : t("common.saveSettings")}
               </Button>
             </FormActions>
           </form>

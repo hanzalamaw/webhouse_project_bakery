@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
+import { useT } from "../../context/LanguageContext";
 import { getTenantMenuItems, TENANT_FOOTER_ITEMS, ChevronIcon } from "../../portals/tenant-portal/navConfig";
 import { apiFetch } from "../../api/client";
 import { HamburgerIcon } from "../icons";
@@ -28,6 +29,11 @@ function isGroupActive(pathname, item) {
   return item.children?.some((c) => isPathActive(pathname, c.path));
 }
 
+function navLabel(t, item) {
+  if (item.labelKey) return t(item.labelKey);
+  return item.label || "";
+}
+
 export default function TenantSidebar({ moduleSlug }) {
   const [isExpanded, setIsExpanded] = useState(readSidebarExpanded);
   const [openGroups, setOpenGroups] = useState({});
@@ -38,6 +44,7 @@ export default function TenantSidebar({ moduleSlug }) {
   const location = useLocation();
   const { user, logout, authFetch } = useAuth();
   const { darkMode, toggleDarkMode } = useTheme();
+  const t = useT();
 
   const menuItems = useMemo(() => getTenantMenuItems(moduleSlug), [moduleSlug]);
   const logoutRedirect = `/${user?.login_portal || "erp1"}`;
@@ -73,18 +80,6 @@ export default function TenantSidebar({ moduleSlug }) {
       setOpenGroups((prev) => ({ ...prev, ...next }));
     }
   }, [menuItems, location.pathname]);
-
-  useEffect(() => {
-    const next = {};
-    for (const item of menuItems) {
-      if (item.children?.some((c) => isPathActive(location.pathname, c.path))) {
-        next[item.id] = true;
-      }
-    }
-    if (Object.keys(next).length) {
-      setOpenGroups((prev) => ({ ...prev, ...next }));
-    }
-  }, [location.pathname, menuItems]);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
@@ -148,6 +143,7 @@ export default function TenantSidebar({ moduleSlug }) {
     const active = isGroupActive(location.pathname, item);
     const hasChildren = Array.isArray(item.children) && item.children.length > 0;
     const groupOpen = openGroups[item.id] ?? active;
+    const label = navLabel(t, item);
 
     if (hasChildren) {
       return (
@@ -156,12 +152,12 @@ export default function TenantSidebar({ moduleSlug }) {
             type="button"
             className={`wh-nav-link${active ? " active" : ""}`}
             onClick={() => (isExpanded || isMobile ? toggleGroup(item.id) : setIsExpanded(true))}
-            title={!isExpanded && !isMobile ? item.label : undefined}
+            title={!isExpanded && !isMobile ? label : undefined}
           >
             <span className="wh-nav-icon">{Icon && <Icon />}</span>
             {(isExpanded || isMobile) && (
               <>
-                <span className="wh-nav-label">{item.label}</span>
+                <span className="wh-nav-label">{label}</span>
                 <span className="wh-nav-chevron">
                   <ChevronIcon direction={groupOpen ? "down" : "right"} />
                 </span>
@@ -177,7 +173,7 @@ export default function TenantSidebar({ moduleSlug }) {
                     className={`wh-nav-sublink${isPathActive(location.pathname, child.path) ? " active" : ""}`}
                     onClick={() => handleNavigate(child.path)}
                   >
-                    {child.label}
+                    {navLabel(t, child)}
                   </button>
                 </li>
               ))}
@@ -193,10 +189,10 @@ export default function TenantSidebar({ moduleSlug }) {
           type="button"
           className={`wh-nav-link${active ? " active" : ""}`}
           onClick={() => handleNavigate(item.path)}
-          title={!isExpanded && !isMobile ? item.label : undefined}
+          title={!isExpanded && !isMobile ? label : undefined}
         >
           <span className="wh-nav-icon">{Icon && <Icon />}</span>
-          {(isExpanded || isMobile) && <span className="wh-nav-label">{item.label}</span>}
+          {(isExpanded || isMobile) && <span className="wh-nav-label">{label}</span>}
         </button>
       </li>
     );
@@ -241,25 +237,30 @@ export default function TenantSidebar({ moduleSlug }) {
           type="button"
           className="wh-footer-link"
           onClick={() => handleNavigate(TENANT_FOOTER_ITEMS.allModules.path)}
-          title={!isExpanded && !isMobile ? TENANT_FOOTER_ITEMS.allModules.label : undefined}
+          title={!isExpanded && !isMobile ? t(TENANT_FOOTER_ITEMS.allModules.labelKey) : undefined}
         >
           <TENANT_FOOTER_ITEMS.allModules.icon />
-          {(isExpanded || isMobile) && <span>{TENANT_FOOTER_ITEMS.allModules.label}</span>}
+          {(isExpanded || isMobile) && <span>{t(TENANT_FOOTER_ITEMS.allModules.labelKey)}</span>}
         </button>
       </div>
       <div className="wh-sidebar-footer">
         <button type="button" className="wh-footer-link wh-footer-link--danger" onClick={handleLogout}>
           <TENANT_FOOTER_ITEMS.logout.icon />
-          {(isExpanded || isMobile) && <span>{TENANT_FOOTER_ITEMS.logout.label}</span>}
+          {(isExpanded || isMobile) && <span>{t(TENANT_FOOTER_ITEMS.logout.labelKey)}</span>}
         </button>
         {(isExpanded || isMobile) ? (
           <div className="wh-footer-toggle">
             <TENANT_FOOTER_ITEMS.nightMode.icon />
-            <span>{TENANT_FOOTER_ITEMS.nightMode.label}</span>
+            <span>{t(TENANT_FOOTER_ITEMS.nightMode.labelKey)}</span>
             <Toggle checked={darkMode} onChange={toggleDarkMode} />
           </div>
         ) : (
-          <button type="button" className="wh-footer-link" onClick={toggleDarkMode} title="Night Mode">
+          <button
+            type="button"
+            className="wh-footer-link"
+            onClick={toggleDarkMode}
+            title={t(TENANT_FOOTER_ITEMS.nightMode.labelKey)}
+          >
             <TENANT_FOOTER_ITEMS.nightMode.icon />
           </button>
         )}
@@ -267,10 +268,10 @@ export default function TenantSidebar({ moduleSlug }) {
           type="button"
           className="wh-footer-link"
           onClick={() => handleNavigate(TENANT_FOOTER_ITEMS.helpCenter.path)}
-          title={!isExpanded && !isMobile ? TENANT_FOOTER_ITEMS.helpCenter.label : undefined}
+          title={!isExpanded && !isMobile ? t(TENANT_FOOTER_ITEMS.helpCenter.labelKey) : undefined}
         >
           <TENANT_FOOTER_ITEMS.helpCenter.icon />
-          {(isExpanded || isMobile) && <span>{TENANT_FOOTER_ITEMS.helpCenter.label}</span>}
+          {(isExpanded || isMobile) && <span>{t(TENANT_FOOTER_ITEMS.helpCenter.labelKey)}</span>}
         </button>
       </div>
     </>
@@ -280,7 +281,7 @@ export default function TenantSidebar({ moduleSlug }) {
     return (
       <>
         {!mobileOpen && (
-          <button className="wh-mobile-fab" onClick={() => setMobileOpen(true)} aria-label="Open menu">
+          <button className="wh-mobile-fab" onClick={() => setMobileOpen(true)} aria-label={t("common.openMenu")}>
             <HamburgerIcon isOpen={false} />
           </button>
         )}
@@ -302,7 +303,7 @@ export default function TenantSidebar({ moduleSlug }) {
         type="button"
         className="wh-toggle-btn"
         onClick={() => setIsExpanded(!isExpanded)}
-        aria-label={isExpanded ? "Collapse sidebar" : "Expand sidebar"}
+        aria-label={isExpanded ? t("common.collapseSidebar") : t("common.expandSidebar")}
       >
         <ChevronIcon direction={isExpanded ? "left" : "right"} />
       </button>

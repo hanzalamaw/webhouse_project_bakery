@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../../../../../context/AuthContext";
 import { apiFetch, fetchAllTableRows } from "../../../../../api/client";
 import { PageHeader } from "../../../../../components/PageHeader";
+import { KpiCard, Panel } from "../../../../../components/KpiPanel";
 import { DashboardFilter } from "../../../../../components/DashboardFilter";
 import { EMPTY_DASHBOARD_FILTER, filterRowsByDashboard } from "../../../../../utils/dashboardFilter";
 import { useFiscalYear } from "../../../../../context/FiscalYearContext";
@@ -13,33 +14,7 @@ import { formatDateTime } from "../../../../../utils/dateTime";
 import { MODULE_BASE } from "../constants";
 import { TenantsIcon, ProductIcon, LogsIcon, SubscriptionIcon } from "../../../../../components/icons";
 
-function Kpi({ label, value, hint, tone = "default", icon }) {
-  return (
-    <div className={`wh-kpi wh-kpi--${tone}`}>
-      <div className="wh-kpi__top">
-        <span className="wh-kpi__label">{label}</span>
-        {icon && <span className="wh-kpi__icon">{icon}</span>}
-      </div>
-      <span className="wh-kpi__value">{value}</span>
-      {hint && <span className="wh-kpi__hint">{hint}</span>}
-    </div>
-  );
-}
 
-function Panel({ title, subtitle, children, flush, action }) {
-  return (
-    <div className="wh-panel">
-      <div className="wh-panel__head">
-        <div>
-          <h3 className="wh-panel__title">{title}</h3>
-          {subtitle && <p className="wh-panel__subtitle">{subtitle}</p>}
-        </div>
-        {action}
-      </div>
-      <div className={`wh-panel__body${flush ? " wh-panel__body--flush" : ""}`}>{children}</div>
-    </div>
-  );
-}
 
 export default function PosDashboard() {
   const { authFetch } = useAuth();
@@ -129,7 +104,7 @@ export default function PosDashboard() {
 
       <div className="wh-dash-grid">
         <div className="wh-dash-col-3">
-          <Kpi
+          <KpiCard
             label="Sales today"
             value={dash(stats.sales_today)}
             hint="Completed transactions today"
@@ -138,7 +113,7 @@ export default function PosDashboard() {
           />
         </div>
         <div className="wh-dash-col-3">
-          <Kpi
+          <KpiCard
             label="Revenue today"
             value={money(stats.revenue_today)}
             hint="Payable amount collected"
@@ -146,7 +121,7 @@ export default function PosDashboard() {
           />
         </div>
         <div className="wh-dash-col-3">
-          <Kpi
+          <KpiCard
             label="Open registers"
             value={dash(stats.open_registers)}
             hint="Active cashier shifts"
@@ -155,7 +130,7 @@ export default function PosDashboard() {
           />
         </div>
         <div className="wh-dash-col-3">
-          <Kpi
+          <KpiCard
             label="Total sales"
             value={dash(stats.total_sales)}
             hint="All time"
@@ -165,7 +140,7 @@ export default function PosDashboard() {
 
       <div className="wh-dash-grid">
         <div className="wh-dash-col-3">
-          <Kpi
+          <KpiCard
             label="Stores"
             value={dash(stats.outlet_count)}
             hint="Store locations"
@@ -173,7 +148,7 @@ export default function PosDashboard() {
           />
         </div>
         <div className="wh-dash-col-3">
-          <Kpi
+          <KpiCard
             label="Terminals"
             value={dash(stats.terminal_count)}
             hint="Registered devices"

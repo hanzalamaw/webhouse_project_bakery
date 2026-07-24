@@ -17,15 +17,6 @@ export function registerCrmRoutes(app, verifyToken) {
   app.get(`${base}/dashboard`, ...auth, view, crmController.dashboard);
   app.get(`${base}/reference`, ...auth, view, crmController.reference);
 
-  app.get(`${base}/leads`, ...auth, view, crmController.listLeads);
-  app.get(`${base}/leads/export`, ...auth, exp, crmController.exportLeads);
-  app.get(`${base}/leads/:id`, ...auth, view, crmController.getLead);
-  app.post(`${base}/leads`, ...auth, create, crmController.createLead);
-  app.post(`${base}/leads/import`, ...auth, create, crmController.importLeads);
-  app.put(`${base}/leads/:id`, ...auth, edit, crmController.updateLead);
-  app.post(`${base}/leads/:id/convert`, ...auth, edit, crmController.convertLead);
-  app.delete(`${base}/leads/:id`, ...auth, del, crmController.deleteLead);
-
   app.get(`${base}/customers/lookup`, ...auth, view, crmController.lookupCustomer);
   app.get(`${base}/customers`, ...auth, view, crmController.listCustomers);
   app.get(`${base}/customers/export`, ...auth, exp, crmController.exportCustomers);

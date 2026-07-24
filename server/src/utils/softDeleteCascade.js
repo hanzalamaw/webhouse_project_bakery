@@ -42,13 +42,11 @@ const TENANT_CHILD_TABLES = [
   "order_returns",
   "order_cancellations",
   "order_payments",
-  "order_assignments",
   "order_items",
   "orders",
   // CRM
   "crm_customer_complaints",
   "crm_customer_addresses",
-  "crm_leads",
   "crm_customers",
   // WH billing & platform tenant config
   "wh_tenant_modules",

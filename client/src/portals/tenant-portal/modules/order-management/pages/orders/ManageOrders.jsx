@@ -45,7 +45,6 @@ export default function ManageOrders() {
     payment_method: "",
     customer_name: "",
     city: "",
-    warehouse_assignee: "",
   });
 
   const toolbarFilters = useMemo(() => [
@@ -55,7 +54,6 @@ export default function ManageOrders() {
     { key: "payment_method", label: "Payment Method", options: PAYMENT_METHODS },
     { key: "customer_name", label: "Customer" },
     { key: "city", label: "City" },
-    { key: "warehouse_assignee", label: "Branch Assignee" },
   ], [field_options]);
 
   const filteredRows = useToolbarFilteredRows(rows, toolbar, { dateField: "created_at", filters: toolbarFilters });
@@ -101,7 +99,6 @@ export default function ManageOrders() {
     { key: "order_source", label: "Channel", format: (v) => ORDER_SOURCE_LABELS[v] || v || "—" },
     { key: "payment_method", label: "Method", format: (v) => PAYMENT_METHOD_LABELS[v] || v || "—" },
     { key: "city", label: "City", format: (v) => v || "—" },
-    { key: "warehouse_assignee", label: "Branch", format: (v) => v || "—" },
     { key: "payable_amount", label: "Amount", format: (v) => formatPKR(v) },
     { key: "created_at", label: "Created", format: formatDateTime },
     {
@@ -129,7 +126,7 @@ export default function ManageOrders() {
     <div className="wh-page">
       <PageHeader
         title="Order Management"
-        description="All orders with filters by status, date, customer, payment method, channel, city, and branch assignment."
+        description="All orders with filters by status, date, customer, payment method, channel, and city."
         actions={
           <Button onClick={() => navigate(`${MODULE_BASE}/orders/create`)} disabled={!canCreate}>
             Create Order

@@ -1,7 +1,9 @@
 import { Modal } from "./Modal";
 import { Button } from "./Button";
+import { useT } from "../context/LanguageContext";
 
 export function UnsavedChangesDialog({ open, onStay, onDiscard, reloadPending = false }) {
+  const t = useT();
   return (
     <Modal
       open={open}
@@ -13,15 +15,15 @@ export function UnsavedChangesDialog({ open, onStay, onDiscard, reloadPending = 
             Stay on page
           </Button>
           <Button type="button" variant="danger" onClick={onDiscard}>
-            {reloadPending ? "Reload without saving" : "Discard changes"}
+            {reloadPending ? t("Reload without saving") : t("Discard changes")}
           </Button>
         </>
       }
     >
       <p>
         {reloadPending
-          ? "You have unsaved changes. Reloading will discard them."
-          : "You have unsaved changes. Save your work or discard changes before leaving this page."}
+          ? t("You have unsaved changes. Reloading will discard them.")
+          : t("You have unsaved changes. Save your work or discard changes before leaving this page.")}
       </p>
     </Modal>
   );

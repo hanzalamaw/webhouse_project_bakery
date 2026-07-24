@@ -1,3 +1,5 @@
+import { useT } from "../context/LanguageContext";
+
 export function FormField({
   id,
   label,
@@ -12,17 +14,26 @@ export function FormField({
   displayOnly = false,
   ...rest
 }) {
+  const t = useT();
+  const labelText = typeof label === "string" ? t(label) : label;
+  const placeholderText = typeof placeholder === "string" ? t(placeholder) : placeholder;
+  const errorText = typeof error === "string" ? t(error) : error;
+  const ariaLabel =
+    typeof rest["aria-label"] === "string" ? t(rest["aria-label"]) : rest["aria-label"];
+
   const inputClass = displayOnly
     ? "wh-field__input wh-field__input--display"
     : `wh-field__input${rest.readOnly ? " wh-field__input--readonly" : ""}`;
 
+  const fieldRest = { ...rest, "aria-label": ariaLabel };
+
   return (
     <div className={`wh-field${error ? " wh-field--error" : ""}`}>
-      {label && (
+      {labelText ? (
         <label className="wh-field__label" htmlFor={id}>
-          {label}
+          {labelText}
         </label>
-      )}
+      ) : null}
       {displayOnly ? (
         <div id={id} className={inputClass} aria-readonly="true">
           {value ?? ""}
@@ -33,7 +44,7 @@ export function FormField({
           className={`wh-field__input${rest.readOnly ? " wh-field__input--readonly" : ""}`}
           value={value}
           onChange={onChange}
-          {...rest}
+          {...fieldRest}
         >
           {children}
         </select>
@@ -43,8 +54,8 @@ export function FormField({
           className={`wh-field__input wh-field__textarea${rest.readOnly ? " wh-field__input--readonly" : ""}`}
           value={value}
           onChange={onChange}
-          placeholder={placeholder}
-          {...rest}
+          placeholder={placeholderText}
+          {...fieldRest}
         />
       ) : (
         <input
@@ -53,12 +64,12 @@ export function FormField({
           className={`wh-field__input${rest.readOnly ? " wh-field__input--readonly" : ""}`}
           value={value}
           onChange={onChange}
-          placeholder={placeholder}
+          placeholder={placeholderText}
           autoComplete={autoComplete ?? "off"}
-          {...rest}
+          {...fieldRest}
         />
       )}
-      {error && <span className="wh-field__error">{error}</span>}
+      {errorText ? <span className="wh-field__error">{errorText}</span> : null}
     </div>
   );
 }

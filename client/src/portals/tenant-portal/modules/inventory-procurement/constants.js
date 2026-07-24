@@ -22,6 +22,15 @@ export const ITEM_UNITS = [
   "bag",
 ];
 
+/** Shelf life duration unit for create/edit item */
+export const SHELF_LIFE_UNITS = [
+  { value: "hours", label: "Hours" },
+  { value: "days", label: "Days" },
+  { value: "weeks", label: "Weeks" },
+  { value: "months", label: "Months" },
+];
+export const DEFAULT_SHELF_LIFE_UNIT = "days";
+
 export const MOVEMENT_TYPES = [
   "purchase_in",
   "production_in",

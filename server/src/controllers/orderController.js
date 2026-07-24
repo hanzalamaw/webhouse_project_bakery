@@ -152,47 +152,6 @@ export const orderController = {
     }
   },
 
-  async listAssignments(req, res) {
-    try {
-      res.json({ data: await orderService.listAssignments(req.tenantId) });
-    } catch (e) {
-      res.status(500).json({ message: e.message });
-    }
-  },
-
-  async createAssignment(req, res) {
-    try {
-      const row = await orderService.createAssignment(req.tenantId, req.body);
-      res.status(201).json(row);
-    } catch (e) {
-      res.status(400).json({ message: e.message });
-    }
-  },
-
-  async updateAssignment(req, res) {
-    try {
-      const id = tryParseEntityId(req.params.id);
-      if (!id) return res.status(400).json({ message: "Invalid assignment id" });
-      const row = await orderService.updateAssignment(req.tenantId, id, req.body);
-      if (!row) return res.status(404).json({ message: "Assignment not found" });
-      res.json(row);
-    } catch (e) {
-      res.status(400).json({ message: e.message });
-    }
-  },
-
-  async deleteAssignment(req, res) {
-    try {
-      const id = tryParseEntityId(req.params.id);
-      if (!id) return res.status(400).json({ message: "Invalid assignment id" });
-      const ok = await orderService.deleteAssignment(req.tenantId, id);
-      if (!ok) return res.status(404).json({ message: "Assignment not found" });
-      res.json({ ok: true });
-    } catch (e) {
-      res.status(500).json({ message: e.message });
-    }
-  },
-
   async paymentSummary(req, res) {
     try {
       res.json(await orderService.paymentSummary(req.tenantId));

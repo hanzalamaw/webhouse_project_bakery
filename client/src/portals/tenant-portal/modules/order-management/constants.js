@@ -21,9 +21,6 @@ export const PAYMENT_RECORD_STATUSES = ["pending", "paid", "partial", "failed", 
 /** Bank or cash when recording an order payment entry */
 export const ORDER_PAYMENT_CHANNELS = ["bank_transfer", "cash"];
 
-export const ASSIGNMENT_TYPES = ["staff", "warehouse", "fulfillment", "courier", "verification"];
-export const ASSIGNMENT_STATUSES = ["pending", "active", "completed", "cancelled"];
-
 export const RETURN_STATUSES = ["requested", "approved", "received", "rejected", "completed"];
 export const EXCHANGE_STATUSES = ["requested", "approved", "completed", "rejected"];
 export const REFUND_STATUSES = ["pending", "processed", "failed", "cancelled"];
@@ -97,14 +94,6 @@ export const PAYMENT_METHOD_LABELS = {
   cash: "Cash",
   online: "Online",
   other: "Other",
-};
-
-export const ASSIGNMENT_TYPE_LABELS = {
-  staff: "Staff",
-  warehouse: "Branch Team",
-  fulfillment: "Fulfillment Team",
-  courier: "Courier Team",
-  verification: "Verification Agent",
 };
 
 export const PRINT_DOC_TYPES = [

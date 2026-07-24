@@ -66,15 +66,11 @@ export const crmRepository = {
                     AND ps.created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
                 )
               )) AS active_customers,
-         (SELECT COUNT(*) FROM crm_leads WHERE tenant_id = ? AND deleted_at IS NULL
-            AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)) AS new_leads_30d,
-         (SELECT COUNT(*) FROM crm_leads WHERE tenant_id = ? AND deleted_at IS NULL AND status = 'converted') AS converted_leads,
-         (SELECT COUNT(*) FROM crm_leads WHERE tenant_id = ? AND deleted_at IS NULL) AS total_leads,
          (SELECT COUNT(*) FROM crm_customer_complaints WHERE tenant_id = ? AND deleted_at IS NULL
             AND status IN ('open', 'in_progress')) AS open_complaints,
          (SELECT COUNT(*) FROM crm_customers WHERE tenant_id = ? AND deleted_at IS NULL
             AND created_at >= DATE_FORMAT(NOW(), '%Y-%m-01')) AS customers_this_month`,
-      [tenantId, tenantId, tenantId, tenantId, activeDays, tenantId, activeDays, tenantId, tenantId, tenantId, tenantId, tenantId]
+      [tenantId, tenantId, tenantId, tenantId, activeDays, tenantId, activeDays, tenantId, tenantId]
     );
     return stats;
   },
@@ -90,27 +86,6 @@ export const crmRepository = {
        GROUP BY month_key, month_label
        ORDER BY month_key ASC`,
       [tenantId, months - 1]
-    );
-    return rows;
-  },
-
-  async dashboardLeadsBySource(tenantId) {
-    const [rows] = await readDb.query(
-      `SELECT COALESCE(source, 'manual') AS label, COUNT(*) AS count
-       FROM crm_leads WHERE tenant_id = ? AND deleted_at IS NULL
-       GROUP BY COALESCE(source, 'manual')
-       ORDER BY count DESC`,
-      [tenantId]
-    );
-    return rows;
-  },
-
-  async dashboardLeadsByStatus(tenantId) {
-    const [rows] = await readDb.query(
-      `SELECT status AS label, COUNT(*) AS count
-       FROM crm_leads WHERE tenant_id = ? AND deleted_at IS NULL
-       GROUP BY status ORDER BY count DESC`,
-      [tenantId]
     );
     return rows;
   },
@@ -154,110 +129,6 @@ export const crmRepository = {
       [tenantId, activeDays, tenantId, activeDays, tenantId, limit]
     );
     return rows;
-  },
-
-  // ── Leads ────────────────────────────────────────────────────────────────────
-  async listLeads(tenantId) {
-    const [rows] = await readDb.query(
-      `SELECT l.*, u.name AS assigned_to_name,
-              c.customer_name AS converted_customer_name
-       FROM crm_leads l
-       LEFT JOIN users u ON u.id = l.assigned_to AND u.deleted_at IS NULL
-       LEFT JOIN crm_customers c ON c.id = l.converted_customer_id AND c.deleted_at IS NULL
-       WHERE ${tw("l", tenantId)}
-       ORDER BY l.created_at DESC`,
-      [tenantId]
-    );
-    return rows;
-  },
-
-  async getLead(tenantId, id) {
-    const [rows] = await readDb.query(
-      `SELECT l.*, u.name AS assigned_to_name
-       FROM crm_leads l
-       LEFT JOIN users u ON u.id = l.assigned_to AND u.deleted_at IS NULL
-       WHERE l.id = ? AND ${tw("l", tenantId)} LIMIT 1`,
-      [id, tenantId]
-    );
-    return rows[0] || null;
-  },
-
-  async createLead(tenantId, userId, data) {
-    const [result] = await writeDb.query(
-      `INSERT INTO crm_leads
-         (lead_name, phone, email, company_name, source, status, notes, assigned_to, tenant_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        data.lead_name,
-        data.phone || null,
-        data.email || null,
-        data.company_name || null,
-        data.source || "manual",
-        data.status,
-        data.notes || null,
-        data.assigned_to || null,
-        tenantId,
-      ]
-    );
-    const id = result.insertId;
-    await logCrmActivity(tenantId, userId, "lead_created", `Lead "${data.lead_name}" created`, {
-      entity_type: "lead",
-      entity_id: id,
-    });
-    return this.getLead(tenantId, id);
-  },
-
-  async updateLead(tenantId, userId, id, data) {
-    await writeDb.query(
-      `UPDATE crm_leads SET
-         lead_name = ?, phone = ?, email = ?, company_name = ?, source = ?,
-         status = ?, notes = ?, assigned_to = ?
-       WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL`,
-      [
-        data.lead_name,
-        data.phone || null,
-        data.email || null,
-        data.company_name || null,
-        data.source || "manual",
-        data.status,
-        data.notes || null,
-        data.assigned_to || null,
-        id,
-        tenantId,
-      ]
-    );
-    await logCrmActivity(tenantId, userId, "lead_updated", `Lead "${data.lead_name}" updated`, {
-      entity_type: "lead",
-      entity_id: id,
-    });
-    return this.getLead(tenantId, id);
-  },
-
-  async convertLead(tenantId, userId, leadId, customerData) {
-    const lead = await this.getLead(tenantId, leadId);
-    if (!lead) return null;
-    if (lead.status === "converted") throw new Error("Lead is already converted");
-
-    const customer = await this.createCustomer(tenantId, userId, {
-      customer_name: customerData.customer_name || lead.lead_name,
-      company_name: customerData.company_name || lead.company_name,
-      phone: customerData.phone || lead.phone,
-      email: customerData.email || lead.email,
-      customer_type: customerData.customer_type || "retailer",
-      status: customerData.status || "active",
-      tags: customerData.tags || [],
-    });
-
-    await writeDb.query(
-      `UPDATE crm_leads SET status = 'converted', converted_customer_id = ?, converted_at = NOW()
-       WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL`,
-      [customer.id, leadId, tenantId]
-    );
-    await logCrmActivity(tenantId, userId, "lead_converted", `Lead converted to customer "${customer.customer_name}"`, {
-      entity_type: "lead",
-      entity_id: leadId,
-    });
-    return { lead: await this.getLead(tenantId, leadId), customer };
   },
 
   // ── Customers ────────────────────────────────────────────────────────────────
@@ -339,14 +210,6 @@ export const crmRepository = {
       [tenantId, id]
     );
 
-    const [leadRows] = await readDb.query(
-      `SELECT id, lead_name, source, converted_at
-       FROM crm_leads
-       WHERE converted_customer_id = ? AND tenant_id = ? AND deleted_at IS NULL
-       LIMIT 1`,
-      [id, tenantId]
-    );
-
     const [[stats]] = await readDb.query(
       `SELECT
          (SELECT COUNT(*) FROM orders WHERE customer_id = ? AND tenant_id = ? AND deleted_at IS NULL) AS order_count,
@@ -370,7 +233,6 @@ export const crmRepository = {
       pos_sales: posSales,
       complaints,
       activities: activities.map(mapAuditRow),
-      converted_from_lead: leadRows[0] || null,
       stats: {
         order_count: Number(stats.order_count) || 0,
         order_revenue: Number(stats.order_revenue) || 0,

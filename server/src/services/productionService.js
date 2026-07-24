@@ -214,7 +214,7 @@ export const productionService = {
       }));
     }
 
-    const expiry = body.expiry_date || computeExpiry(produced_on, finished.shelf_life_days);
+    const expiry = body.expiry_date || computeExpiry(produced_on, finished.shelf_life_days, finished.shelf_life_unit);
 
     const runId = await withTransaction(async (conn) => {
       const production_no = body.production_no || (await productionRepository.nextProductionNo(tenantId));

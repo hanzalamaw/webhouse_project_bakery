@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../../../../../context/AuthContext";
 import { apiFetch } from "../../../../../api/client";
 import { PageHeader } from "../../../../../components/PageHeader";
+import { KpiCard, Panel } from "../../../../../components/KpiPanel";
 import { DashboardFilter } from "../../../../../components/DashboardFilter";
 import { EMPTY_DASHBOARD_FILTER, filterRowsByDashboard } from "../../../../../utils/dashboardFilter";
 import { useFiscalYear } from "../../../../../context/FiscalYearContext";
@@ -12,33 +13,7 @@ import { formatDateTime, formatDate } from "../../../../../utils/dateTime";
 import { MOVEMENT_LABELS, ITEM_TYPE_LABELS, MODULE_BASE } from "../constants";
 import { ProductIcon, WarehouseIcon, ProcurementIcon, LogsIcon } from "../../../../../components/icons";
 
-function Kpi({ label, value, hint, tone = "default", icon }) {
-  return (
-    <div className={`wh-kpi wh-kpi--${tone}`}>
-      <div className="wh-kpi__top">
-        <span className="wh-kpi__label">{label}</span>
-        {icon && <span className="wh-kpi__icon">{icon}</span>}
-      </div>
-      <span className="wh-kpi__value">{value}</span>
-      {hint && <span className="wh-kpi__hint">{hint}</span>}
-    </div>
-  );
-}
 
-function Panel({ title, subtitle, children, flush, action }) {
-  return (
-    <div className="wh-panel">
-      <div className="wh-panel__head">
-        <div>
-          <h3 className="wh-panel__title">{title}</h3>
-          {subtitle && <p className="wh-panel__subtitle">{subtitle}</p>}
-        </div>
-        {action}
-      </div>
-      <div className={`wh-panel__body${flush ? " wh-panel__body--flush" : ""}`}>{children}</div>
-    </div>
-  );
-}
 
 export default function InventoryDashboard() {
   const { authFetch } = useAuth();
@@ -146,7 +121,7 @@ export default function InventoryDashboard() {
 
       <div className="wh-dash-grid">
         <div className="wh-dash-col-3">
-          <Kpi
+          <KpiCard
             label="Items (Cheezen)"
             value={dash(stats.item_count)}
             hint={`${dash(stats.ingredient_count)} ingredients · ${dash(stats.finished_count)} finished · ${dash(stats.packaging_count)} packing`}
@@ -155,7 +130,7 @@ export default function InventoryDashboard() {
           />
         </div>
         <div className="wh-dash-col-3">
-          <Kpi
+          <KpiCard
             label="Branches (Shakhein)"
             value={dash(stats.branch_count)}
             hint={`${dash(stats.category_count)} categories`}
@@ -163,7 +138,7 @@ export default function InventoryDashboard() {
           />
         </div>
         <div className="wh-dash-col-3">
-          <Kpi
+          <KpiCard
             label="Suppliers"
             value={dash(stats.supplier_count)}
             hint={`${dash(stats.open_purchase_orders)} open POs`}
@@ -171,7 +146,7 @@ export default function InventoryDashboard() {
           />
         </div>
         <div className="wh-dash-col-3">
-          <Kpi
+          <KpiCard
             label="Low stock"
             value={dash(stats.low_stock_count)}
             hint={`${dash(stats.expiring_soon)} expiring · ${dash(stats.expired_batches)} expired`}
@@ -183,13 +158,13 @@ export default function InventoryDashboard() {
 
       <div className="wh-dash-grid">
         <div className="wh-dash-col-4">
-          <Kpi label="Available stock" value={num(stats.total_available)} hint="Units across all branches" tone="success" />
+          <KpiCard label="Available stock" value={num(stats.total_available)} hint="Units across all branches" tone="success" />
         </div>
         <div className="wh-dash-col-4">
-          <Kpi label="Stock value (cost)" value={money(stats.stock_value_cost)} hint="Available × cost price" />
+          <KpiCard label="Stock value (cost)" value={money(stats.stock_value_cost)} hint="Available × cost price" />
         </div>
         <div className="wh-dash-col-4">
-          <Kpi label="Wastage (30 days)" value={money(stats.wastage_cost_30d)} hint="Barbaadi cost" tone="warning" />
+          <KpiCard label="Wastage (30 days)" value={money(stats.wastage_cost_30d)} hint="Barbaadi cost" tone="warning" />
         </div>
       </div>
 

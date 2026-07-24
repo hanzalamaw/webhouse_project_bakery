@@ -23,9 +23,6 @@ const TENANT_ACTION_LABELS = {
   role_create: "Created a role",
   role_update: "Updated role permissions",
   session_terminate: "Ended a session",
-  crm_lead_created: "Created a lead",
-  crm_lead_updated: "Updated a lead",
-  crm_lead_converted: "Converted a lead to customer",
   crm_customer_created: "Created a customer",
   crm_customer_updated: "Updated a customer",
   crm_customer_note_added: "Added a customer note",
@@ -57,7 +54,6 @@ export function formatWhAuditAction(action) {
     if (path.includes("/inventory/warehouses")) return `Impersonation: ${verb} a warehouse`;
     if (path.includes("/inventory/stock-movements")) return `Impersonation: ${verb} stock`;
     if (path.includes("/inventory/stock-transfers")) return `Impersonation: ${verb} a transfer`;
-    if (path.includes("/crm/leads")) return `Impersonation: ${verb} a lead`;
     if (path.includes("/crm/customers")) return `Impersonation: ${verb} a customer`;
     if (path.includes("/crm/complaints")) return `Impersonation: ${verb} a complaint`;
     if (path.includes("/tenant/users")) return `Impersonation: ${verb} a user`;

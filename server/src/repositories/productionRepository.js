@@ -35,7 +35,7 @@ export const productionRepository = {
 
   async getRecipeById(tenantId, id) {
     const [rows] = await readDb.query(
-      `SELECT r.*, i.item_name AS finished_item_name, i.unit AS finished_unit, i.shelf_life_days
+      `SELECT r.*, i.item_name AS finished_item_name, i.unit AS finished_unit, i.shelf_life_days, i.shelf_life_unit
        FROM recipes r
        JOIN items i ON i.id = r.item_id AND i.deleted_at IS NULL
        WHERE r.id = ? AND r.tenant_id = ? AND r.deleted_at IS NULL LIMIT 1`,

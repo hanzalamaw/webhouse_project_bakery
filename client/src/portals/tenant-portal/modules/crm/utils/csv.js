@@ -1,14 +1,3 @@
-export const LEAD_CSV_HEADERS = [
-  "lead_name",
-  "phone",
-  "email",
-  "company_name",
-  "source",
-  "status",
-  "notes",
-  "assigned_to_name",
-];
-
 export const CUSTOMER_CSV_HEADERS = [
   "customer_name",
   "company_name",

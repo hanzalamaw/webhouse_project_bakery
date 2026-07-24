@@ -194,12 +194,23 @@ async function upsertLevelDelta(conn, tenantId, itemId, branchId, deltaAvailable
   return result.insertId;
 }
 
-/** Compute an expiry date string (YYYY-MM-DD) from a base date + shelf-life days. */
-export function computeExpiry(baseDate, shelfLifeDays) {
-  const days = Number(shelfLifeDays);
-  if (!Number.isFinite(days) || days <= 0) return null;
+/** Compute an expiry date string (YYYY-MM-DD) from a base date + shelf life. */
+export function computeExpiry(baseDate, shelfLifeValue, shelfLifeUnit = "days") {
+  const value = Number(shelfLifeValue);
+  if (!Number.isFinite(value) || value <= 0) return null;
   const base = baseDate ? new Date(baseDate) : new Date();
   if (Number.isNaN(base.getTime())) return null;
-  base.setDate(base.getDate() + days);
+
+  const unit = String(shelfLifeUnit || "days").toLowerCase();
+  if (unit === "hours") {
+    base.setHours(base.getHours() + value);
+  } else if (unit === "weeks") {
+    base.setDate(base.getDate() + value * 7);
+  } else if (unit === "months") {
+    base.setMonth(base.getMonth() + value);
+  } else {
+    // days (default)
+    base.setDate(base.getDate() + value);
+  }
   return base.toISOString().slice(0, 10);
 }

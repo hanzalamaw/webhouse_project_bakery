@@ -4,6 +4,7 @@ import { useAuth } from "../../../../../../context/AuthContext";
 import { useModulePermission } from "../../../../../../hooks/useModulePermission";
 import { apiFetch } from "../../../../../../api/client";
 import { PageHeader } from "../../../../../../components/PageHeader";
+import { KpiCard, Panel } from "../../../../../../components/KpiPanel";
 import { Card } from "../../../../../../components/Card";
 import { Button } from "../../../../../../components/Button";
 import { FormField } from "../../../../../../components/FormField";
@@ -13,33 +14,7 @@ import { formatDateTime } from "../../../../../../utils/dateTime";
 import { MODULE_BASE, TERMINAL_STATUSES, TERMINAL_STATUS_LABELS } from "../../constants";
 import { ProductIcon, LogsIcon, SubscriptionIcon, TenantsIcon } from "../../../../../../components/icons";
 
-function Kpi({ label, value, hint, tone = "default", icon }) {
-  return (
-    <div className={`wh-kpi wh-kpi--${tone}`}>
-      <div className="wh-kpi__top">
-        <span className="wh-kpi__label">{label}</span>
-        {icon && <span className="wh-kpi__icon">{icon}</span>}
-      </div>
-      <span className="wh-kpi__value">{value}</span>
-      {hint && <span className="wh-kpi__hint">{hint}</span>}
-    </div>
-  );
-}
 
-function Panel({ title, subtitle, children, flush, action }) {
-  return (
-    <div className="wh-panel">
-      <div className="wh-panel__head">
-        <div>
-          <h3 className="wh-panel__title">{title}</h3>
-          {subtitle && <p className="wh-panel__subtitle">{subtitle}</p>}
-        </div>
-        {action}
-      </div>
-      <div className={`wh-panel__body${flush ? " wh-panel__body--flush" : ""}`}>{children}</div>
-    </div>
-  );
-}
 
 const EMPTY_TERMINAL = { terminal_name: "", device_code: "", status: "active" };
 
@@ -135,31 +110,31 @@ export default function StoreView() {
 
       <div className="wh-dash-grid">
         <div className="wh-dash-col-3">
-          <Kpi label="Sales today" value={stats.sales_today} hint="Transactions today" tone="accent" icon={<LogsIcon />} />
+          <KpiCard label="Sales today" value={stats.sales_today} hint="Transactions today" tone="accent" icon={<LogsIcon />} />
         </div>
         <div className="wh-dash-col-3">
-          <Kpi label="Revenue today" value={money(stats.revenue_today)} hint="Payable amount" tone="success" />
+          <KpiCard label="Revenue today" value={money(stats.revenue_today)} hint="Payable amount" tone="success" />
         </div>
         <div className="wh-dash-col-3">
-          <Kpi label="Open registers" value={stats.open_registers} hint="Active shifts" tone="warning" icon={<SubscriptionIcon />} />
+          <KpiCard label="Open registers" value={stats.open_registers} hint="Active shifts" tone="warning" icon={<SubscriptionIcon />} />
         </div>
         <div className="wh-dash-col-3">
-          <Kpi label="Total sales" value={stats.total_sales} hint="All time at this store" />
+          <KpiCard label="Total sales" value={stats.total_sales} hint="All time at this store" />
         </div>
       </div>
 
       <div className="wh-dash-grid">
         <div className="wh-dash-col-3">
-          <Kpi label="Terminals" value={stats.terminal_count} icon={<ProductIcon />} />
+          <KpiCard label="Terminals" value={stats.terminal_count} icon={<ProductIcon />} />
         </div>
         <div className="wh-dash-col-3">
-          <Kpi label="Lifetime revenue" value={money(stats.total_revenue)} tone="success" />
+          <KpiCard label="Lifetime revenue" value={money(stats.total_revenue)} tone="success" />
         </div>
         <div className="wh-dash-col-3">
-          <Kpi label="Opening balance" value={money(outlet.opening_balance)} hint="First shift default" icon={<TenantsIcon />} />
+          <KpiCard label="Opening balance" value={money(outlet.opening_balance)} hint="First shift default" icon={<TenantsIcon />} />
         </div>
         <div className="wh-dash-col-3">
-          <Kpi
+          <KpiCard
             label="Status"
             value={<StatusBadge status={outlet.status} />}
             hint={outlet.store_open_time ? `Opens ${String(outlet.store_open_time).slice(0, 5)}` : undefined}

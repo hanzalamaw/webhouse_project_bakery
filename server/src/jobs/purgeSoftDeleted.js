@@ -36,7 +36,6 @@ const TABLES_WITH_SOFT_DELETE = [
   "production_runs",
   "production_run_consumption",
   // CRM
-  "crm_leads",
   "crm_customers",
   "crm_customer_addresses",
   "crm_customer_complaints",
@@ -46,7 +45,6 @@ const TABLES_WITH_SOFT_DELETE = [
   "order_returns",
   "order_cancellations",
   "order_payments",
-  "order_assignments",
   "order_items",
   "orders",
   // Finance

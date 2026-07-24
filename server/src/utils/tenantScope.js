@@ -38,12 +38,10 @@ export const TENANT_SCOPED_TABLES = new Set([
   // CRM
   "crm_customers",
   "crm_customer_addresses",
-  "crm_leads",
   "crm_customer_complaints",
   // Orders
   "orders",
   "order_items",
-  "order_assignments",
   "order_payments",
   "order_cancellations",
   "order_returns",
@@ -99,7 +97,6 @@ export const AUDITED_WRITE_TABLES = new Set([
   "orders",
   "order_items",
   "order_payments",
-  "order_assignments",
   "order_cancellations",
   "order_returns",
   "order_exchanges",
