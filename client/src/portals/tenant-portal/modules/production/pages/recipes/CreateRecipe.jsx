@@ -6,15 +6,11 @@ import { apiFetch } from "../../../../../../api/client";
 import { PageHeader } from "../../../../../../components/PageHeader";
 import { FormField } from "../../../../../../components/FormField";
 import { Button } from "../../../../../../components/Button";
-import { SearchableSelect } from "../../../../../../components/SearchableSelect";
+import ProductCatalogPicker from "../../../../../../components/ProductCatalogPicker";
 import { FormBlock } from "../../../../../../components/FormBlock";
 import { FormPageLayout, FormActions } from "../../../../../../components/FormPageLayout";
 import { MODULE_BASE, RECIPE_STATUSES, DEFAULT_UNITS } from "../../constants";
 import { useProductionReference } from "../../hooks/useProductionReference";
-
-function emptyIngredient() {
-  return { ingredient_item_id: "", quantity: "", unit: "g", notes: "" };
-}
 
 const EMPTY = {
   recipe_name: "",
@@ -24,7 +20,7 @@ const EMPTY = {
   instructions: "",
   prep_time_mins: "",
   status: "active",
-  ingredients: [emptyIngredient()],
+  ingredients: [],
 };
 
 export default function CreateRecipe() {
@@ -44,22 +40,9 @@ export default function CreateRecipe() {
   const unitList = units?.length ? units : DEFAULT_UNITS;
   const statusList = statuses?.length ? statuses : RECIPE_STATUSES;
 
-  const finishedOptions = useMemo(
-    () =>
-      finished_items.map((i) => ({
-        value: String(i.id),
-        label: i.sku ? `${i.item_name} (${i.sku})` : i.item_name,
-      })),
-    [finished_items]
-  );
-
-  const ingredientOptions = useMemo(
-    () =>
-      ingredients.map((i) => ({
-        value: String(i.id),
-        label: i.sku ? `${i.item_name} (${i.sku})` : i.item_name,
-      })),
-    [ingredients]
+  const selectedIngredientIds = useMemo(
+    () => form.ingredients.map((ing) => String(ing.ingredient_item_id)).filter(Boolean),
+    [form.ingredients]
   );
 
   useEffect(() => {
@@ -79,49 +62,64 @@ export default function CreateRecipe() {
             Array.isArray(row.ingredients) && row.ingredients.length
               ? row.ingredients.map((ing) => ({
                   ingredient_item_id: ing.ingredient_item_id ? String(ing.ingredient_item_id) : "",
+                  item_name: ing.item_name || ing.ingredient_name || "",
                   quantity: ing.quantity != null ? String(ing.quantity) : "",
                   unit: ing.unit || "g",
                   notes: ing.notes || "",
                 }))
-              : [emptyIngredient()],
+              : [],
         });
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [isEdit, recipeId, authFetch]);
 
+  const onFinishedSelect = (product) => {
+    if (disabled) return;
+    const id = String(product.id);
+    setForm((f) => ({
+      ...f,
+      item_id: id,
+      yield_unit: product?.unit || f.yield_unit || "piece",
+    }));
+  };
+
+  const toggleIngredient = (_id, product) => {
+    if (disabled) return;
+    const id = String(_id || product?.id || "");
+    if (!id) return;
+    setForm((f) => {
+      const existing = f.ingredients.find((ing) => String(ing.ingredient_item_id) === id);
+      if (existing) {
+        return { ...f, ingredients: f.ingredients.filter((ing) => String(ing.ingredient_item_id) !== id) };
+      }
+      const item = product || ingredients.find((i) => String(i.id) === id);
+      return {
+        ...f,
+        ingredients: [
+          ...f.ingredients,
+          {
+            ingredient_item_id: id,
+            item_name: item?.item_name || "",
+            quantity: "1",
+            unit: item?.unit || "g",
+            notes: "",
+          },
+        ],
+      };
+    });
+  };
+
   const setIngredient = (index, field, value) => {
     setForm((f) => {
       const next = [...f.ingredients];
       next[index] = { ...next[index], [field]: value };
-      if (field === "ingredient_item_id") {
-        const item = ingredients.find((i) => String(i.id) === String(value));
-        if (item?.unit) next[index].unit = item.unit;
-      }
       return { ...f, ingredients: next };
     });
   };
 
-  const addIngredient = () => {
-    setForm((f) => ({ ...f, ingredients: [...f.ingredients, emptyIngredient()] }));
-  };
-
   const removeIngredient = (index) => {
-    setForm((f) => {
-      if (f.ingredients.length <= 1) return f;
-      return { ...f, ingredients: f.ingredients.filter((_, i) => i !== index) };
-    });
-  };
-
-  const onFinishedChange = (value) => {
-    setForm((f) => {
-      const item = finished_items.find((i) => String(i.id) === String(value));
-      return {
-        ...f,
-        item_id: value,
-        yield_unit: item?.unit || f.yield_unit || "piece",
-      };
-    });
+    setForm((f) => ({ ...f, ingredients: f.ingredients.filter((_, i) => i !== index) }));
   };
 
   const submit = async (e) => {
@@ -135,6 +133,13 @@ export default function CreateRecipe() {
       setError("Select the finished bakery item");
       return;
     }
+    const validIngredients = form.ingredients.filter(
+      (ing) => ing.ingredient_item_id && Number(ing.quantity) > 0
+    );
+    if (!validIngredients.length) {
+      setError("Tap ingredients below and set quantity for each");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
@@ -146,7 +151,7 @@ export default function CreateRecipe() {
         instructions: form.instructions || null,
         prep_time_mins: form.prep_time_mins ? Number(form.prep_time_mins) : null,
         status: form.status,
-        ingredients: form.ingredients.map((ing) => ({
+        ingredients: validIngredients.map((ing) => ({
           ingredient_item_id: Number(ing.ingredient_item_id),
           quantity: Number(ing.quantity),
           unit: ing.unit || "g",
@@ -193,7 +198,7 @@ export default function CreateRecipe() {
           }
         />
         <form onSubmit={submit} className="wh-form-stack">
-          <FormBlock title="Recipe details" description="Name, finished item, yield, and status.">
+          <FormBlock title="Recipe details" description="Name, yield, and status.">
             <div className="wh-form-grid">
               <FormField
                 id="recipe_name"
@@ -202,17 +207,6 @@ export default function CreateRecipe() {
                 onChange={(e) => setForm((f) => ({ ...f, recipe_name: e.target.value }))}
                 required
                 disabled={disabled}
-              />
-              <SearchableSelect
-                id="item_id"
-                label="Finished bakery item"
-                value={form.item_id}
-                onChange={onFinishedChange}
-                options={finishedOptions}
-                placeholder="Search finished items…"
-                emptyMessage="No finished items found"
-                disabled={disabled}
-                required
               />
               <FormField
                 id="yield_qty"
@@ -276,74 +270,89 @@ export default function CreateRecipe() {
             </div>
           </FormBlock>
 
-          <FormBlock
-            title="Ingredients (Kacha Maal)"
-            description="What goes into one yield batch of this recipe."
-          >
-            {!disabled && (
-              <div style={{ marginBottom: 12 }}>
-                <Button type="button" variant="secondary" onClick={addIngredient}>
-                  Add ingredient
-                </Button>
-              </div>
-            )}
-            <div className="wh-form-stack">
-              {form.ingredients.map((ing, index) => (
-                <div key={index} className="wh-form-grid" style={{ alignItems: "end" }}>
-                  <SearchableSelect
-                    id={`ingredient_${index}`}
-                    label={`Ingredient ${index + 1}`}
-                    value={ing.ingredient_item_id}
-                    onChange={(v) => setIngredient(index, "ingredient_item_id", v)}
-                    options={ingredientOptions}
-                    placeholder="Search ingredients…"
-                    emptyMessage="No ingredients found"
-                    disabled={disabled}
-                    required
-                  />
-                  <FormField
-                    id={`qty_${index}`}
-                    label="Quantity"
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={ing.quantity}
-                    onChange={(e) => setIngredient(index, "quantity", e.target.value)}
-                    required
-                    disabled={disabled}
-                  />
-                  <FormField
-                    id={`unit_${index}`}
-                    label="Unit"
-                    as="select"
-                    value={ing.unit}
-                    onChange={(e) => setIngredient(index, "unit", e.target.value)}
-                    disabled={disabled}
-                  >
-                    {unitList.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </FormField>
-                  <FormField
-                    id={`notes_${index}`}
-                    label="Notes"
-                    value={ing.notes}
-                    onChange={(e) => setIngredient(index, "notes", e.target.value)}
-                    disabled={disabled}
-                  />
-                  {!disabled && form.ingredients.length > 1 && (
-                    <div>
-                      <Button type="button" variant="danger" className="wh-btn--sm" onClick={() => removeIngredient(index)}>
-                        Remove
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+          <FormBlock title="Finished bakery item" description="Tap the product this recipe produces.">
+            <ProductCatalogPicker
+              items={finished_items}
+              title="Finished products"
+              mode="single"
+              value={form.item_id}
+              onSelect={onFinishedSelect}
+              showPrice
+              showStock={false}
+              priceField="selling_price"
+              maxHeight={240}
+              disabled={disabled}
+              emptyMessage="No finished bakery items yet."
+            />
           </FormBlock>
+
+          <FormBlock title="Ingredients (Kacha Maal)" description="Tap ingredients to add them to this recipe.">
+            <ProductCatalogPicker
+              items={ingredients}
+              title="Ingredients"
+              mode="multi"
+              selectedIds={selectedIngredientIds}
+              onToggle={toggleIngredient}
+              showPrice={false}
+              showStock={false}
+              maxHeight={240}
+              disabled={disabled}
+              emptyMessage="No ingredients found. Add purchasable items under Stock."
+            />
+          </FormBlock>
+
+          {form.ingredients.length > 0 && (
+            <FormBlock title="Ingredient quantities" description="Set how much of each ingredient goes into one yield batch.">
+              <div className="wh-inv-line-items">
+                {form.ingredients.map((ing, index) => (
+                  <div key={ing.ingredient_item_id || index} className="wh-inv-line-item">
+                    <div className="wh-inv-line-item__head">
+                      <strong>{ing.item_name || `Ingredient ${index + 1}`}</strong>
+                      {!disabled && (
+                        <Button type="button" variant="secondary" className="wh-btn--sm" onClick={() => removeIngredient(index)}>
+                          Remove
+                        </Button>
+                      )}
+                    </div>
+                    <div className="wh-form-grid">
+                      <FormField
+                        id={`qty_${index}`}
+                        label="Quantity"
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={ing.quantity}
+                        onChange={(e) => setIngredient(index, "quantity", e.target.value)}
+                        required
+                        disabled={disabled}
+                      />
+                      <FormField
+                        id={`unit_${index}`}
+                        label="Unit"
+                        as="select"
+                        value={ing.unit}
+                        onChange={(e) => setIngredient(index, "unit", e.target.value)}
+                        disabled={disabled}
+                      >
+                        {unitList.map((u) => (
+                          <option key={u} value={u}>
+                            {u}
+                          </option>
+                        ))}
+                      </FormField>
+                      <FormField
+                        id={`notes_${index}`}
+                        label="Notes"
+                        value={ing.notes}
+                        onChange={(e) => setIngredient(index, "notes", e.target.value)}
+                        disabled={disabled}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </FormBlock>
+          )}
 
           {error && <p className="wh-field__error">{error}</p>}
           <FormActions>

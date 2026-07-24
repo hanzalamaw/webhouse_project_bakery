@@ -6,14 +6,23 @@ import { PageHeader } from "../../../../../../components/PageHeader";
 import { FormField } from "../../../../../../components/FormField";
 import { Button } from "../../../../../../components/Button";
 import { SearchableSelect } from "../../../../../../components/SearchableSelect";
+import ProductCatalogPicker from "../../../../../../components/ProductCatalogPicker";
 import { useInventoryReference } from "../../hooks/useInventoryReference";
 import { FormBlock } from "../../../../../../components/FormBlock";
 import { FormPageLayout, FormActions } from "../../../../../../components/FormPageLayout";
 import { MODULE_BASE, PO_STATUSES } from "../../constants";
 import { formatPKR } from "../../../../../../utils/currency";
 
-function emptyLine(key) {
-  return { _key: key, item_id: "", qty: "", unit_cost: "", discount: "0", expiry_date: "" };
+function emptyLine(key, item = null) {
+  return {
+    _key: key,
+    item_id: item ? String(item.id) : "",
+    item_name: item?.item_name || "",
+    qty: item ? "1" : "",
+    unit_cost: item ? String(item.cost_price ?? "") : "",
+    discount: "0",
+    expiry_date: "",
+  };
 }
 
 export default function CreatePurchaseOrder() {
@@ -21,9 +30,9 @@ export default function CreatePurchaseOrder() {
   const { authFetch } = useAuth();
   const { suppliers, branches, items } = useInventoryReference();
   const keyRef = useRef(1);
-  const makeLine = useCallback(() => {
+  const makeLine = useCallback((item = null) => {
     keyRef.current += 1;
-    return emptyLine(`line-${keyRef.current}`);
+    return emptyLine(`line-${keyRef.current}`, item);
   }, []);
 
   const [supplierId, setSupplierId] = useState("");
@@ -34,7 +43,7 @@ export default function CreatePurchaseOrder() {
   const [discountAmount, setDiscountAmount] = useState("0");
   const [taxAmount, setTaxAmount] = useState("0");
   const [notes, setNotes] = useState("");
-  const [lines, setLines] = useState(() => [emptyLine("line-1")]);
+  const [lines, setLines] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -48,30 +57,26 @@ export default function CreatePurchaseOrder() {
     () => branches.map((b) => ({ value: String(b.id), label: b.branch_name })),
     [branches]
   );
-  const itemOptions = useMemo(
+  const purchasableItems = useMemo(
     () =>
-      items.map((i) => ({
-        value: String(i.id),
-        label: `${i.item_name}${i.sku ? ` (${i.sku})` : ""}`,
-        cost: i.cost_price,
-      })),
+      items.filter(
+        (i) => i.is_purchased || i.item_type === "ingredient" || i.item_type === "packaging" || !i.item_type
+      ),
     [items]
   );
+  const selectedIds = useMemo(() => lines.map((l) => String(l.item_id)).filter(Boolean), [lines]);
+
+  const addOrToggleItem = (product) => {
+    const id = String(product.id);
+    setLines((rows) => {
+      const existing = rows.find((r) => String(r.item_id) === id);
+      if (existing) return rows.filter((r) => r._key !== existing._key);
+      return [...rows, makeLine(product)];
+    });
+  };
 
   const updateLine = (key, field, value) => {
-    setLines((rows) =>
-      rows.map((row) => {
-        if (row._key !== key) return row;
-        const next = { ...row, [field]: value };
-        if (field === "item_id" && value) {
-          const opt = itemOptions.find((o) => o.value === value);
-          if (opt && (row.unit_cost === "" || row.unit_cost == null)) {
-            next.unit_cost = String(opt.cost ?? "");
-          }
-        }
-        return next;
-      })
-    );
+    setLines((rows) => rows.map((row) => (row._key === key ? { ...row, [field]: value } : row)));
   };
 
   const subtotal = lines.reduce((sum, line) => {
@@ -94,7 +99,7 @@ export default function CreatePurchaseOrder() {
     }
     const validLines = lines.filter((l) => l.item_id && Number(l.qty) > 0);
     if (!validLines.length) {
-      setError("Add at least one item with quantity");
+      setError("Tap items below and set quantity for each");
       return;
     }
     setSaving(true);
@@ -156,41 +161,54 @@ export default function CreatePurchaseOrder() {
             </div>
           </FormBlock>
 
-          <FormBlock title="Line items" description="Items to purchase.">
-            <div className="wh-inv-line-items">
-              {lines.map((line, index) => (
-                <div key={line._key} className="wh-inv-line-item">
-                  <div className="wh-inv-line-item__head">
-                    <strong>Line {index + 1}</strong>
-                    {lines.length > 1 && (
-                      <Button type="button" variant="secondary" className="wh-btn--sm" onClick={() => setLines((rows) => rows.filter((r) => r._key !== line._key))}>
+          <FormBlock title="Items to buy" description="Tap items to add them to this purchase order.">
+            <ProductCatalogPicker
+              items={purchasableItems}
+              title="Products"
+              mode="multi"
+              selectedIds={selectedIds}
+              onToggle={(_id, product) => {
+                if (product) addOrToggleItem(product);
+                else {
+                  const match = purchasableItems.find((i) => String(i.id) === String(_id));
+                  if (match) addOrToggleItem(match);
+                }
+              }}
+              showPrice
+              showStock={false}
+              priceField="cost_price"
+              maxHeight={280}
+              emptyMessage="No purchasable items yet. Add ingredients or packaging under Items."
+            />
+          </FormBlock>
+
+          {lines.length > 0 && (
+            <FormBlock title="Quantities & costs" description="Set qty and unit cost for each selected item.">
+              <div className="wh-inv-line-items">
+                {lines.map((line, index) => (
+                  <div key={line._key} className="wh-inv-line-item">
+                    <div className="wh-inv-line-item__head">
+                      <strong>{line.item_name || `Line ${index + 1}`}</strong>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="wh-btn--sm"
+                        onClick={() => setLines((rows) => rows.filter((r) => r._key !== line._key))}
+                      >
                         Remove
                       </Button>
-                    )}
+                    </div>
+                    <div className="wh-form-grid">
+                      <FormField id={`qty_${line._key}`} label="Qty" type="number" min="0.01" step="any" value={line.qty} onChange={(e) => updateLine(line._key, "qty", e.target.value)} />
+                      <FormField id={`cost_${line._key}`} label="Unit cost" type="number" min="0" step="0.01" value={line.unit_cost} onChange={(e) => updateLine(line._key, "unit_cost", e.target.value)} />
+                      <FormField id={`disc_${line._key}`} label="Line discount" type="number" min="0" step="0.01" value={line.discount} onChange={(e) => updateLine(line._key, "discount", e.target.value)} />
+                      <FormField id={`exp_${line._key}`} label="Expiry (optional)" type="date" value={line.expiry_date} onChange={(e) => updateLine(line._key, "expiry_date", e.target.value)} />
+                    </div>
                   </div>
-                  <div className="wh-form-grid">
-                    <SearchableSelect
-                      id={`item_${line._key}`}
-                      label="Item"
-                      options={itemOptions}
-                      value={line.item_id}
-                      onChange={(v) => updateLine(line._key, "item_id", v)}
-                      placeholder="Select item…"
-                    />
-                    <FormField id={`qty_${line._key}`} label="Qty" type="number" min="0.01" step="any" value={line.qty} onChange={(e) => updateLine(line._key, "qty", e.target.value)} />
-                    <FormField id={`cost_${line._key}`} label="Unit cost" type="number" min="0" step="0.01" value={line.unit_cost} onChange={(e) => updateLine(line._key, "unit_cost", e.target.value)} />
-                    <FormField id={`disc_${line._key}`} label="Line discount" type="number" min="0" step="0.01" value={line.discount} onChange={(e) => updateLine(line._key, "discount", e.target.value)} />
-                    <FormField id={`exp_${line._key}`} label="Expiry (optional)" type="date" value={line.expiry_date} onChange={(e) => updateLine(line._key, "expiry_date", e.target.value)} />
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="wh-inv-warehouse-add">
-              <Button type="button" variant="secondary" onClick={() => setLines((rows) => [...rows, makeLine()])}>
-                Add line
-              </Button>
-            </div>
-          </FormBlock>
+                ))}
+              </div>
+            </FormBlock>
+          )}
 
           <FormBlock title="Totals">
             <div className="wh-form-grid">

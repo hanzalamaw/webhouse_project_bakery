@@ -7,6 +7,7 @@ import { DataTable } from "../../../../../../components/DataTable";
 import { FormField } from "../../../../../../components/FormField";
 import { Button } from "../../../../../../components/Button";
 import { SearchableSelect } from "../../../../../../components/SearchableSelect";
+import ProductCatalogPicker from "../../../../../../components/ProductCatalogPicker";
 import { Modal } from "../../../../../../components/Modal";
 import { FormBlock } from "../../../../../../components/FormBlock";
 import { useInventoryReference } from "../../hooks/useInventoryReference";
@@ -33,10 +34,6 @@ export default function Wastage() {
     notes: "",
   });
 
-  const itemOptions = useMemo(
-    () => items.map((i) => ({ value: String(i.id), label: `${i.item_name}${i.sku ? ` (${i.sku})` : ""}`, cost: i.cost_price })),
-    [items]
-  );
   const branchOptions = useMemo(
     () => branches.map((b) => ({ value: String(b.id), label: b.branch_name })),
     [branches]
@@ -54,7 +51,9 @@ export default function Wastage() {
     }
   }, [authFetch]);
 
-  useEffect(() => { load().catch(() => {}); }, [load]);
+  useEffect(() => {
+    load().catch(() => {});
+  }, [load]);
 
   const openCreate = () => {
     setForm({
@@ -131,18 +130,24 @@ export default function Wastage() {
         )}
       </Card>
 
-      <Modal open={open} title="Record wastage" onClose={() => !saving && setOpen(false)}>
+      <Modal open={open} title="Record wastage" onClose={() => !saving && setOpen(false)} wide>
         <form onSubmit={submit} className="wh-form">
+          <FormBlock title="Select item" description="Tap the item being wasted.">
+            <ProductCatalogPicker
+              items={items}
+              title="Products"
+              mode="single"
+              value={form.item_id}
+              onSelect={(product) => setForm((f) => ({ ...f, item_id: String(product.id) }))}
+              showPrice
+              showStock={false}
+              priceField="cost_price"
+              maxHeight={220}
+              emptyMessage="No items found."
+            />
+          </FormBlock>
           <FormBlock title="Details">
             <div className="wh-form-grid">
-              <SearchableSelect
-                id="w_item"
-                label="Item"
-                options={itemOptions}
-                value={form.item_id}
-                onChange={(v) => setForm((f) => ({ ...f, item_id: v }))}
-                placeholder="Select item…"
-              />
               <SearchableSelect
                 id="w_branch"
                 label="Branch"
@@ -151,23 +156,65 @@ export default function Wastage() {
                 onChange={(v) => setForm((f) => ({ ...f, branch_id: v }))}
                 placeholder="Select branch…"
               />
-              <FormField id="w_qty" label="Quantity" type="number" min="0.01" step="any" value={form.qty} onChange={(e) => setForm((f) => ({ ...f, qty: e.target.value }))} required />
-              <FormField id="w_reason" label="Reason" as="select" value={form.reason} onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))}>
+              <FormField
+                id="w_qty"
+                label="Quantity"
+                type="number"
+                min="0.01"
+                step="any"
+                value={form.qty}
+                onChange={(e) => setForm((f) => ({ ...f, qty: e.target.value }))}
+                required
+              />
+              <FormField
+                id="w_reason"
+                label="Reason"
+                as="select"
+                value={form.reason}
+                onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))}
+              >
                 {WASTAGE_REASONS.map((r) => (
-                  <option key={r} value={r}>{WASTAGE_REASON_LABELS[r] || r}</option>
+                  <option key={r} value={r}>
+                    {WASTAGE_REASON_LABELS[r] || r}
+                  </option>
                 ))}
               </FormField>
-              <FormField id="w_date" label="Wastage date" type="date" value={form.wastage_date} onChange={(e) => setForm((f) => ({ ...f, wastage_date: e.target.value }))} />
-              <FormField id="w_cost" label="Estimated cost (optional)" type="number" min="0" step="0.01" value={form.estimated_cost} onChange={(e) => setForm((f) => ({ ...f, estimated_cost: e.target.value }))} />
+              <FormField
+                id="w_date"
+                label="Wastage date"
+                type="date"
+                value={form.wastage_date}
+                onChange={(e) => setForm((f) => ({ ...f, wastage_date: e.target.value }))}
+              />
+              <FormField
+                id="w_cost"
+                label="Estimated cost (optional)"
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.estimated_cost}
+                onChange={(e) => setForm((f) => ({ ...f, estimated_cost: e.target.value }))}
+              />
               <div className="wh-form-grid__full">
-                <FormField id="w_notes" label="Notes" as="textarea" rows={2} value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
+                <FormField
+                  id="w_notes"
+                  label="Notes"
+                  as="textarea"
+                  rows={2}
+                  value={form.notes}
+                  onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                />
               </div>
             </div>
           </FormBlock>
           {error && <p className="wh-field__error">{error}</p>}
           <div className="wh-modal__actions">
-            <Button type="button" variant="secondary" onClick={() => setOpen(false)} disabled={saving}>Cancel</Button>
-            <Button type="submit" disabled={saving}>{saving ? "Saving…" : "Save Wastage"}</Button>
+            <Button type="button" variant="secondary" onClick={() => setOpen(false)} disabled={saving}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={saving}>
+              {saving ? "Saving…" : "Save Wastage"}
+            </Button>
           </div>
         </form>
       </Modal>

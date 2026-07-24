@@ -4,6 +4,7 @@ import { apiFetch } from "../../../../../api/client";
 import { Button } from "../../../../../components/Button";
 import { FormField } from "../../../../../components/FormField";
 import { Modal } from "../../../../../components/Modal";
+import ProductCatalogPicker from "../../../../../components/ProductCatalogPicker";
 import { useAuth } from "../../../../../context/AuthContext";
 import { formatPKR } from "../../../../../utils/currency";
 import { DEVICE_CODE } from "../constants";
@@ -63,8 +64,6 @@ export default function TerminalCheckout() {
   const [sessionRestoring, setSessionRestoring] = useState(false);
 
   const [cart, setCart] = useState([]);
-  const [search, setSearch] = useState("");
-  const [activeCategory, setActiveCategory] = useState("all");
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [discountAmount, setDiscountAmount] = useState("0");
 
@@ -251,28 +250,6 @@ export default function TerminalCheckout() {
       setConnecting(false);
     }
   };
-
-  const categories = useMemo(() => {
-    const set = new Set();
-    for (const product of products) {
-      set.add((product.category_name || "Uncategorized").trim() || "Uncategorized");
-    }
-    return ["all", ...Array.from(set)];
-  }, [products]);
-
-  const filteredProducts = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return products.filter((product) => {
-      const category = (product.category_name || "Uncategorized").trim() || "Uncategorized";
-      if (activeCategory !== "all" && category !== activeCategory) return false;
-      if (!q) return true;
-      return (
-        String(product.product_name || "").toLowerCase().includes(q) ||
-        String(product.sku || "").toLowerCase().includes(q) ||
-        String(category).toLowerCase().includes(q)
-      );
-    });
-  }, [activeCategory, products, search]);
 
   const addToCart = (product) => {
     const unitPrice = getProductUnitPrice(product);
@@ -605,115 +582,28 @@ export default function TerminalCheckout() {
 
       <div className="pos-terminal-v2">
         <section className="pos-terminal-v2__products">
-          <div className="pos-terminal-v2__products-head">
-            <div>
-              <h2>Products</h2>
-              <p className="wh-muted">
-                Tap to add items to this order.
-                {terminal?.outlet_name ? ` Store: ${terminal.outlet_name}.` : ""}
-                {products.length > 0 ? ` ${products.length} available.` : ""}
-              </p>
-            </div>
-            <Button
-              type="button"
-              variant="secondary"
-              className="wh-btn--sm"
-              disabled={productsRefreshing}
-              onClick={() => refreshProducts()}
-            >
-              {productsRefreshing ? "Refreshing…" : "Refresh products"}
-            </Button>
-          </div>
-
-          <div className="pos-terminal-v2__search">
-            <FormField
-              id="product_search"
-              label="Search products"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by name, SKU, or category"
-            />
-          </div>
-
-          <div className="pos-terminal-v2__categories">
-            {categories.map((category) => {
-              const active = activeCategory === category;
-              return (
-                <button
-                  key={category}
-                  type="button"
-                  className={`pos-terminal-v2__category-tab${active ? " is-active" : ""}`}
-                  onClick={() => setActiveCategory(category)}
-                >
-                  {category === "all" ? "All" : category}
-                </button>
-              );
-            })}
-          </div>
-
-          {loading ? (
-            <p className="wh-muted">Loading products...</p>
-          ) : filteredProducts.length ? (
-            <div className="pos-terminal-v2__product-grid">
-              {filteredProducts.map((product) => {
-                const sellingPrice = Number(product.selling_price) || 0;
-                const productDiscount = Number(product.discount) || 0;
-                const productTax = Number(product.tax) || 0;
-                return (
-                  <button
-                    key={product.id}
-                    type="button"
-                    className="pos-terminal-v2__product-card"
-                    onClick={() => addToCart(product)}
-                  >
-                    <div className="pos-terminal-v2__product-name">{product.product_name}</div>
-                    <div className="pos-terminal-v2__product-meta">
-                      <span>SKU: {product.sku}</span>
-                      <span>{product.category_name || "Uncategorized"}</span>
-                    </div>
-                    <div className="pos-terminal-v2__product-price">{formatPKR(sellingPrice)}</div>
-                    {(productDiscount > 0 || productTax > 0) && (
-                      <div className="pos-terminal-v2__product-adjustments">
-                        {productDiscount > 0 && (
-                          <span className="pos-terminal-v2__adj pos-terminal-v2__adj--discount">
-                            Discount: {formatPKR(productDiscount)}
-                          </span>
-                        )}
-                        {productTax > 0 && (
-                          <span className="pos-terminal-v2__adj pos-terminal-v2__adj--tax">
-                            Tax: {formatPKR(productTax)}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                    <div className="pos-terminal-v2__product-stock">
-                      Stock: {Number(product.available_qty || 0)}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="pos-terminal__empty">
-              <p className="wh-muted">No active products for {terminal?.outlet_name || "this store"}.</p>
-              <p className="wh-muted" style={{ marginTop: 8 }}>
-                Products must be <strong>active</strong> and created for the same store as this terminal.
-                Create them under{" "}
-                <Link to="/app/m/pos/products/create" className="wh-link">
-                  POS Products
-                </Link>
-                , then click <strong>Refresh products</strong> above.
-              </p>
-              <div style={{ marginTop: 12 }}>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  disabled={productsRefreshing}
-                  onClick={() => refreshProducts()}
-                >
-                  {productsRefreshing ? "Refreshing…" : "Refresh products"}
-                </Button>
-              </div>
+          <ProductCatalogPicker
+            className="wh-catalog-picker--flush wh-catalog-picker--fill"
+            products={products}
+            title="Products"
+            storeName={terminal?.outlet_name}
+            mode="tap"
+            onSelect={addToCart}
+            onRefresh={() => refreshProducts()}
+            refreshing={productsRefreshing}
+            showRefresh
+            showPrice
+            showStock
+            showTaxDiscount
+            maxHeight={null}
+            emptyMessage={`No active products for ${terminal?.outlet_name || "this store"}.`}
+            emptyHint="Products must be active and sellable. Create them under Stock & Purchasing, then refresh."
+          />
+          {!loading && products.length === 0 && (
+            <div className="pos-terminal__empty" style={{ marginTop: 8 }}>
+              <Link to="/app/m/stock-purchasing/items/create" className="wh-link">
+                Create items
+              </Link>
             </div>
           )}
         </section>

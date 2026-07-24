@@ -7,6 +7,7 @@ import { PageHeader } from "../../../../../../components/PageHeader";
 import { FormField } from "../../../../../../components/FormField";
 import { Button } from "../../../../../../components/Button";
 import { SearchableSelect } from "../../../../../../components/SearchableSelect";
+import ProductCatalogPicker from "../../../../../../components/ProductCatalogPicker";
 import { FormBlock } from "../../../../../../components/FormBlock";
 import { FormPageLayout, FormActions } from "../../../../../../components/FormPageLayout";
 import { DataTable } from "../../../../../../components/DataTable";
@@ -43,15 +44,6 @@ export default function CreateRun() {
   const disabled = readOnly || !canCreate;
   const backPath = `${MODULE_BASE}/runs/manage`;
 
-  const finishedOptions = useMemo(
-    () =>
-      finished_items.map((i) => ({
-        value: String(i.id),
-        label: i.sku ? `${i.item_name} (${i.sku})` : i.item_name,
-      })),
-    [finished_items]
-  );
-
   const branchOptions = useMemo(
     () => branches.map((b) => ({ value: String(b.id), label: b.branch_name })),
     [branches]
@@ -83,7 +75,9 @@ export default function CreateRun() {
     setPrefilled(true);
   }, [recipes, searchParams, prefilled]);
 
-  const onItemChange = (value) => {
+  const onItemSelect = (product) => {
+    if (disabled) return;
+    const value = String(product.id);
     setPlan(null);
     setForm((f) => {
       const match = recipes.find(
@@ -204,19 +198,24 @@ export default function CreateRun() {
           }
         />
         <form onSubmit={submit} className="wh-form-stack">
-          <FormBlock title="What are you baking?" description="Finished item, recipe, branch, and quantity made.">
+          <FormBlock title="Finished bakery item" description="Tap the product you are baking.">
+            <ProductCatalogPicker
+              items={finished_items}
+              title="Finished products"
+              mode="single"
+              value={form.item_id}
+              onSelect={onItemSelect}
+              showPrice
+              showStock={false}
+              priceField="selling_price"
+              maxHeight={240}
+              disabled={disabled}
+              emptyMessage="No finished bakery items yet."
+            />
+          </FormBlock>
+
+          <FormBlock title="Bake details" description="Recipe, branch, and quantity made.">
             <div className="wh-form-grid">
-              <SearchableSelect
-                id="item_id"
-                label="Finished bakery item"
-                value={form.item_id}
-                onChange={onItemChange}
-                options={finishedOptions}
-                placeholder="Search finished items…"
-                emptyMessage="No finished items found"
-                disabled={disabled}
-                required
-              />
               <SearchableSelect
                 id="recipe_id"
                 label="Recipe"

@@ -14,6 +14,7 @@ import { Modal } from "../../../../../../components/Modal";
 import { ConfirmDeleteModal } from "../../../../../../components/ConfirmDeleteModal";
 import { FormBlock } from "../../../../../../components/FormBlock";
 import { FormPageLayout, FormPageAlerts, FormActions } from "../../../../../../components/FormPageLayout";
+import ProductCatalogPicker from "../../../../../../components/ProductCatalogPicker";
 import { useOrderReference } from "../../hooks/useOrderReference";
 import { MODULE_BASE, ORDER_SOURCE_LABELS, ORDER_STATUS_LABELS } from "../../constants";
 import {
@@ -194,8 +195,6 @@ export default function CreateOrder() {
   const [items, setItems] = useState([]);
   const [branchId, setBranchId] = useState("");
   const [branchProducts, setBranchProducts] = useState([]);
-  const [productSearch, setProductSearch] = useState("");
-  const [productPickerOpen, setProductPickerOpen] = useState(false);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [baseline, setBaseline] = useState(null);
   const [createBaseline, setCreateBaseline] = useState(null);
@@ -485,16 +484,10 @@ export default function CreateOrder() {
     return (branchProducts || []).filter((p) => p?.product_id || p?.item_id);
   }, [branchProducts]);
 
-  const filteredProducts = useMemo(() => {
-    const q = productSearch.trim().toLowerCase();
-    if (q.length < 1) return [];
-    return sellableProducts.filter((p) => {
-      const name = String(p.product_name || p.item_name || "").toLowerCase();
-      const sku = String(p.sku || "").toLowerCase();
-      const variant = String(p.variant_name || p.variant_label || "").toLowerCase();
-      return name.includes(q) || sku.includes(q) || variant.includes(q);
-    });
-  }, [sellableProducts, productSearch]);
+  const selectedProductIds = useMemo(
+    () => items.map((i) => String(i.product_id || i.item_id)).filter(Boolean),
+    [items]
+  );
 
   const itemForProduct = (product) => items.find((i) => lineMatchesProduct(i, product));
 
@@ -694,26 +687,14 @@ export default function CreateOrder() {
   const handleBranchChange = (nextId) => {
     clearFieldError("branch_id");
     setBranchId(nextId);
-    setProductSearch("");
-    setProductPickerOpen(false);
     if (!isEdit && nextId !== branchId) {
       setItems([]);
     }
   };
 
-  const openProductPicker = () => {
-    if (disabled) return;
-    if (!branchId) {
-      showActionError(isEdit ? "Select a branch above to add products." : "Select a branch first to add products.");
-      return;
-    }
-    setActionError("");
-    setProductPickerOpen(true);
-  };
-
-  const closeProductPicker = () => {
-    setProductPickerOpen(false);
-    setProductSearch("");
+  const refreshBranchProducts = () => {
+    if (!branchId) return;
+    loadBranchProducts(branchId).catch(() => {});
   };
 
   const confirmDeleteOrder = async () => {
@@ -730,67 +711,6 @@ export default function CreateOrder() {
     } finally {
       setDeleting(false);
     }
-  };
-
-  const renderProductPicker = () => {
-    if (loadingProducts) {
-      return <p className="wh-product-picker-empty">Loading products…</p>;
-    }
-    const q = productSearch.trim();
-    if (!q) {
-      const available = sellableProducts.length;
-      return (
-        <div className="wh-product-picker-empty">
-          <p className="wh-product-picker-empty__title">Type to search bakery items</p>
-          <p className="wh-muted">
-            {available > 0
-              ? `${available} item${available === 1 ? "" : "s"} available at this branch — search by name or SKU.`
-              : "No sellable items found for this branch."}
-          </p>
-        </div>
-      );
-    }
-    if (filteredProducts.length === 0) {
-      return (
-        <p className="wh-product-picker-empty">
-          {sellableProducts.length === 0
-            ? "No products found for this branch."
-            : "No products match your search."}
-        </p>
-      );
-    }
-    return (
-      <div className="wh-variant-picker wh-variant-picker--modal">
-        <div className="wh-variant-group__list">
-          {filteredProducts.map((p) => {
-            const checked = Boolean(itemForProduct(p));
-            const name = p.product_name || p.item_name || "Item";
-            const meta = [
-              p.variant_name || p.variant_label,
-              p.sku ? `SKU ${p.sku}` : "",
-              formatPKR(p.selling_price ?? p.unit_price),
-              `Avail ${p.available_qty ?? 0}`,
-            ].filter(Boolean).join(" · ");
-            return (
-              <div className={`wh-variant-row${checked ? " wh-variant-row--on" : ""}`} key={productKey(p)}>
-                <label className="wh-variant-row__select">
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => toggleProduct(p)}
-                    disabled={disabled}
-                  />
-                  <span className="wh-variant-row__text">
-                    <span className="wh-variant-row__name">{name}</span>
-                    <span className="wh-variant-row__meta">{meta}</span>
-                  </span>
-                </label>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
   };
 
   if (loadingProduct || refLoading) {
@@ -838,8 +758,8 @@ export default function CreateOrder() {
             title="Products"
             description={
               isEdit
-                ? "Adjust existing line items or search bakery items to add more."
-                : "Choose a branch (shop), then search sellable bakery items."
+                ? "Adjust existing line items or tap bakery items below to add more."
+                : "Choose a branch (shop), then tap bakery items to add them."
             }
           >
             <FormField
@@ -868,32 +788,35 @@ export default function CreateOrder() {
             )}
 
             {branchId && (
-              <div className="wh-order-product-search">
-                <FormField
-                  id="order-product-search"
-                  label="Search products"
-                  value={productSearch}
-                  onChange={(e) => {
-                    setProductSearch(e.target.value);
-                    openProductPicker();
-                  }}
-                  onFocus={openProductPicker}
-                  placeholder="Search by item name or SKU…"
-                  disabled={disabled}
-                />
-                <div className="wh-order-product-search__actions">
-                  <Button type="button" variant="secondary" onClick={openProductPicker} disabled={disabled}>
-                    {loadingProducts
-                      ? "Loading…"
-                      : isEdit
-                        ? "Add product"
-                        : "Browse products"}
-                  </Button>
-                  {items.length > 0 && (
-                    <span className="wh-muted">{items.length} item{items.length === 1 ? "" : "s"} selected</span>
-                  )}
-                </div>
-              </div>
+              <ProductCatalogPicker
+                products={sellableProducts}
+                title="Products"
+                storeName={
+                  (() => {
+                    const b = branchOptions.find((x) => String(x.id) === String(branchId));
+                    return b ? branchLabel(b) : undefined;
+                  })()
+                }
+                mode="multi"
+                selectedIds={selectedProductIds}
+                onToggle={(_id, product) => {
+                  if (product) toggleProduct(product);
+                  else {
+                    const match = sellableProducts.find(
+                      (p) => String(p.product_id || p.item_id || p.id) === String(_id)
+                    );
+                    if (match) toggleProduct(match);
+                  }
+                }}
+                onRefresh={refreshBranchProducts}
+                refreshing={loadingProducts}
+                showRefresh
+                showPrice
+                showStock
+                disabled={disabled}
+                maxHeight={280}
+                emptyMessage={loadingProducts ? "Loading products…" : "No sellable items found for this branch."}
+              />
             )}
           </FormBlock>
 
@@ -902,13 +825,6 @@ export default function CreateOrder() {
               <OrderItemsCardHead
                 itemCount={items.length}
                 unitCount={unitCount}
-                actions={
-                  isEdit && !disabled ? (
-                    <Button type="button" variant="secondary" onClick={openProductPicker} disabled={!branchId}>
-                      Add product
-                    </Button>
-                  ) : null
-                }
               />
               {items.length === 0 ? (
                 <p className="wh-muted wh-order-items-card__empty">No products selected yet.</p>
@@ -1278,30 +1194,6 @@ export default function CreateOrder() {
           </FormActions>
         </form>
       </FormPageLayout>
-
-      <Modal
-        open={productPickerOpen}
-        onClose={closeProductPicker}
-        title="Select products"
-        wide
-        className="wh-modal--product-picker"
-        footer={
-          <Button type="button" modalPrimary onClick={closeProductPicker}>
-            Done ({items.length} selected)
-          </Button>
-        }
-      >
-        <FormField
-          id="order-product-search-modal"
-          label="Search products"
-          value={productSearch}
-          onChange={(e) => setProductSearch(e.target.value)}
-          placeholder="Type an item name or SKU…"
-          disabled={disabled}
-          autoFocus
-        />
-        {renderProductPicker()}
-      </Modal>
 
       <Modal
         open={!!stockWarning}

@@ -1,6 +1,6 @@
-import { useMemo } from "react";
+import ProductCatalogPicker from "../../../../../components/ProductCatalogPicker";
 
-/** Multi-select picker for bakery items (kept filename for existing imports). */
+/** Multi-select bakery item picker — shared catalog card UI. */
 export default function ProductPicker({
   products,
   items,
@@ -8,95 +8,55 @@ export default function ProductPicker({
   onToggle,
   search,
   onSearchChange,
-  categoryFilter = "",
+  categoryFilter,
   onCategoryFilterChange,
-  showCategoryFilter = false,
-  showCategoryTag = false,
-  showWarning = false,
+  showCategoryFilter,
+  showCategoryTag,
+  showWarning,
   description,
   tall = false,
   entityLabel = "items",
+  storeName,
+  branchName,
+  showPrice = true,
+  showStock = false,
+  priceField = "cost_price",
+  onRefresh,
+  refreshing,
 }) {
-  const list = items || products || [];
-
-  const categories = useMemo(() => {
-    const names = new Set(list.map((p) => p.category_name).filter(Boolean));
-    return Array.from(names).sort();
-  }, [list]);
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return list.filter((p) => {
-      const name = p.item_name || p.product_name;
-      if (categoryFilter && p.category_name !== categoryFilter) return false;
-      if (!q) return true;
-      return (
-        name?.toLowerCase().includes(q) ||
-        p.sku?.toLowerCase().includes(q) ||
-        p.category_name?.toLowerCase().includes(q) ||
-        p.item_type?.toLowerCase().includes(q)
-      );
-    });
-  }, [list, search, categoryFilter]);
+  // Legacy search/category props are ignored — catalog picker manages its own filters.
+  void search;
+  void onSearchChange;
+  void categoryFilter;
+  void onCategoryFilterChange;
+  void showCategoryFilter;
+  void showCategoryTag;
 
   return (
     <div className="wh-inv-product-picker">
-      {description && <p className="wh-inv-block__desc">{description}</p>}
       {showWarning && (
         <div className="wh-inv-warning">
           <strong>Note:</strong> Selecting an item moves it into this category.
         </div>
       )}
-      <div className={`wh-inv-picker-toolbar${showCategoryFilter ? "" : " wh-inv-picker-toolbar--search-only"}`}>
-        <input
-          type="search"
-          className="wh-field__input wh-inv-picker-search"
-          placeholder={`Search ${entityLabel} by name, SKU, or category…`}
-          value={search}
-          onChange={(e) => onSearchChange(e.target.value)}
-        />
-        {showCategoryFilter && (
-          <select className="wh-field__input" value={categoryFilter} onChange={(e) => onCategoryFilterChange(e.target.value)}>
-            <option value="">All categories</option>
-            {categories.map((name) => (
-              <option key={name} value={name}>{name}</option>
-            ))}
-          </select>
-        )}
-      </div>
-      <div className={`wh-inv-picker-panel${tall ? " wh-inv-picker-panel--tall" : ""}`}>
-        <div className="wh-inv-picker-list">
-          {filtered.length === 0 ? (
-            <p className="wh-inv-picker-empty">No {entityLabel} match your search.</p>
-          ) : (
-            filtered.map((p) => {
-              const name = p.item_name || p.product_name;
-              return (
-                <label key={p.id} className="wh-inv-picker-row">
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.includes(String(p.id))}
-                    onChange={() => onToggle(p.id)}
-                  />
-                  <span className="wh-inv-picker-row__label">
-                    {name}{p.sku ? ` (${p.sku})` : ""}
-                    {p.item_type && <span className="wh-inv-tag"> — {p.item_type}</span>}
-                    {showCategoryTag && p.category_name && (
-                      <span className="wh-inv-tag"> — {p.category_name}</span>
-                    )}
-                    {!showCategoryTag && p.category_name && !p.item_type && (
-                      <span className="wh-inv-tag"> — {p.category_name}</span>
-                    )}
-                  </span>
-                </label>
-              );
-            })
-          )}
-        </div>
-      </div>
-      {selectedIds.length > 0 && (
-        <p className="wh-muted wh-inv-picker-count">{selectedIds.length} {entityLabel} selected</p>
-      )}
+      <ProductCatalogPicker
+        items={items || products}
+        title={entityLabel === "products" ? "Products" : "Items"}
+        description={description || `Tap to select ${entityLabel}.`}
+        storeName={storeName}
+        branchName={branchName}
+        mode="multi"
+        selectedIds={selectedIds}
+        onToggle={(id) => onToggle(id)}
+        showPrice={showPrice}
+        showStock={showStock}
+        priceField={priceField}
+        maxHeight={tall ? 320 : 280}
+        emptyMessage={`No ${entityLabel} match your search.`}
+        onRefresh={onRefresh}
+        refreshing={refreshing}
+        showRefresh={Boolean(onRefresh)}
+      />
     </div>
   );
 }
