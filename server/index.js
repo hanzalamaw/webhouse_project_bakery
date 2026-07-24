@@ -9,11 +9,12 @@ import { registerAuthRoutes } from "./src/routes/auth.js";
 import { registerDashboardRoutes } from "./src/routes/dashboard.js";
 import { registerWhPortalRoutes } from "./src/routes/whPortal.js";
 import { registerInventoryRoutes } from "./src/routes/inventory.js";
+import { registerProductionRoutes } from "./src/routes/production.js";
 import { registerPosRoutes } from "./src/routes/pos.js";
 import { registerCrmRoutes } from "./src/routes/crm.js";
+import { registerOrderRoutes } from "./src/routes/orders.js";
+import { registerFinanceRoutes } from "./src/routes/finance.js";
 import { registerTenantPortalRoutes } from "./src/routes/tenantPortal.js";
-import { registerEcommerceRoutes } from "./src/routes/ecommerce.js";
-import { shopifyWebhookHandler } from "./src/routes/shopifyWebhooks.js";
 import { purgeSoftDeleted } from "./src/jobs/purgeSoftDeleted.js";
 
 dotenv.config();
@@ -23,12 +24,6 @@ const JSON_BODY_LIMIT = process.env.JSON_BODY_LIMIT || "10mb";
 const app = express();
 app.set("trust proxy", 1);
 app.use(cors({ origin: true, credentials: true }));
-
-app.post(
-  "/api/shopify/webhooks",
-  express.raw({ type: "application/json" }),
-  shopifyWebhookHandler,
-);
 
 app.use(cookieParser());
 app.use(express.json({ limit: JSON_BODY_LIMIT }));
@@ -54,10 +49,12 @@ const startServer = async () => {
     jwtRefreshExpiresIn: JWT_REFRESH_EXPIRES_IN,
   });
   registerInventoryRoutes(app, verifyToken);
+  registerProductionRoutes(app, verifyToken);
   registerCrmRoutes(app, verifyToken);
+  registerOrderRoutes(app, verifyToken);
+  registerFinanceRoutes(app, verifyToken);
   registerPosRoutes(app, verifyToken);
   registerTenantPortalRoutes(app, verifyToken);
-  registerEcommerceRoutes(app, verifyToken);
 
   app.get("/", (req, res) => {
     res.send("API running");

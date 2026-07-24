@@ -16,10 +16,10 @@ export default function StockIn() {
   const [rows, setRows] = useState([]);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
-  const backPath = `${MODULE_BASE}/procurement/stock-in`;
+  const backPath = `${MODULE_BASE}/stock/stock-in`;
 
   const openMovement = (row) => {
-    navigate(`${MODULE_BASE}/procurement/movements/view/${row.id}`, {
+    navigate(`${MODULE_BASE}/stock/movements/view/${row.id}`, {
       state: { movement: row, backPath },
     });
   };
@@ -27,8 +27,14 @@ export default function StockIn() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await fetchAllTableRows("/inventory/stock-movements?movement_type=stock_in", authFetch);
-      setRows(data);
+      const [purchase, opening] = await Promise.all([
+        fetchAllTableRows("/inventory/stock-movements?movement_type=purchase_in", authFetch),
+        fetchAllTableRows("/inventory/stock-movements?movement_type=opening", authFetch),
+      ]);
+      const merged = [...purchase, ...opening].sort(
+        (a, b) => new Date(b.created_at) - new Date(a.created_at)
+      );
+      setRows(merged);
     } catch {
       setRows([]);
     } finally {
@@ -39,9 +45,9 @@ export default function StockIn() {
   useEffect(() => { load().catch(() => {}); }, [load]);
 
   const columns = [
-    { key: "product_name", label: "Product" },
-    { key: "sku", label: "SKU" },
-    { key: "warehouse_name", label: "Warehouse" },
+    { key: "item_name", label: "Item" },
+    { key: "unit", label: "Unit", format: (v) => v || "—" },
+    { key: "branch_name", label: "Branch" },
     { key: "qty", label: "Qty" },
     { key: "notes", label: "Notes", format: (v) => v || "—" },
     { key: "created_by_name", label: "By", format: (v) => v || "—" },
@@ -53,8 +59,8 @@ export default function StockIn() {
     <div className="wh-page">
       <PageHeader
         title="Stock In"
-        description="View stock-in history. Record new stock from the create page."
-        actions={<Button onClick={() => navigate(`${MODULE_BASE}/procurement/stock-in/create`)}>Record Stock In</Button>}
+        description="Items received into a branch (purchase or opening stock)."
+        actions={<Button onClick={() => navigate(`${MODULE_BASE}/stock/stock-in/create`)}>Record Stock In</Button>}
       />
       <Card className="wh-card--table">
         <div className="wh-card-table__head"><h3 className="wh-card__title">Stock in history</h3></div>

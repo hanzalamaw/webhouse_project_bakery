@@ -1,89 +1,81 @@
 -- =============================================================================
--- Sample / demo data for webhouse_project_x  (safe to re-run)
+-- Sample / demo data for bakery_erp  (safe to re-run)
 -- =============================================================================
 -- Run in MySQL:
---   mysql -u root -p webhouse_project_x < db/seeds/sample_data.sql
+--   mysql -u root -p bakery_erp < db/seeds/sample_data.sql
 --
--- Prereqs: schema + login_portal on wh_tenants (004) + WH admins seeded
+-- Prereqs: schema applied + WH admins seeded (npm run setup:db)
 --
--- Tenant logins (password for all: tenan 123)
---   admin@acme.com      → /erp1
---   admin@betastore.com → /erp2
---   admin@gammacorp.com → /erp3
+-- Tenant logins (password for all: tenant123)
+--   admin@sweetcrumbs.pk → /erp1   (full demo: branches, stock, recipes, POS)
+--   admin@lahorebakes.pk → /erp2
+--   admin@karachicakes.pk → /erp3
 -- =============================================================================
 
-USE `webhouse_project_x`;
+USE `bakery_erp`;
 
 -- -----------------------------------------------------------------------------
--- Cleanup previous sample rows (re-run safe)
+-- Cleanup previous sample rows (re-run safe). Tenant delete cascades to all
+-- tenant-scoped bakery tables via FK ON DELETE CASCADE.
 -- -----------------------------------------------------------------------------
 DELETE FROM `wh_tenants`
-WHERE `company_name` IN ('Acme Corporation', 'Beta Store LLC', 'Gamma Industries');
+WHERE `company_name` IN ('Sweet Crumbs Bakery', 'Lahore Bakes', 'Karachi Cakes');
 
 DELETE FROM `wh_subscription_plans`
-WHERE `plan_name` IN ('Starter', 'Professional', 'Enterprise');
+WHERE `plan_name` IN ('Basic', 'Standard', 'Premium');
 
 DELETE FROM `modules`
 WHERE `module_name` IN (
-  'Inventory',
-  'CRM',
-  'Orders',
-  'POS',
-  'Logistics',
-  'Admin',
-  'Logistics Partners',
-  'Order Management',
-  'E-Commerce Integration',
-  'Finance & Accounting',
-  'Inventory & Procurement'
+  'Admin', 'Stock & Purchasing', 'Production', 'Point of Sale', 'POS Terminal',
+  'Order Management', 'CRM', 'Finance & Accounting',
+  -- legacy names (clean up if present)
+  'Inventory', 'Orders', 'POS', 'Logistics', 'Logistics Partners',
+  'E-Commerce Integration', 'Inventory & Procurement'
 );
 
 -- -----------------------------------------------------------------------------
--- Modules (canonical tenant portal names)
+-- Modules (canonical tenant portal names — Bakery ERP)
 -- -----------------------------------------------------------------------------
 INSERT INTO `modules` (`module_name`) VALUES
   ('Admin'),
-  ('Logistics Partners'),
+  ('Stock & Purchasing'),
+  ('Production'),
+  ('Point of Sale'),
+  ('POS Terminal'),
   ('Order Management'),
-  ('POS'),
   ('CRM'),
-  ('E-Commerce Integration'),
-  ('Finance & Accounting'),
-  ('Inventory & Procurement');
+  ('Finance & Accounting');
 
-SET @mod_admin      = (SELECT `id` FROM `modules` WHERE `module_name` = 'Admin'                         AND `deleted_at` IS NULL ORDER BY `id` LIMIT 1);
-SET @mod_logistics  = (SELECT `id` FROM `modules` WHERE `module_name` = 'Logistics Partners' AND `deleted_at` IS NULL ORDER BY `id` LIMIT 1);
-SET @mod_orders     = (SELECT `id` FROM `modules` WHERE `module_name` = 'Order Management'              AND `deleted_at` IS NULL ORDER BY `id` LIMIT 1);
-SET @mod_pos        = (SELECT `id` FROM `modules` WHERE `module_name` = 'POS'                          AND `deleted_at` IS NULL ORDER BY `id` LIMIT 1);
-SET @mod_crm        = (SELECT `id` FROM `modules` WHERE `module_name` = 'CRM'                          AND `deleted_at` IS NULL ORDER BY `id` LIMIT 1);
-SET @mod_ecommerce  = (SELECT `id` FROM `modules` WHERE `module_name` = 'E-Commerce Integration'       AND `deleted_at` IS NULL ORDER BY `id` LIMIT 1);
-SET @mod_finance    = (SELECT `id` FROM `modules` WHERE `module_name` = 'Finance & Accounting'         AND `deleted_at` IS NULL ORDER BY `id` LIMIT 1);
-SET @mod_inventory  = (SELECT `id` FROM `modules` WHERE `module_name` = 'Inventory & Procurement'      AND `deleted_at` IS NULL ORDER BY `id` LIMIT 1);
+SET @mod_admin      = (SELECT `id` FROM `modules` WHERE `module_name` = 'Admin'               AND `deleted_at` IS NULL ORDER BY `id` LIMIT 1);
+SET @mod_stock      = (SELECT `id` FROM `modules` WHERE `module_name` = 'Stock & Purchasing'  AND `deleted_at` IS NULL ORDER BY `id` LIMIT 1);
+SET @mod_production = (SELECT `id` FROM `modules` WHERE `module_name` = 'Production'           AND `deleted_at` IS NULL ORDER BY `id` LIMIT 1);
+SET @mod_pos        = (SELECT `id` FROM `modules` WHERE `module_name` = 'Point of Sale'       AND `deleted_at` IS NULL ORDER BY `id` LIMIT 1);
+SET @mod_posterm    = (SELECT `id` FROM `modules` WHERE `module_name` = 'POS Terminal'        AND `deleted_at` IS NULL ORDER BY `id` LIMIT 1);
+SET @mod_orders     = (SELECT `id` FROM `modules` WHERE `module_name` = 'Order Management'    AND `deleted_at` IS NULL ORDER BY `id` LIMIT 1);
+SET @mod_crm        = (SELECT `id` FROM `modules` WHERE `module_name` = 'CRM'                 AND `deleted_at` IS NULL ORDER BY `id` LIMIT 1);
+SET @mod_finance    = (SELECT `id` FROM `modules` WHERE `module_name` = 'Finance & Accounting' AND `deleted_at` IS NULL ORDER BY `id` LIMIT 1);
 
 -- -----------------------------------------------------------------------------
 -- Subscription plans
 -- -----------------------------------------------------------------------------
 INSERT INTO `wh_subscription_plans` (`plan_name`, `plan_price`, `login_portal`) VALUES
-  ('Starter',      49.00, 'erp1'),
-  ('Professional', 99.00, 'erp2'),
-  ('Enterprise',  199.00, 'erp3');
+  ('Basic',    5000.00,  'erp1'),
+  ('Standard', 10000.00, 'erp2'),
+  ('Premium',  20000.00, 'erp3');
 
-SET @plan_starter      = (SELECT `id` FROM `wh_subscription_plans` WHERE `plan_name` = 'Starter'      AND `deleted_at` IS NULL ORDER BY `id` LIMIT 1);
-SET @plan_professional = (SELECT `id` FROM `wh_subscription_plans` WHERE `plan_name` = 'Professional' AND `deleted_at` IS NULL ORDER BY `id` LIMIT 1);
-SET @plan_enterprise   = (SELECT `id` FROM `wh_subscription_plans` WHERE `plan_name` = 'Enterprise'   AND `deleted_at` IS NULL ORDER BY `id` LIMIT 1);
+SET @plan_basic    = (SELECT `id` FROM `wh_subscription_plans` WHERE `plan_name` = 'Basic'    AND `deleted_at` IS NULL ORDER BY `id` LIMIT 1);
+SET @plan_standard = (SELECT `id` FROM `wh_subscription_plans` WHERE `plan_name` = 'Standard' AND `deleted_at` IS NULL ORDER BY `id` LIMIT 1);
+SET @plan_premium  = (SELECT `id` FROM `wh_subscription_plans` WHERE `plan_name` = 'Premium'  AND `deleted_at` IS NULL ORDER BY `id` LIMIT 1);
 
--- Plan ↔ module bundles
-INSERT IGNORE INTO `wh_subscription_module` (`subscription_plan_id`, `module_id`) VALUES
-  (@plan_starter,      @mod_inventory),
-  (@plan_starter,      @mod_orders),
-  (@plan_professional, @mod_inventory),
-  (@plan_professional, @mod_crm),
-  (@plan_professional, @mod_orders),
-  (@plan_enterprise,   @mod_inventory),
-  (@plan_enterprise,   @mod_crm),
-  (@plan_enterprise,   @mod_orders),
-  (@plan_enterprise,   @mod_pos),
-  (@plan_enterprise,   @mod_logistics);
+-- Plan bundles — every plan includes the full bakery module set.
+INSERT IGNORE INTO `wh_subscription_module` (`subscription_plan_id`, `module_id`)
+SELECT p.id, m.id
+FROM (SELECT @plan_basic AS id UNION ALL SELECT @plan_standard UNION ALL SELECT @plan_premium) p
+CROSS JOIN (
+  SELECT @mod_admin AS id UNION ALL SELECT @mod_stock UNION ALL SELECT @mod_production UNION ALL
+  SELECT @mod_pos UNION ALL SELECT @mod_posterm UNION ALL SELECT @mod_orders UNION ALL
+  SELECT @mod_crm UNION ALL SELECT @mod_finance
+) m;
 
 -- -----------------------------------------------------------------------------
 -- Tenants (one login portal each)
@@ -91,23 +83,23 @@ INSERT IGNORE INTO `wh_subscription_module` (`subscription_plan_id`, `module_id`
 INSERT INTO `wh_tenants`
   (`company_name`, `owner_name`, `owner_email`, `owner_phone`, `industry`, `status`, `login_portal`)
 VALUES
-  ('Acme Corporation',  'Jane Smith',  'jane@acme.com',      '+1 555 0101', 'Retail',       'active', 'erp1'),
-  ('Beta Store LLC',    'Bob Jones',   'bob@betastore.com',  '+1 555 0102', 'E-Commerce',   'active', 'erp2'),
-  ('Gamma Industries',  'Ali Rahman',  'ali@gammacorp.com',  '+1 555 0103', 'Manufacturing','active', 'erp3');
+  ('Sweet Crumbs Bakery', 'Ayesha Khan', 'ayesha@sweetcrumbs.pk', '+92 300 1112222', 'Bakery', 'active', 'erp1'),
+  ('Lahore Bakes',        'Bilal Ahmed', 'bilal@lahorebakes.pk',  '+92 301 2223333', 'Bakery', 'active', 'erp2'),
+  ('Karachi Cakes',       'Sana Malik',  'sana@karachicakes.pk',  '+92 302 3334444', 'Bakery', 'active', 'erp3');
 
-SET @tenant_acme  = (SELECT `id` FROM `wh_tenants` WHERE `company_name` = 'Acme Corporation' AND `deleted_at` IS NULL LIMIT 1);
-SET @tenant_beta  = (SELECT `id` FROM `wh_tenants` WHERE `company_name` = 'Beta Store LLC'   AND `deleted_at` IS NULL LIMIT 1);
-SET @tenant_gamma = (SELECT `id` FROM `wh_tenants` WHERE `company_name` = 'Gamma Industries' AND `deleted_at` IS NULL LIMIT 1);
+SET @tenant_a = (SELECT `id` FROM `wh_tenants` WHERE `company_name` = 'Sweet Crumbs Bakery' AND `deleted_at` IS NULL LIMIT 1);
+SET @tenant_b = (SELECT `id` FROM `wh_tenants` WHERE `company_name` = 'Lahore Bakes'         AND `deleted_at` IS NULL LIMIT 1);
+SET @tenant_c = (SELECT `id` FROM `wh_tenants` WHERE `company_name` = 'Karachi Cakes'        AND `deleted_at` IS NULL LIMIT 1);
 
 -- -----------------------------------------------------------------------------
--- Tenant limits
+-- Tenant limits  (max_warehouses is reused as the branch limit)
 -- -----------------------------------------------------------------------------
 INSERT INTO `wh_tenant_limits`
   (`max_users`, `max_warehouses`, `max_stores`, `max_orders_per_month`, `tenant_id`)
 VALUES
-  (25,  2, 3,  5000,  @tenant_acme),
-  (10,  1, 1,  1000,  @tenant_beta),
-  (100, 5, 10, 50000, @tenant_gamma);
+  (25, 5,  5,  50000,  @tenant_a),
+  (10, 2,  2,  5000,   @tenant_b),
+  (50, 10, 10, 100000, @tenant_c);
 
 -- -----------------------------------------------------------------------------
 -- Tenant subscriptions
@@ -115,34 +107,21 @@ VALUES
 INSERT INTO `wh_tenant_subscriptions`
   (`billing_cycle`, `start_date`, `renewal_date`, `status`, `total_amount`, `amount_due`, `tenant_id`, `subscription_plan_id`)
 VALUES
-  ('monthly',   '2026-01-01', '2026-07-01', 'active', 99.00,  0.00,  @tenant_acme,  @plan_professional),
-  ('monthly',   '2026-02-01', '2026-08-01', 'active', 49.00,  49.00, @tenant_beta,  @plan_starter),
-  ('quarterly', '2026-01-01', '2026-04-01', 'active', 199.00, 0.00,  @tenant_gamma, @plan_enterprise);
+  ('monthly', '2026-01-01', '2026-08-01', 'active', 5000.00,  0.00,    @tenant_a, @plan_basic),
+  ('monthly', '2026-02-01', '2026-08-01', 'active', 10000.00, 10000.00, @tenant_b, @plan_standard),
+  ('monthly', '2026-01-01', '2026-08-01', 'active', 20000.00, 0.00,    @tenant_c, @plan_premium);
 
 -- -----------------------------------------------------------------------------
--- Tenant payments (Beta has outstanding balance reflected above)
+-- Enable the full bakery module set for every tenant
 -- -----------------------------------------------------------------------------
-INSERT INTO `wh_tenant_payments`
-  (`bank`, `cash`, `total_received`, `received_at`, `tenant_id`)
-VALUES
-  (99.00,  0.00,  99.00,  '2026-01-05 10:00:00', @tenant_acme),
-  (0.00,   0.00,   0.00,  NULL,                  @tenant_beta),
-  (150.00, 50.00, 200.00, '2026-01-02 14:30:00', @tenant_gamma);
-
--- -----------------------------------------------------------------------------
--- Enabled modules per tenant (matches their plan bundles)
--- -----------------------------------------------------------------------------
-INSERT INTO `wh_tenant_modules` (`is_enabled`, `enabled_at`, `module_id`, `tenant_id`) VALUES
-  (1, NOW(), @mod_inventory, @tenant_acme),
-  (1, NOW(), @mod_crm,       @tenant_acme),
-  (1, NOW(), @mod_orders,    @tenant_acme),
-  (1, NOW(), @mod_inventory, @tenant_beta),
-  (1, NOW(), @mod_orders,    @tenant_beta),
-  (1, NOW(), @mod_inventory, @tenant_gamma),
-  (1, NOW(), @mod_crm,       @tenant_gamma),
-  (1, NOW(), @mod_orders,    @tenant_gamma),
-  (1, NOW(), @mod_pos,       @tenant_gamma),
-  (1, NOW(), @mod_logistics, @tenant_gamma);
+INSERT INTO `wh_tenant_modules` (`is_enabled`, `enabled_at`, `module_id`, `tenant_id`)
+SELECT 1, NOW(), m.id, t.id
+FROM (SELECT @tenant_a AS id UNION ALL SELECT @tenant_b UNION ALL SELECT @tenant_c) t
+CROSS JOIN (
+  SELECT @mod_admin AS id UNION ALL SELECT @mod_stock UNION ALL SELECT @mod_production UNION ALL
+  SELECT @mod_pos UNION ALL SELECT @mod_posterm UNION ALL SELECT @mod_orders UNION ALL
+  SELECT @mod_crm UNION ALL SELECT @mod_finance
+) m;
 
 -- -----------------------------------------------------------------------------
 -- Organization settings
@@ -150,134 +129,159 @@ INSERT INTO `wh_tenant_modules` (`is_enabled`, `enabled_at`, `module_id`, `tenan
 INSERT INTO `organization_settings`
   (`company_name`, `logo_url`, `timezone`, `currency`, `language`, `fiscal_year_start`, `fiscal_year_end`, `tenant_id`)
 VALUES
-  ('Acme Corporation',  NULL, 'America/New_York',    'USD', 'en', '2026-01-01', '2026-12-31', @tenant_acme),
-  ('Beta Store LLC',    NULL, 'America/Los_Angeles', 'USD', 'en', '2026-01-01', '2026-12-31', @tenant_beta),
-  ('Gamma Industries',  NULL, 'Asia/Karachi',        'PKR', 'en', '2026-07-01', '2027-06-30', @tenant_gamma);
+  ('Sweet Crumbs Bakery', NULL, 'Asia/Karachi', 'PKR', 'en', '2026-01-01', '2026-12-31', @tenant_a),
+  ('Lahore Bakes',        NULL, 'Asia/Karachi', 'PKR', 'en', '2026-01-01', '2026-12-31', @tenant_b),
+  ('Karachi Cakes',       NULL, 'Asia/Karachi', 'PKR', 'en', '2026-01-01', '2026-12-31', @tenant_c);
 
 -- -----------------------------------------------------------------------------
--- Super Admin roles (one per tenant)
+-- Super Admin roles + users (password: tenant123)
 -- -----------------------------------------------------------------------------
 INSERT INTO `roles` (`role_name`, `description`, `status`, `tenant_id`) VALUES
-  ('Super Admin', 'Full access to all enabled modules', 'active', @tenant_acme),
-  ('Super Admin', 'Full access to all enabled modules', 'active', @tenant_beta),
-  ('Super Admin', 'Full access to all enabled modules', 'active', @tenant_gamma);
+  ('Super Admin', 'Full access to all enabled modules', 'active', @tenant_a),
+  ('Super Admin', 'Full access to all enabled modules', 'active', @tenant_b),
+  ('Super Admin', 'Full access to all enabled modules', 'active', @tenant_c);
 
-SET @role_acme  = (SELECT `id` FROM `roles` WHERE `tenant_id` = @tenant_acme  AND `role_name` = 'Super Admin' AND `deleted_at` IS NULL LIMIT 1);
-SET @role_beta  = (SELECT `id` FROM `roles` WHERE `tenant_id` = @tenant_beta  AND `role_name` = 'Super Admin' AND `deleted_at` IS NULL LIMIT 1);
-SET @role_gamma = (SELECT `id` FROM `roles` WHERE `tenant_id` = @tenant_gamma AND `role_name` = 'Super Admin' AND `deleted_at` IS NULL LIMIT 1);
+SET @role_a = (SELECT `id` FROM `roles` WHERE `tenant_id` = @tenant_a AND `role_name` = 'Super Admin' AND `deleted_at` IS NULL LIMIT 1);
+SET @role_b = (SELECT `id` FROM `roles` WHERE `tenant_id` = @tenant_b AND `role_name` = 'Super Admin' AND `deleted_at` IS NULL LIMIT 1);
+SET @role_c = (SELECT `id` FROM `roles` WHERE `tenant_id` = @tenant_c AND `role_name` = 'Super Admin' AND `deleted_at` IS NULL LIMIT 1);
 
 -- Password: tenant123 (WARSI cipher — same as server encrypt())
 SET @pwd_tenant = 'f018dee4bfe767e14841b96afd2cdb30:b6df070649c1488e4920386fb97f7162';
 
-INSERT INTO `users` (`tenant_id`, `name`, `email`, `password`, `phone`, `status`, `role_id`) VALUES
-  (@tenant_acme,  'Acme Admin',  'admin@acme.com',      @pwd_tenant, '+1 555 1001', 'active', @role_acme),
-  (@tenant_beta,  'Beta Admin',  'admin@betastore.com', @pwd_tenant, '+1 555 1002', 'active', @role_beta),
-  (@tenant_gamma, 'Gamma Admin', 'admin@gammacorp.com', @pwd_tenant, '+1 555 1003', 'active', @role_gamma);
+INSERT INTO `users` (`tenant_id`, `name`, `email`, `username`, `password`, `phone`, `status`, `role_id`) VALUES
+  (@tenant_a, 'Sweet Crumbs Admin', 'admin@sweetcrumbs.pk', 'admin@sweetcrumbs.pk', @pwd_tenant, '+92 300 1112222', 'active', @role_a),
+  (@tenant_b, 'Lahore Bakes Admin', 'admin@lahorebakes.pk', 'admin@lahorebakes.pk', @pwd_tenant, '+92 301 2223333', 'active', @role_b),
+  (@tenant_c, 'Karachi Cakes Admin', 'admin@karachicakes.pk', 'admin@karachicakes.pk', @pwd_tenant, '+92 302 3334444', 'active', @role_c);
 
-SET @user_acme  = (SELECT `id` FROM `users` WHERE `email` = 'admin@acme.com'      AND `deleted_at` IS NULL LIMIT 1);
-SET @user_beta  = (SELECT `id` FROM `users` WHERE `email` = 'admin@betastore.com' AND `deleted_at` IS NULL LIMIT 1);
-SET @user_gamma = (SELECT `id` FROM `users` WHERE `email` = 'admin@gammacorp.com' AND `deleted_at` IS NULL LIMIT 1);
+SET @user_a = (SELECT `id` FROM `users` WHERE `email` = 'admin@sweetcrumbs.pk' AND `deleted_at` IS NULL LIMIT 1);
 
 -- -----------------------------------------------------------------------------
--- Permissions (view, create, edit, delete, manage) per module per Super Admin
+-- Permissions: full access to every module for each Super Admin
 -- -----------------------------------------------------------------------------
 INSERT INTO `permissions` (`permission_name`, `action`, `role_id`, `module_id`)
-SELECT 'full_access', a.action, r.role_id, r.module_id
-FROM (
-  SELECT @role_acme AS role_id, @mod_inventory AS module_id UNION ALL
-  SELECT @role_acme, @mod_crm UNION ALL
-  SELECT @role_acme, @mod_orders UNION ALL
-  SELECT @role_beta, @mod_inventory UNION ALL
-  SELECT @role_beta, @mod_orders UNION ALL
-  SELECT @role_gamma, @mod_inventory UNION ALL
-  SELECT @role_gamma, @mod_crm UNION ALL
-  SELECT @role_gamma, @mod_orders UNION ALL
-  SELECT @role_gamma, @mod_pos UNION ALL
-  SELECT @role_gamma, @mod_logistics
-) AS r
+SELECT 'full_access', a.action, r.role_id, m.id
+FROM (SELECT @role_a AS role_id UNION ALL SELECT @role_b UNION ALL SELECT @role_c) r
 CROSS JOIN (
-  SELECT 'view'   AS action UNION ALL
-  SELECT 'create' UNION ALL
-  SELECT 'edit'   UNION ALL
-  SELECT 'delete' UNION ALL
-  SELECT 'manage'
-) AS a;
+  SELECT @mod_admin AS id UNION ALL SELECT @mod_stock UNION ALL SELECT @mod_production UNION ALL
+  SELECT @mod_pos UNION ALL SELECT @mod_posterm UNION ALL SELECT @mod_orders UNION ALL
+  SELECT @mod_crm UNION ALL SELECT @mod_finance
+) m
+CROSS JOIN (
+  SELECT 'view' AS action UNION ALL SELECT 'create' UNION ALL SELECT 'edit' UNION ALL
+  SELECT 'delete' UNION ALL SELECT 'manage'
+) a;
 
--- -----------------------------------------------------------------------------
--- Sample support tickets
--- -----------------------------------------------------------------------------
-INSERT INTO `wh_support_tickets` (`subject`, `description`, `status`, `tenant_id`) VALUES
-  ('Billing question', 'Please confirm our renewal date for Q3.', 'open',     @tenant_acme),
-  ('Module access',    'Need POS module enabled on our account.', 'resolved', @tenant_beta);
+-- =============================================================================
+-- BAKERY DEMO DATA for Sweet Crumbs Bakery (@tenant_a)
+-- =============================================================================
 
--- -----------------------------------------------------------------------------
--- Sample WH audit logs (requires wh_admin_users id 1 = w.admin)
--- -----------------------------------------------------------------------------
-INSERT INTO `wh_audit_logs` (`action`, `old_value`, `new_value`, `ip_address`, `admin_user_id`) VALUES
-  (
-    'seed_data',
-    NULL,
-    JSON_OBJECT('note', 'Sample data applied'),
-    '127.0.0.1',
-    (SELECT `id` FROM `wh_admin_users` WHERE `email` = 'w.admin' AND `deleted_at` IS NULL LIMIT 1)
-  );
+-- Branches ---------------------------------------------------------------------
+INSERT INTO `branches` (`branch_name`, `code`, `location`, `city`, `phone`, `open_time`, `close_time`, `opening_balance`, `status`, `tenant_id`) VALUES
+  ('Main Branch',   'MB', 'Gulberg Main Boulevard', 'Lahore', '+92 42 111 0001', '08:00:00', '23:00:00', 5000.00, 'active', @tenant_a),
+  ('DHA Branch',    'DHA', 'DHA Phase 5', 'Lahore', '+92 42 111 0002', '09:00:00', '23:00:00', 3000.00, 'active', @tenant_a);
 
--- -----------------------------------------------------------------------------
--- Sample tenant audit logs
--- -----------------------------------------------------------------------------
-INSERT INTO `audit_logs`
-  (`action`, `old_value`, `new_value`, `ip_address`, `device_info`, `tenant_id`, `module_id`, `user_id`)
+SET @br_main = (SELECT `id` FROM `branches` WHERE `tenant_id` = @tenant_a AND `code` = 'MB' AND `deleted_at` IS NULL LIMIT 1);
+SET @br_dha  = (SELECT `id` FROM `branches` WHERE `tenant_id` = @tenant_a AND `code` = 'DHA' AND `deleted_at` IS NULL LIMIT 1);
+
+-- Item categories --------------------------------------------------------------
+INSERT INTO `item_categories` (`category_name`, `item_type`, `status`, `tenant_id`) VALUES
+  ('Raw Ingredients', 'ingredient', 'active', @tenant_a),
+  ('Cakes',           'finished',   'active', @tenant_a),
+  ('Bakery Snacks',   'finished',   'active', @tenant_a),
+  ('Packaging',       'packaging',  'active', @tenant_a);
+
+SET @cat_ing  = (SELECT `id` FROM `item_categories` WHERE `tenant_id` = @tenant_a AND `category_name` = 'Raw Ingredients' AND `deleted_at` IS NULL LIMIT 1);
+SET @cat_cake = (SELECT `id` FROM `item_categories` WHERE `tenant_id` = @tenant_a AND `category_name` = 'Cakes' AND `deleted_at` IS NULL LIMIT 1);
+SET @cat_snack= (SELECT `id` FROM `item_categories` WHERE `tenant_id` = @tenant_a AND `category_name` = 'Bakery Snacks' AND `deleted_at` IS NULL LIMIT 1);
+SET @cat_pack = (SELECT `id` FROM `item_categories` WHERE `tenant_id` = @tenant_a AND `category_name` = 'Packaging' AND `deleted_at` IS NULL LIMIT 1);
+
+-- Items: ingredients (kacha maal) ---------------------------------------------
+INSERT INTO `items`
+  (`item_name`, `item_type`, `sku`, `unit`, `cost_price`, `selling_price`, `is_purchased`, `is_produced`, `is_sold`, `shelf_life_days`, `low_stock_threshold`, `status`, `category_id`, `tenant_id`)
 VALUES
-  (
-    'login',
-    NULL,
-    JSON_OBJECT('email', 'admin@acme.com'),
-    '192.168.1.10',
-    'Chrome / Windows',
-    @tenant_acme,
-    @mod_inventory,
-    @user_acme
-  ),
-  (
-    'order_create',
-    JSON_OBJECT('status', 'draft'),
-    JSON_OBJECT('status', 'confirmed', 'order_id', 'ORD-1001'),
-    '192.168.1.20',
-    'Safari / macOS',
-    @tenant_beta,
-    @mod_orders,
-    @user_beta
-  );
+  ('Flour (Maida)',   'ingredient', 'ING-FLOUR', 'kg',    120.00, 0.00, 1, 0, 0, 180, 20.000, 'active', @cat_ing, @tenant_a),
+  ('Sugar (Cheeni)',  'ingredient', 'ING-SUGAR', 'kg',    140.00, 0.00, 1, 0, 0, 365, 15.000, 'active', @cat_ing, @tenant_a),
+  ('Butter',          'ingredient', 'ING-BUTTER','kg',    900.00, 0.00, 1, 0, 0, 60,  5.000,  'active', @cat_ing, @tenant_a),
+  ('Eggs',            'ingredient', 'ING-EGG',   'dozen', 300.00, 0.00, 1, 0, 0, 21,  10.000, 'active', @cat_ing, @tenant_a),
+  ('Cocoa Powder',    'ingredient', 'ING-COCOA', 'kg',    1600.00,0.00, 1, 0, 0, 365, 3.000,  'active', @cat_ing, @tenant_a);
 
--- -----------------------------------------------------------------------------
--- Sample active sessions (log in via ERP UI to create real ones; these are static demos)
--- -----------------------------------------------------------------------------
-INSERT INTO `sessions`
-  (`session_token`, `ip_address`, `device_info`, `login_at`, `is_active`, `tenant_id`, `user_id`)
+-- Items: finished bakery goods -------------------------------------------------
+INSERT INTO `items`
+  (`item_name`, `item_type`, `sku`, `unit`, `cost_price`, `selling_price`, `is_purchased`, `is_produced`, `is_sold`, `shelf_life_days`, `low_stock_threshold`, `status`, `category_id`, `tenant_id`)
 VALUES
-  (
-    'sample_session_token_acme_demo_only',
-    '192.168.1.10',
-    'Chrome 120 / Windows 10',
-    NOW(),
-    1,
-    @tenant_acme,
-    @user_acme
-  ),
-  (
-    'sample_session_token_gamma_demo_only',
-    '10.0.0.55',
-    'Firefox 121 / Linux',
-    DATE_SUB(NOW(), INTERVAL 2 HOUR),
-    1,
-    @tenant_gamma,
-    @user_gamma
-  );
+  ('Chocolate Cake (1 lb)', 'finished', 'CAKE-CHOC', 'piece', 600.00, 1200.00, 0, 1, 1, 3, 5.000,  'active', @cat_cake,  @tenant_a),
+  ('Vanilla Cake (1 lb)',   'finished', 'CAKE-VAN',  'piece', 550.00, 1100.00, 0, 1, 1, 3, 5.000,  'active', @cat_cake,  @tenant_a),
+  ('Cream Roll',            'finished', 'SNK-ROLL',  'piece', 40.00,  90.00,   0, 1, 1, 2, 20.000, 'active', @cat_snack, @tenant_a),
+  ('Rusk (packet)',         'finished', 'SNK-RUSK',  'packet',120.00, 250.00,  0, 1, 1, 30,10.000, 'active', @cat_snack, @tenant_a);
+
+-- Items: packaging -------------------------------------------------------------
+INSERT INTO `items`
+  (`item_name`, `item_type`, `sku`, `unit`, `cost_price`, `selling_price`, `is_purchased`, `is_produced`, `is_sold`, `low_stock_threshold`, `status`, `category_id`, `tenant_id`)
+VALUES
+  ('Cake Box (1 lb)', 'packaging', 'PKG-BOX1', 'piece', 25.00, 0.00, 1, 0, 0, 50.000, 'active', @cat_pack, @tenant_a);
+
+SET @it_flour  = (SELECT `id` FROM `items` WHERE `tenant_id` = @tenant_a AND `sku` = 'ING-FLOUR' LIMIT 1);
+SET @it_sugar  = (SELECT `id` FROM `items` WHERE `tenant_id` = @tenant_a AND `sku` = 'ING-SUGAR' LIMIT 1);
+SET @it_butter = (SELECT `id` FROM `items` WHERE `tenant_id` = @tenant_a AND `sku` = 'ING-BUTTER' LIMIT 1);
+SET @it_egg    = (SELECT `id` FROM `items` WHERE `tenant_id` = @tenant_a AND `sku` = 'ING-EGG' LIMIT 1);
+SET @it_cocoa  = (SELECT `id` FROM `items` WHERE `tenant_id` = @tenant_a AND `sku` = 'ING-COCOA' LIMIT 1);
+SET @it_choc   = (SELECT `id` FROM `items` WHERE `tenant_id` = @tenant_a AND `sku` = 'CAKE-CHOC' LIMIT 1);
+SET @it_van    = (SELECT `id` FROM `items` WHERE `tenant_id` = @tenant_a AND `sku` = 'CAKE-VAN' LIMIT 1);
+SET @it_roll   = (SELECT `id` FROM `items` WHERE `tenant_id` = @tenant_a AND `sku` = 'SNK-ROLL' LIMIT 1);
+
+-- Suppliers --------------------------------------------------------------------
+INSERT INTO `suppliers` (`supplier_name`, `contact_person`, `phone`, `email`, `city`, `status`, `tenant_id`) VALUES
+  ('Al-Barkat Flour Mills', 'Imran Sheikh', '+92 300 5556666', 'sales@albarkat.pk', 'Lahore', 'active', @tenant_a),
+  ('Metro Cash & Carry',    'Procurement Desk', '+92 42 111 222 333', 'orders@metro.pk', 'Lahore', 'active', @tenant_a);
+
+-- Opening stock: batches + rollup levels at Main Branch ------------------------
+-- Ingredients
+INSERT INTO `stock_batches` (`batch_no`, `source_type`, `qty_received`, `qty_remaining`, `unit_cost`, `made_on`, `expiry_date`, `status`, `item_id`, `branch_id`, `tenant_id`) VALUES
+  ('B-OPEN-FLOUR', 'opening', 100.000, 100.000, 120.00, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 180 DAY), 'active', @it_flour,  @br_main, @tenant_a),
+  ('B-OPEN-SUGAR', 'opening', 60.000,  60.000,  140.00, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 300 DAY), 'active', @it_sugar,  @br_main, @tenant_a),
+  ('B-OPEN-BUTTER','opening', 20.000,  20.000,  900.00, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 45 DAY),  'active', @it_butter, @br_main, @tenant_a),
+  ('B-OPEN-EGG',   'opening', 30.000,  30.000,  300.00, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 18 DAY),  'active', @it_egg,    @br_main, @tenant_a),
+  ('B-OPEN-COCOA', 'opening', 8.000,   8.000,   1600.00,CURDATE(), DATE_ADD(CURDATE(), INTERVAL 300 DAY), 'active', @it_cocoa,  @br_main, @tenant_a);
+-- Finished goods (small stock, near-term expiry to demo alerts)
+INSERT INTO `stock_batches` (`batch_no`, `source_type`, `qty_received`, `qty_remaining`, `unit_cost`, `made_on`, `expiry_date`, `status`, `item_id`, `branch_id`, `tenant_id`) VALUES
+  ('B-OPEN-CHOC', 'production', 6.000, 6.000, 600.00, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 2 DAY), 'active', @it_choc, @br_main, @tenant_a),
+  ('B-OPEN-ROLL', 'production', 40.000,40.000,40.00,  CURDATE(), DATE_ADD(CURDATE(), INTERVAL 1 DAY), 'active', @it_roll, @br_main, @tenant_a);
+
+INSERT INTO `stock_levels` (`available_qty`, `item_id`, `branch_id`, `tenant_id`) VALUES
+  (100.000, @it_flour,  @br_main, @tenant_a),
+  (60.000,  @it_sugar,  @br_main, @tenant_a),
+  (20.000,  @it_butter, @br_main, @tenant_a),
+  (30.000,  @it_egg,    @br_main, @tenant_a),
+  (8.000,   @it_cocoa,  @br_main, @tenant_a),
+  (6.000,   @it_choc,   @br_main, @tenant_a),
+  (40.000,  @it_roll,   @br_main, @tenant_a);
+
+-- Recipe: Chocolate Cake -------------------------------------------------------
+INSERT INTO `recipes` (`recipe_name`, `yield_qty`, `yield_unit`, `instructions`, `prep_time_mins`, `status`, `item_id`, `tenant_id`) VALUES
+  ('Chocolate Cake Recipe', 1.000, 'piece', 'Mix dry, fold in butter and eggs, bake at 180C for 35 min.', 60, 'active', @it_choc, @tenant_a);
+
+SET @recipe_choc = (SELECT `id` FROM `recipes` WHERE `tenant_id` = @tenant_a AND `item_id` = @it_choc AND `deleted_at` IS NULL LIMIT 1);
+
+INSERT INTO `recipe_ingredients` (`quantity`, `unit`, `notes`, `recipe_id`, `ingredient_item_id`, `tenant_id`) VALUES
+  (0.400, 'kg',    'Maida',  @recipe_choc, @it_flour,  @tenant_a),
+  (0.300, 'kg',    'Cheeni', @recipe_choc, @it_sugar,  @tenant_a),
+  (0.200, 'kg',    NULL,     @recipe_choc, @it_butter, @tenant_a),
+  (0.500, 'dozen', '6 eggs', @recipe_choc, @it_egg,    @tenant_a),
+  (0.080, 'kg',    NULL,     @recipe_choc, @it_cocoa,  @tenant_a);
+
+-- POS terminal at Main Branch (device code "1" pairs with the terminal UI) -----
+INSERT INTO `pos_terminals` (`terminal_name`, `device_code`, `status`, `branch_id`, `tenant_id`) VALUES
+  ('Main Counter', '1', 'active', @br_main, @tenant_a);
+
+-- CRM: a couple of walk-in customers ------------------------------------------
+INSERT INTO `crm_customers` (`customer_name`, `phone`, `email`, `status`, `tenant_id`) VALUES
+  ('Walk-in Customer', '+92 300 0000000', NULL, 'active', @tenant_a),
+  ('Fatima Noor',      '+92 321 4445555', 'fatima@example.pk', 'active', @tenant_a);
 
 -- -----------------------------------------------------------------------------
 -- Done
 -- -----------------------------------------------------------------------------
-SELECT 'Sample data loaded.' AS message;
+SELECT 'Bakery sample data loaded.' AS message;
 SELECT `company_name`, `login_portal`, `owner_email` FROM `wh_tenants` WHERE `deleted_at` IS NULL;
-SELECT `plan_name`, `plan_price` FROM `wh_subscription_plans` WHERE `deleted_at` IS NULL;
-SELECT `module_name` FROM `modules` WHERE `deleted_at` IS NULL;
+SELECT `module_name` FROM `modules` WHERE `deleted_at` IS NULL ORDER BY `id`;
+SELECT `item_name`, `item_type`, `unit` FROM `items` WHERE `tenant_id` = @tenant_a ORDER BY `item_type`, `item_name`;

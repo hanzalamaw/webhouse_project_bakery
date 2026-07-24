@@ -1,21 +1,33 @@
--- Full schema snapshot for webhouse_project_x
--- 57 tables: Webhouse Admin, Client Admin, Portal, Inventory, CRM,
--- E-Commerce, Orders, Finance, Logistics, POS
+-- Full schema snapshot for bakery_erp (Bakery ERP)
+-- Multi-tenant bakery management: Branches, Stock & Purchasing (ingredients +
+-- finished bakery items + packaging), Production (recipes / baking), Point of
+-- Sale, Orders, CRM (Customers), Finance.
 --
--- Soft delete: every table has deleted_at (NULL = active). Purge-after-7d is app/cron later.
--- Foreign keys: ON DELETE CASCADE, ON UPDATE CASCADE
+-- Design notes for this niche:
+--   * Multi-branch: every branch bakes AND sells. Stock moves between branches
+--     (stock in / stock out / transfers).
+--   * One unified stock system: ingredients, finished items and packaging all
+--     live in `items`. Production output is exactly what POS/orders sell.
+--   * Batch-level expiry: `stock_batches` carry made_on + expiry_date so wastage
+--     and expiry/low-stock alerts are accurate for perishable bakery goods.
+--   * Simplified variants: `items.parent_item_id` + `items.variant_label` give a
+--     lightweight Small/Large sizing without a heavy attribute system.
+--   * Quantities use DECIMAL(12,3) so ingredients can be measured by weight/volume.
+--
+-- Soft delete: every tenant table has deleted_at (NULL = active). Hard purge after 7 days.
+-- Foreign keys: ON DELETE CASCADE, ON UPDATE CASCADE (unless noted).
 --
 -- Apply: cd server && npm run setup:db
 -- Or:    mysql -u root -p < db/schema.sql
 
-CREATE DATABASE IF NOT EXISTS `webhouse_project_x`
+CREATE DATABASE IF NOT EXISTS `bakery_erp`
   DEFAULT CHARACTER SET utf8mb4
   DEFAULT COLLATE utf8mb4_unicode_ci;
 
-USE `webhouse_project_x`;
+USE `bakery_erp`;
 
 -- =============================================================================
--- WEBHOUSE ADMIN
+-- WEBHOUSE ADMIN  (platform side — unchanged)
 -- =============================================================================
 
 -- -----------------------------------------------------
@@ -53,12 +65,30 @@ CREATE TABLE IF NOT EXISTS `modules` (
 CREATE TABLE IF NOT EXISTS `wh_subscription_plans` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `plan_name` VARCHAR(45) NOT NULL,
-  `plan_price` DECIMAL(12,2) NOT NULL,
+  `plan_price` DECIMAL(12,2) NOT NULL COMMENT 'Monthly price always in PKR',
   `login_portal` VARCHAR(20) NOT NULL DEFAULT 'erp1',
   `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
   `last_updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `deleted_at` TIMESTAMP NULL DEFAULT NULL,
   PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -----------------------------------------------------
+-- Table `wh_exchange_rates` (PKR -> tenant display currencies)
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `wh_exchange_rates` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `base_currency` VARCHAR(10) NOT NULL DEFAULT 'PKR',
+  `target_currency` VARCHAR(10) NOT NULL,
+  `rate` DECIMAL(24, 12) NOT NULL COMMENT 'Units of target per 1 base (PKR)',
+  `rate_date` DATE NULL DEFAULT NULL,
+  `source` VARCHAR(100) NULL DEFAULT NULL,
+  `fetched_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted_at` DATETIME NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `uk_wh_exchange_rates_pair` (`base_currency` ASC, `target_currency` ASC)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- -----------------------------------------------------
@@ -136,8 +166,8 @@ CREATE TABLE IF NOT EXISTS `wh_tenant_modules` (
 CREATE TABLE IF NOT EXISTS `wh_tenant_limits` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `max_users` INT NOT NULL,
-  `max_warehouses` INT NOT NULL,
-  `max_stores` INT NOT NULL,
+  `max_warehouses` INT NOT NULL COMMENT 'Reused as the branch limit in the bakery ERP',
+  `max_stores` INT NOT NULL COMMENT 'Reused as the POS store (branch) limit in the bakery ERP',
   `max_orders_per_month` INT NOT NULL,
   `tenant_id` INT NOT NULL,
   `deleted_at` TIMESTAMP NULL DEFAULT NULL,
@@ -228,7 +258,7 @@ CREATE TABLE IF NOT EXISTS `wh_support_tickets` (
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `wh_audit_logs` (
   `id` INT NOT NULL AUTO_INCREMENT,
-  `action` VARCHAR(45) NOT NULL,
+  `action` VARCHAR(191) NOT NULL,
   `old_value` JSON NULL DEFAULT NULL,
   `new_value` JSON NULL DEFAULT NULL,
   `ip_address` VARCHAR(45) NOT NULL,
@@ -245,7 +275,7 @@ CREATE TABLE IF NOT EXISTS `wh_audit_logs` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =============================================================================
--- CLIENT ADMIN
+-- CLIENT ADMIN  (roles / users / permissions)
 -- =============================================================================
 
 -- -----------------------------------------------------
@@ -331,7 +361,7 @@ CREATE TABLE IF NOT EXISTS `permissions` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =============================================================================
--- WEBHOUSE PORTAL
+-- TENANT PORTAL (shared)
 -- =============================================================================
 
 -- -----------------------------------------------------
@@ -339,7 +369,7 @@ CREATE TABLE IF NOT EXISTS `permissions` (
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `audit_logs` (
   `id` INT NOT NULL AUTO_INCREMENT,
-  `action` VARCHAR(45) NOT NULL,
+  `action` VARCHAR(191) NOT NULL,
   `old_value` JSON NULL DEFAULT NULL,
   `new_value` JSON NULL DEFAULT NULL,
   `ip_address` VARCHAR(45) NULL DEFAULT NULL,
@@ -426,7 +456,7 @@ CREATE TABLE IF NOT EXISTS `organization_settings` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- -----------------------------------------------------
--- Table `activity_alerts`
+-- Table `activity_alerts` (low stock, expiry, etc.)
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `activity_alerts` (
   `id` INT NOT NULL AUTO_INCREMENT,
@@ -455,22 +485,56 @@ CREATE TABLE IF NOT EXISTS `activity_alerts` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =============================================================================
--- INVENTORY & PROCUREMENT
+-- BRANCHES (Shops)  -- unifies old warehouses + POS outlets
+-- Every branch bakes and sells. Stock moves between branches.
 -- =============================================================================
 
 -- -----------------------------------------------------
--- Table `inventory_categories`
+-- Table `branches`
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `inventory_categories` (
+CREATE TABLE IF NOT EXISTS `branches` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `branch_name` VARCHAR(100) NOT NULL,
+  `code` VARCHAR(45) NULL DEFAULT NULL,
+  `location` TEXT NULL DEFAULT NULL,
+  `city` VARCHAR(100) NULL DEFAULT NULL,
+  `phone` VARCHAR(45) NULL DEFAULT NULL,
+  `open_time` TIME NULL DEFAULT NULL,
+  `close_time` TIME NULL DEFAULT NULL,
+  `opening_balance` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  `status` VARCHAR(45) NOT NULL DEFAULT 'active',
+  `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `tenant_id` INT NOT NULL,
+  `deleted_at` TIMESTAMP NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  INDEX `fk_branches_wh_tenants1_idx` (`tenant_id` ASC),
+  CONSTRAINT `fk_branches_wh_tenants1`
+    FOREIGN KEY (`tenant_id`)
+    REFERENCES `wh_tenants` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =============================================================================
+-- STOCK & PURCHASING  (Store / Khareedari)
+-- Unified catalog: ingredients (kacha maal) + finished bakery items + packaging.
+-- =============================================================================
+
+-- -----------------------------------------------------
+-- Table `item_categories`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `item_categories` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `category_name` VARCHAR(100) NOT NULL,
-  `status` VARCHAR(45) NOT NULL,
+  `item_type` VARCHAR(45) NULL DEFAULT NULL COMMENT 'ingredient | finished | packaging (optional grouping)',
+  `status` VARCHAR(45) NOT NULL DEFAULT 'active',
   `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
   `tenant_id` INT NOT NULL,
   `deleted_at` TIMESTAMP NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
-  INDEX `fk_inventory_categories_wh_tenants1_idx` (`tenant_id` ASC),
-  CONSTRAINT `fk_inventory_categories_wh_tenants1`
+  INDEX `fk_item_categories_wh_tenants1_idx` (`tenant_id` ASC),
+  CONSTRAINT `fk_item_categories_wh_tenants1`
     FOREIGN KEY (`tenant_id`)
     REFERENCES `wh_tenants` (`id`)
     ON DELETE CASCADE
@@ -478,34 +542,51 @@ CREATE TABLE IF NOT EXISTS `inventory_categories` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- -----------------------------------------------------
--- Table `inventory_products`
+-- Table `items`
+--   item_type: ingredient (raw material) | finished (bakery item) | packaging
+--   flags: is_purchased (bought), is_produced (baked via recipe), is_sold (sellable)
+--   parent_item_id + variant_label: lightweight sizing (Small/Large) without attributes
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `inventory_products` (
+CREATE TABLE IF NOT EXISTS `items` (
   `id` INT NOT NULL AUTO_INCREMENT,
-  `product_name` VARCHAR(150) NOT NULL,
-  `sku` VARCHAR(100) NOT NULL,
-  `unit` VARCHAR(45) NOT NULL,
-  `cost_price` DECIMAL(12,2) NOT NULL,
-  `selling_price` DECIMAL(12,2) NOT NULL,
-  `delivery_charges` DECIMAL(12,2) NOT NULL DEFAULT 0,
-  `discount` DECIMAL(12,2) NOT NULL DEFAULT 0,
-  `tax` DECIMAL(12,2) NOT NULL DEFAULT 0,
-  `status` VARCHAR(45) NOT NULL,
+  `item_name` VARCHAR(150) NOT NULL,
+  `item_type` VARCHAR(45) NOT NULL DEFAULT 'finished',
+  `sku` VARCHAR(100) NULL DEFAULT NULL,
+  `unit` VARCHAR(45) NOT NULL DEFAULT 'piece',
+  `cost_price` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  `selling_price` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  `tax` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  `discount` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  `is_purchased` TINYINT(1) NOT NULL DEFAULT 0,
+  `is_produced` TINYINT(1) NOT NULL DEFAULT 0,
+  `is_sold` TINYINT(1) NOT NULL DEFAULT 0,
+  `shelf_life_days` INT NULL DEFAULT NULL,
+  `low_stock_threshold` DECIMAL(12,3) NOT NULL DEFAULT 0.000,
+  `parent_item_id` INT NULL DEFAULT NULL,
+  `variant_label` VARCHAR(100) NULL DEFAULT NULL,
+  `status` VARCHAR(45) NOT NULL DEFAULT 'active',
   `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `category_id` INT NOT NULL,
   `tenant_id` INT NOT NULL,
   `deleted_at` TIMESTAMP NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE INDEX `uk_inventory_products_tenant_sku` (`tenant_id` ASC, `sku` ASC),
-  INDEX `fk_inventory_products_inventory_categories1_idx` (`category_id` ASC),
-  INDEX `fk_inventory_products_wh_tenants1_idx` (`tenant_id` ASC),
-  CONSTRAINT `fk_inventory_products_inventory_categories1`
+  UNIQUE INDEX `uk_items_tenant_sku` (`tenant_id` ASC, `sku` ASC),
+  INDEX `fk_items_item_categories1_idx` (`category_id` ASC),
+  INDEX `fk_items_parent_idx` (`parent_item_id` ASC),
+  INDEX `idx_items_type` (`tenant_id` ASC, `item_type` ASC),
+  INDEX `fk_items_wh_tenants1_idx` (`tenant_id` ASC),
+  CONSTRAINT `fk_items_item_categories1`
     FOREIGN KEY (`category_id`)
-    REFERENCES `inventory_categories` (`id`)
+    REFERENCES `item_categories` (`id`)
     ON DELETE CASCADE
     ON UPDATE CASCADE,
-  CONSTRAINT `fk_inventory_products_wh_tenants1`
+  CONSTRAINT `fk_items_parent`
+    FOREIGN KEY (`parent_item_id`)
+    REFERENCES `items` (`id`)
+    ON DELETE SET NULL
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_items_wh_tenants1`
     FOREIGN KEY (`tenant_id`)
     REFERENCES `wh_tenants` (`id`)
     ON DELETE CASCADE
@@ -513,97 +594,42 @@ CREATE TABLE IF NOT EXISTS `inventory_products` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- -----------------------------------------------------
--- Table `inventory_warehouses`
+-- Table `stock_batches` (batch-level expiry tracking)
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `inventory_warehouses` (
+CREATE TABLE IF NOT EXISTS `stock_batches` (
   `id` INT NOT NULL AUTO_INCREMENT,
-  `warehouse_name` VARCHAR(100) NOT NULL,
-  `location` TEXT NULL DEFAULT NULL,
-  `city` VARCHAR(100) NULL DEFAULT NULL,
-  `status` VARCHAR(45) NOT NULL,
-  `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
-  `tenant_id` INT NOT NULL,
-  `deleted_at` TIMESTAMP NULL DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  INDEX `fk_inventory_warehouses_wh_tenants1_idx` (`tenant_id` ASC),
-  CONSTRAINT `fk_inventory_warehouses_wh_tenants1`
-    FOREIGN KEY (`tenant_id`)
-    REFERENCES `wh_tenants` (`id`)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- -----------------------------------------------------
--- Table `inventory_stock_levels`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `inventory_stock_levels` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `available_qty` INT NOT NULL DEFAULT 0,
-  `reserved_qty` INT NOT NULL DEFAULT 0,
-  `damaged_qty` INT NOT NULL DEFAULT 0,
-  `total_qty` INT NOT NULL DEFAULT 0,
-  `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `product_id` INT NOT NULL,
-  `warehouse_id` INT NOT NULL,
-  `tenant_id` INT NOT NULL,
-  `deleted_at` TIMESTAMP NULL DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE INDEX `uk_inventory_stock_levels_tenant_product_warehouse` (`tenant_id` ASC, `product_id` ASC, `warehouse_id` ASC),
-  INDEX `fk_inventory_stock_levels_inventory_products1_idx` (`product_id` ASC),
-  INDEX `fk_inventory_stock_levels_inventory_warehouses1_idx` (`warehouse_id` ASC),
-  INDEX `fk_inventory_stock_levels_wh_tenants1_idx` (`tenant_id` ASC),
-  CONSTRAINT `fk_inventory_stock_levels_inventory_products1`
-    FOREIGN KEY (`product_id`)
-    REFERENCES `inventory_products` (`id`)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE,
-  CONSTRAINT `fk_inventory_stock_levels_inventory_warehouses1`
-    FOREIGN KEY (`warehouse_id`)
-    REFERENCES `inventory_warehouses` (`id`)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE,
-  CONSTRAINT `fk_inventory_stock_levels_wh_tenants1`
-    FOREIGN KEY (`tenant_id`)
-    REFERENCES `wh_tenants` (`id`)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- -----------------------------------------------------
--- Table `inventory_stock_movements`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `inventory_stock_movements` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `movement_type` VARCHAR(45) NOT NULL,
-  `qty` INT NOT NULL,
+  `batch_no` VARCHAR(60) NULL DEFAULT NULL,
+  `source_type` VARCHAR(45) NOT NULL DEFAULT 'purchase' COMMENT 'purchase | production | transfer | opening | adjustment',
+  `source_ref_id` INT NULL DEFAULT NULL,
+  `qty_received` DECIMAL(12,3) NOT NULL DEFAULT 0.000,
+  `qty_remaining` DECIMAL(12,3) NOT NULL DEFAULT 0.000,
+  `unit_cost` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  `made_on` DATE NULL DEFAULT NULL,
+  `expiry_date` DATE NULL DEFAULT NULL,
+  `status` VARCHAR(45) NOT NULL DEFAULT 'active' COMMENT 'active | expired | finished',
   `notes` TEXT NULL DEFAULT NULL,
   `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
-  `product_id` INT NOT NULL,
-  `warehouse_id` INT NOT NULL,
-  `created_by` INT NOT NULL,
+  `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `item_id` INT NOT NULL,
+  `branch_id` INT NOT NULL,
   `tenant_id` INT NOT NULL,
   `deleted_at` TIMESTAMP NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
-  INDEX `fk_inventory_stock_movements_inventory_products1_idx` (`product_id` ASC),
-  INDEX `fk_inventory_stock_movements_inventory_warehouses1_idx` (`warehouse_id` ASC),
-  INDEX `fk_inventory_stock_movements_users1_idx` (`created_by` ASC),
-  INDEX `fk_inventory_stock_movements_wh_tenants1_idx` (`tenant_id` ASC),
-  CONSTRAINT `fk_inventory_stock_movements_inventory_products1`
-    FOREIGN KEY (`product_id`)
-    REFERENCES `inventory_products` (`id`)
+  INDEX `idx_stock_batches_item_branch` (`tenant_id` ASC, `item_id` ASC, `branch_id` ASC),
+  INDEX `idx_stock_batches_expiry` (`tenant_id` ASC, `expiry_date` ASC),
+  INDEX `fk_stock_batches_item_idx` (`item_id` ASC),
+  INDEX `fk_stock_batches_branch_idx` (`branch_id` ASC),
+  CONSTRAINT `fk_stock_batches_item`
+    FOREIGN KEY (`item_id`)
+    REFERENCES `items` (`id`)
     ON DELETE CASCADE
     ON UPDATE CASCADE,
-  CONSTRAINT `fk_inventory_stock_movements_inventory_warehouses1`
-    FOREIGN KEY (`warehouse_id`)
-    REFERENCES `inventory_warehouses` (`id`)
+  CONSTRAINT `fk_stock_batches_branch`
+    FOREIGN KEY (`branch_id`)
+    REFERENCES `branches` (`id`)
     ON DELETE CASCADE
     ON UPDATE CASCADE,
-  CONSTRAINT `fk_inventory_stock_movements_users1`
-    FOREIGN KEY (`created_by`)
-    REFERENCES `users` (`id`)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE,
-  CONSTRAINT `fk_inventory_stock_movements_wh_tenants1`
+  CONSTRAINT `fk_stock_batches_tenant`
     FOREIGN KEY (`tenant_id`)
     REFERENCES `wh_tenants` (`id`)
     ON DELETE CASCADE
@@ -611,40 +637,293 @@ CREATE TABLE IF NOT EXISTS `inventory_stock_movements` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- -----------------------------------------------------
--- Table `inventory_stock_transfers`
+-- Table `stock_levels` (fast rollup per item per branch)
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `inventory_stock_transfers` (
+CREATE TABLE IF NOT EXISTS `stock_levels` (
   `id` INT NOT NULL AUTO_INCREMENT,
-  `qty` INT NOT NULL,
-  `transfer_status` VARCHAR(45) NOT NULL,
-  `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  `available_qty` DECIMAL(12,3) NOT NULL DEFAULT 0.000,
+  `reserved_qty` DECIMAL(12,3) NOT NULL DEFAULT 0.000,
+  `damaged_qty` DECIMAL(12,3) NOT NULL DEFAULT 0.000,
   `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `product_id` INT NOT NULL,
-  `from_warehouse_id` INT NOT NULL,
-  `to_warehouse_id` INT NOT NULL,
+  `item_id` INT NOT NULL,
+  `branch_id` INT NOT NULL,
   `tenant_id` INT NOT NULL,
   `deleted_at` TIMESTAMP NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
-  INDEX `fk_inventory_stock_transfers_inventory_products1_idx` (`product_id` ASC),
-  INDEX `fk_inventory_stock_transfers_from_warehouse_idx` (`from_warehouse_id` ASC),
-  INDEX `fk_inventory_stock_transfers_to_warehouse_idx` (`to_warehouse_id` ASC),
-  INDEX `fk_inventory_stock_transfers_wh_tenants1_idx` (`tenant_id` ASC),
-  CONSTRAINT `fk_inventory_stock_transfers_inventory_products1`
-    FOREIGN KEY (`product_id`)
-    REFERENCES `inventory_products` (`id`)
+  UNIQUE INDEX `uk_stock_levels_tenant_item_branch` (`tenant_id` ASC, `item_id` ASC, `branch_id` ASC),
+  INDEX `fk_stock_levels_item_idx` (`item_id` ASC),
+  INDEX `fk_stock_levels_branch_idx` (`branch_id` ASC),
+  CONSTRAINT `fk_stock_levels_item`
+    FOREIGN KEY (`item_id`)
+    REFERENCES `items` (`id`)
     ON DELETE CASCADE
     ON UPDATE CASCADE,
-  CONSTRAINT `fk_inventory_stock_transfers_from_warehouse`
-    FOREIGN KEY (`from_warehouse_id`)
-    REFERENCES `inventory_warehouses` (`id`)
+  CONSTRAINT `fk_stock_levels_branch`
+    FOREIGN KEY (`branch_id`)
+    REFERENCES `branches` (`id`)
     ON DELETE CASCADE
     ON UPDATE CASCADE,
-  CONSTRAINT `fk_inventory_stock_transfers_to_warehouse`
-    FOREIGN KEY (`to_warehouse_id`)
-    REFERENCES `inventory_warehouses` (`id`)
+  CONSTRAINT `fk_stock_levels_tenant`
+    FOREIGN KEY (`tenant_id`)
+    REFERENCES `wh_tenants` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -----------------------------------------------------
+-- Table `stock_movements` (audit of every in/out. qty signed positive in, negative out)
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `stock_movements` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `movement_type` VARCHAR(45) NOT NULL COMMENT 'purchase_in | production_in | production_consume | sale_out | transfer_in | transfer_out | wastage | adjustment | return_in',
+  `qty` DECIMAL(12,3) NOT NULL,
+  `unit_cost` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  `reference_type` VARCHAR(45) NULL DEFAULT NULL,
+  `reference_id` INT NULL DEFAULT NULL,
+  `notes` TEXT NULL DEFAULT NULL,
+  `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  `item_id` INT NOT NULL,
+  `branch_id` INT NOT NULL,
+  `batch_id` INT NULL DEFAULT NULL,
+  `created_by` INT NULL DEFAULT NULL,
+  `tenant_id` INT NOT NULL,
+  `deleted_at` TIMESTAMP NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  INDEX `idx_stock_movements_item_branch` (`tenant_id` ASC, `item_id` ASC, `branch_id` ASC),
+  INDEX `fk_stock_movements_item_idx` (`item_id` ASC),
+  INDEX `fk_stock_movements_branch_idx` (`branch_id` ASC),
+  INDEX `fk_stock_movements_batch_idx` (`batch_id` ASC),
+  INDEX `fk_stock_movements_users1_idx` (`created_by` ASC),
+  CONSTRAINT `fk_stock_movements_item`
+    FOREIGN KEY (`item_id`)
+    REFERENCES `items` (`id`)
     ON DELETE CASCADE
     ON UPDATE CASCADE,
-  CONSTRAINT `fk_inventory_stock_transfers_wh_tenants1`
+  CONSTRAINT `fk_stock_movements_branch`
+    FOREIGN KEY (`branch_id`)
+    REFERENCES `branches` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_stock_movements_batch`
+    FOREIGN KEY (`batch_id`)
+    REFERENCES `stock_batches` (`id`)
+    ON DELETE SET NULL
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_stock_movements_users1`
+    FOREIGN KEY (`created_by`)
+    REFERENCES `users` (`id`)
+    ON DELETE SET NULL
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_stock_movements_tenant`
+    FOREIGN KEY (`tenant_id`)
+    REFERENCES `wh_tenants` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -----------------------------------------------------
+-- Table `stock_transfers` (between branches)
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `stock_transfers` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `qty` DECIMAL(12,3) NOT NULL,
+  `transfer_status` VARCHAR(45) NOT NULL DEFAULT 'pending' COMMENT 'pending | in_transit | received | cancelled',
+  `expiry_date` DATE NULL DEFAULT NULL,
+  `notes` TEXT NULL DEFAULT NULL,
+  `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `item_id` INT NOT NULL,
+  `batch_id` INT NULL DEFAULT NULL,
+  `from_branch_id` INT NOT NULL,
+  `to_branch_id` INT NOT NULL,
+  `created_by` INT NULL DEFAULT NULL,
+  `tenant_id` INT NOT NULL,
+  `deleted_at` TIMESTAMP NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  INDEX `fk_stock_transfers_item_idx` (`item_id` ASC),
+  INDEX `fk_stock_transfers_from_idx` (`from_branch_id` ASC),
+  INDEX `fk_stock_transfers_to_idx` (`to_branch_id` ASC),
+  INDEX `fk_stock_transfers_users1_idx` (`created_by` ASC),
+  CONSTRAINT `fk_stock_transfers_item`
+    FOREIGN KEY (`item_id`)
+    REFERENCES `items` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_stock_transfers_from`
+    FOREIGN KEY (`from_branch_id`)
+    REFERENCES `branches` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_stock_transfers_to`
+    FOREIGN KEY (`to_branch_id`)
+    REFERENCES `branches` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_stock_transfers_users1`
+    FOREIGN KEY (`created_by`)
+    REFERENCES `users` (`id`)
+    ON DELETE SET NULL
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_stock_transfers_tenant`
+    FOREIGN KEY (`tenant_id`)
+    REFERENCES `wh_tenants` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -----------------------------------------------------
+-- Table `suppliers` (vendors we buy ingredients/packaging from)
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `suppliers` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `supplier_name` VARCHAR(150) NOT NULL,
+  `contact_person` VARCHAR(100) NULL DEFAULT NULL,
+  `phone` VARCHAR(45) NULL DEFAULT NULL,
+  `email` VARCHAR(100) NULL DEFAULT NULL,
+  `address` TEXT NULL DEFAULT NULL,
+  `city` VARCHAR(100) NULL DEFAULT NULL,
+  `status` VARCHAR(45) NOT NULL DEFAULT 'active',
+  `notes` TEXT NULL DEFAULT NULL,
+  `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `tenant_id` INT NOT NULL,
+  `deleted_at` TIMESTAMP NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  INDEX `fk_suppliers_wh_tenants1_idx` (`tenant_id` ASC),
+  CONSTRAINT `fk_suppliers_wh_tenants1`
+    FOREIGN KEY (`tenant_id`)
+    REFERENCES `wh_tenants` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -----------------------------------------------------
+-- Table `purchase_orders` (buying stock from suppliers)
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `purchase_orders` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `po_no` VARCHAR(60) NOT NULL,
+  `order_date` DATE NOT NULL,
+  `expected_date` DATE NULL DEFAULT NULL,
+  `status` VARCHAR(45) NOT NULL DEFAULT 'draft' COMMENT 'draft | ordered | partial | received | cancelled',
+  `total_amount` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  `discount_amount` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  `tax_amount` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  `payable_amount` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  `notes` TEXT NULL DEFAULT NULL,
+  `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `supplier_id` INT NOT NULL,
+  `branch_id` INT NOT NULL,
+  `created_by` INT NULL DEFAULT NULL,
+  `tenant_id` INT NOT NULL,
+  `deleted_at` TIMESTAMP NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `uk_purchase_orders_tenant_po_no` (`tenant_id` ASC, `po_no` ASC),
+  INDEX `fk_purchase_orders_supplier_idx` (`supplier_id` ASC),
+  INDEX `fk_purchase_orders_branch_idx` (`branch_id` ASC),
+  INDEX `fk_purchase_orders_users1_idx` (`created_by` ASC),
+  CONSTRAINT `fk_purchase_orders_supplier`
+    FOREIGN KEY (`supplier_id`)
+    REFERENCES `suppliers` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_purchase_orders_branch`
+    FOREIGN KEY (`branch_id`)
+    REFERENCES `branches` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_purchase_orders_users1`
+    FOREIGN KEY (`created_by`)
+    REFERENCES `users` (`id`)
+    ON DELETE SET NULL
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_purchase_orders_tenant`
+    FOREIGN KEY (`tenant_id`)
+    REFERENCES `wh_tenants` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -----------------------------------------------------
+-- Table `purchase_order_items`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `purchase_order_items` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `qty` DECIMAL(12,3) NOT NULL,
+  `unit_cost` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  `discount` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  `total_price` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  `received_qty` DECIMAL(12,3) NOT NULL DEFAULT 0.000,
+  `expiry_date` DATE NULL DEFAULT NULL,
+  `purchase_order_id` INT NOT NULL,
+  `item_id` INT NOT NULL,
+  `tenant_id` INT NOT NULL,
+  `deleted_at` TIMESTAMP NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  INDEX `fk_po_items_po_idx` (`purchase_order_id` ASC),
+  INDEX `fk_po_items_item_idx` (`item_id` ASC),
+  INDEX `fk_po_items_tenant_idx` (`tenant_id` ASC),
+  CONSTRAINT `fk_po_items_po`
+    FOREIGN KEY (`purchase_order_id`)
+    REFERENCES `purchase_orders` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_po_items_item`
+    FOREIGN KEY (`item_id`)
+    REFERENCES `items` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_po_items_tenant`
+    FOREIGN KEY (`tenant_id`)
+    REFERENCES `wh_tenants` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -----------------------------------------------------
+-- Table `wastage` (spoilage / expired / damaged goods thrown away)
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `wastage` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `qty` DECIMAL(12,3) NOT NULL,
+  `reason` VARCHAR(45) NOT NULL DEFAULT 'expired' COMMENT 'expired | damaged | spoiled | other',
+  `wastage_date` DATE NOT NULL,
+  `estimated_cost` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  `notes` TEXT NULL DEFAULT NULL,
+  `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  `item_id` INT NOT NULL,
+  `batch_id` INT NULL DEFAULT NULL,
+  `branch_id` INT NOT NULL,
+  `created_by` INT NULL DEFAULT NULL,
+  `tenant_id` INT NOT NULL,
+  `deleted_at` TIMESTAMP NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  INDEX `fk_wastage_item_idx` (`item_id` ASC),
+  INDEX `fk_wastage_batch_idx` (`batch_id` ASC),
+  INDEX `fk_wastage_branch_idx` (`branch_id` ASC),
+  INDEX `fk_wastage_users1_idx` (`created_by` ASC),
+  CONSTRAINT `fk_wastage_item`
+    FOREIGN KEY (`item_id`)
+    REFERENCES `items` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_wastage_batch`
+    FOREIGN KEY (`batch_id`)
+    REFERENCES `stock_batches` (`id`)
+    ON DELETE SET NULL
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_wastage_branch`
+    FOREIGN KEY (`branch_id`)
+    REFERENCES `branches` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_wastage_users1`
+    FOREIGN KEY (`created_by`)
+    REFERENCES `users` (`id`)
+    ON DELETE SET NULL
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_wastage_tenant`
     FOREIGN KEY (`tenant_id`)
     REFERENCES `wh_tenants` (`id`)
     ON DELETE CASCADE
@@ -652,7 +931,169 @@ CREATE TABLE IF NOT EXISTS `inventory_stock_transfers` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =============================================================================
--- CRM
+-- PRODUCTION (Baking)
+-- Recipes describe which ingredients + quantities make each finished item.
+-- Production runs consume ingredients (FIFO by expiry) and add finished goods.
+-- =============================================================================
+
+-- -----------------------------------------------------
+-- Table `recipes`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `recipes` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `recipe_name` VARCHAR(150) NOT NULL,
+  `yield_qty` DECIMAL(12,3) NOT NULL DEFAULT 1.000 COMMENT 'How many finished units this recipe makes',
+  `yield_unit` VARCHAR(45) NOT NULL DEFAULT 'piece',
+  `instructions` TEXT NULL DEFAULT NULL,
+  `prep_time_mins` INT NULL DEFAULT NULL,
+  `status` VARCHAR(45) NOT NULL DEFAULT 'active',
+  `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `item_id` INT NOT NULL COMMENT 'Finished bakery item this recipe produces',
+  `tenant_id` INT NOT NULL,
+  `deleted_at` TIMESTAMP NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  INDEX `fk_recipes_item_idx` (`item_id` ASC),
+  INDEX `fk_recipes_tenant_idx` (`tenant_id` ASC),
+  CONSTRAINT `fk_recipes_item`
+    FOREIGN KEY (`item_id`)
+    REFERENCES `items` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_recipes_tenant`
+    FOREIGN KEY (`tenant_id`)
+    REFERENCES `wh_tenants` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -----------------------------------------------------
+-- Table `recipe_ingredients`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `recipe_ingredients` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `quantity` DECIMAL(12,3) NOT NULL,
+  `unit` VARCHAR(45) NOT NULL DEFAULT 'g',
+  `notes` VARCHAR(255) NULL DEFAULT NULL,
+  `recipe_id` INT NOT NULL,
+  `ingredient_item_id` INT NOT NULL,
+  `tenant_id` INT NOT NULL,
+  `deleted_at` TIMESTAMP NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  INDEX `fk_recipe_ingredients_recipe_idx` (`recipe_id` ASC),
+  INDEX `fk_recipe_ingredients_item_idx` (`ingredient_item_id` ASC),
+  INDEX `fk_recipe_ingredients_tenant_idx` (`tenant_id` ASC),
+  CONSTRAINT `fk_recipe_ingredients_recipe`
+    FOREIGN KEY (`recipe_id`)
+    REFERENCES `recipes` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_recipe_ingredients_item`
+    FOREIGN KEY (`ingredient_item_id`)
+    REFERENCES `items` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_recipe_ingredients_tenant`
+    FOREIGN KEY (`tenant_id`)
+    REFERENCES `wh_tenants` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -----------------------------------------------------
+-- Table `production_runs` (a baking batch)
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `production_runs` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `production_no` VARCHAR(60) NOT NULL,
+  `quantity_produced` DECIMAL(12,3) NOT NULL,
+  `produced_on` DATE NOT NULL,
+  `expiry_date` DATE NULL DEFAULT NULL,
+  `status` VARCHAR(45) NOT NULL DEFAULT 'planned' COMMENT 'planned | in_progress | completed | cancelled',
+  `total_cost` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  `notes` TEXT NULL DEFAULT NULL,
+  `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `item_id` INT NOT NULL COMMENT 'Finished item produced',
+  `recipe_id` INT NULL DEFAULT NULL,
+  `branch_id` INT NOT NULL,
+  `created_by` INT NULL DEFAULT NULL,
+  `tenant_id` INT NOT NULL,
+  `deleted_at` TIMESTAMP NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `uk_production_runs_tenant_no` (`tenant_id` ASC, `production_no` ASC),
+  INDEX `fk_production_runs_item_idx` (`item_id` ASC),
+  INDEX `fk_production_runs_recipe_idx` (`recipe_id` ASC),
+  INDEX `fk_production_runs_branch_idx` (`branch_id` ASC),
+  INDEX `fk_production_runs_users1_idx` (`created_by` ASC),
+  CONSTRAINT `fk_production_runs_item`
+    FOREIGN KEY (`item_id`)
+    REFERENCES `items` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_production_runs_recipe`
+    FOREIGN KEY (`recipe_id`)
+    REFERENCES `recipes` (`id`)
+    ON DELETE SET NULL
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_production_runs_branch`
+    FOREIGN KEY (`branch_id`)
+    REFERENCES `branches` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_production_runs_users1`
+    FOREIGN KEY (`created_by`)
+    REFERENCES `users` (`id`)
+    ON DELETE SET NULL
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_production_runs_tenant`
+    FOREIGN KEY (`tenant_id`)
+    REFERENCES `wh_tenants` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -----------------------------------------------------
+-- Table `production_run_consumption` (actual ingredients used per run)
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `production_run_consumption` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `qty_consumed` DECIMAL(12,3) NOT NULL,
+  `unit_cost` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  `production_run_id` INT NOT NULL,
+  `ingredient_item_id` INT NOT NULL,
+  `batch_id` INT NULL DEFAULT NULL,
+  `tenant_id` INT NOT NULL,
+  `deleted_at` TIMESTAMP NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  INDEX `fk_prod_consume_run_idx` (`production_run_id` ASC),
+  INDEX `fk_prod_consume_item_idx` (`ingredient_item_id` ASC),
+  INDEX `fk_prod_consume_batch_idx` (`batch_id` ASC),
+  INDEX `fk_prod_consume_tenant_idx` (`tenant_id` ASC),
+  CONSTRAINT `fk_prod_consume_run`
+    FOREIGN KEY (`production_run_id`)
+    REFERENCES `production_runs` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_prod_consume_item`
+    FOREIGN KEY (`ingredient_item_id`)
+    REFERENCES `items` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_prod_consume_batch`
+    FOREIGN KEY (`batch_id`)
+    REFERENCES `stock_batches` (`id`)
+    ON DELETE SET NULL
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_prod_consume_tenant`
+    FOREIGN KEY (`tenant_id`)
+    REFERENCES `wh_tenants` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =============================================================================
+-- CRM (Customers)
 -- =============================================================================
 
 -- -----------------------------------------------------
@@ -662,11 +1103,12 @@ CREATE TABLE IF NOT EXISTS `crm_customers` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `customer_name` VARCHAR(100) NOT NULL,
   `company_name` VARCHAR(100) NULL DEFAULT NULL,
-  `customer_type` VARCHAR(45) NOT NULL DEFAULT 'retailer',
+  `customer_type` VARCHAR(45) NOT NULL DEFAULT 'walk-in',
   `tags` VARCHAR(500) NULL DEFAULT NULL,
   `phone` VARCHAR(45) NULL DEFAULT NULL,
   `email` VARCHAR(100) NULL DEFAULT NULL,
   `status` VARCHAR(45) NOT NULL,
+  `source` VARCHAR(45) NOT NULL DEFAULT 'manual',
   `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `note` TEXT NULL DEFAULT NULL,
@@ -796,7 +1238,7 @@ CREATE TABLE IF NOT EXISTS `crm_customer_complaints` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =============================================================================
--- ORDER MANAGEMENT
+-- ORDER MANAGEMENT  (bulk / custom cake orders, delivery)
 -- =============================================================================
 
 -- -----------------------------------------------------
@@ -805,7 +1247,7 @@ CREATE TABLE IF NOT EXISTS `crm_customer_complaints` (
 CREATE TABLE IF NOT EXISTS `orders` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `order_no` VARCHAR(60) NOT NULL,
-  `order_source` VARCHAR(60) NULL DEFAULT NULL,
+  `order_source` VARCHAR(60) NULL DEFAULT NULL COMMENT 'walk-in | phone | whatsapp | manual',
   `order_status` VARCHAR(45) NOT NULL,
   `payment_status` VARCHAR(45) NOT NULL,
   `fulfillment_status` VARCHAR(45) NOT NULL,
@@ -815,22 +1257,30 @@ CREATE TABLE IF NOT EXISTS `orders` (
   `payable_amount` DECIMAL(12,2) NOT NULL,
   `city` VARCHAR(60) NULL DEFAULT NULL,
   `delivery_address` TEXT NULL DEFAULT NULL,
+  `delivery_date` DATE NULL DEFAULT NULL,
   `notes` TEXT NULL DEFAULT NULL,
   `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `customer_id` INT NULL DEFAULT NULL,
+  `branch_id` INT NULL DEFAULT NULL,
   `created_by` INT NULL DEFAULT NULL,
   `tenant_id` INT NOT NULL,
   `deleted_at` TIMESTAMP NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE INDEX `uk_orders_tenant_order_no` (`tenant_id` ASC, `order_no` ASC),
   INDEX `fk_orders_crm_customers1_idx` (`customer_id` ASC),
+  INDEX `fk_orders_branch_idx` (`branch_id` ASC),
   INDEX `fk_orders_users1_idx` (`created_by` ASC),
   INDEX `fk_orders_wh_tenants1_idx` (`tenant_id` ASC),
   CONSTRAINT `fk_orders_crm_customers1`
     FOREIGN KEY (`customer_id`)
     REFERENCES `crm_customers` (`id`)
     ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_orders_branch`
+    FOREIGN KEY (`branch_id`)
+    REFERENCES `branches` (`id`)
+    ON DELETE SET NULL
     ON UPDATE CASCADE,
   CONSTRAINT `fk_orders_users1`
     FOREIGN KEY (`created_by`)
@@ -850,28 +1300,28 @@ CREATE TABLE IF NOT EXISTS `orders` (
 CREATE TABLE IF NOT EXISTS `order_items` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `product_name` VARCHAR(150) NOT NULL,
-  `sku` VARCHAR(80) NOT NULL,
-  `quantity` INT NOT NULL,
+  `sku` VARCHAR(80) NULL DEFAULT NULL,
+  `quantity` DECIMAL(12,3) NOT NULL,
   `unit_price` DECIMAL(12,2) NOT NULL,
   `discount` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
   `total_price` DECIMAL(12,2) NOT NULL,
   `order_id` INT NOT NULL,
-  `product_id` INT NULL DEFAULT NULL,
+  `item_id` INT NULL DEFAULT NULL,
   `tenant_id` INT NOT NULL,
   `deleted_at` TIMESTAMP NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   INDEX `fk_order_items_orders1_idx` (`order_id` ASC),
-  INDEX `fk_order_items_inventory_products1_idx` (`product_id` ASC),
+  INDEX `fk_order_items_items1_idx` (`item_id` ASC),
   INDEX `fk_order_items_wh_tenants1_idx` (`tenant_id` ASC),
   CONSTRAINT `fk_order_items_orders1`
     FOREIGN KEY (`order_id`)
     REFERENCES `orders` (`id`)
     ON DELETE CASCADE
     ON UPDATE CASCADE,
-  CONSTRAINT `fk_order_items_inventory_products1`
-    FOREIGN KEY (`product_id`)
-    REFERENCES `inventory_products` (`id`)
-    ON DELETE CASCADE
+  CONSTRAINT `fk_order_items_items1`
+    FOREIGN KEY (`item_id`)
+    REFERENCES `items` (`id`)
+    ON DELETE SET NULL
     ON UPDATE CASCADE,
   CONSTRAINT `fk_order_items_wh_tenants1`
     FOREIGN KEY (`tenant_id`)
@@ -1014,15 +1464,15 @@ CREATE TABLE IF NOT EXISTS `order_exchanges` (
   `exchange_status` VARCHAR(45) NOT NULL,
   `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
   `order_id` INT NOT NULL,
-  `old_product_id` INT NOT NULL,
-  `new_product_id` INT NOT NULL,
+  `old_item_id` INT NOT NULL,
+  `new_item_id` INT NOT NULL,
   `created_by` INT NOT NULL,
   `tenant_id` INT NOT NULL,
   `deleted_at` TIMESTAMP NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   INDEX `fk_order_exchanges_orders1_idx` (`order_id` ASC),
-  INDEX `fk_order_exchanges_inventory_products1_idx` (`old_product_id` ASC),
-  INDEX `fk_order_exchanges_inventory_products2_idx` (`new_product_id` ASC),
+  INDEX `fk_order_exchanges_items1_idx` (`old_item_id` ASC),
+  INDEX `fk_order_exchanges_items2_idx` (`new_item_id` ASC),
   INDEX `fk_order_exchanges_users1_idx` (`created_by` ASC),
   INDEX `fk_order_exchanges_wh_tenants1_idx` (`tenant_id` ASC),
   CONSTRAINT `fk_order_exchanges_orders1`
@@ -1030,14 +1480,14 @@ CREATE TABLE IF NOT EXISTS `order_exchanges` (
     REFERENCES `orders` (`id`)
     ON DELETE CASCADE
     ON UPDATE CASCADE,
-  CONSTRAINT `fk_order_exchanges_inventory_products1`
-    FOREIGN KEY (`old_product_id`)
-    REFERENCES `inventory_products` (`id`)
+  CONSTRAINT `fk_order_exchanges_items1`
+    FOREIGN KEY (`old_item_id`)
+    REFERENCES `items` (`id`)
     ON DELETE CASCADE
     ON UPDATE CASCADE,
-  CONSTRAINT `fk_order_exchanges_inventory_products2`
-    FOREIGN KEY (`new_product_id`)
-    REFERENCES `inventory_products` (`id`)
+  CONSTRAINT `fk_order_exchanges_items2`
+    FOREIGN KEY (`new_item_id`)
+    REFERENCES `items` (`id`)
     ON DELETE CASCADE
     ON UPDATE CASCADE,
   CONSTRAINT `fk_order_exchanges_users1`
@@ -1088,164 +1538,32 @@ CREATE TABLE IF NOT EXISTS `order_refunds` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =============================================================================
--- E-COMMERCE INTEGRATION
--- =============================================================================
-
--- -----------------------------------------------------
--- Table `ecom_store_connections`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `ecom_store_connections` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `store_name` VARCHAR(100) NOT NULL,
-  `platform` VARCHAR(45) NOT NULL,
-  `store_url` TEXT NULL DEFAULT NULL,
-  `access_token` TEXT NULL DEFAULT NULL,
-  `api_key` TEXT NULL DEFAULT NULL,
-  `api_secret` TEXT NULL DEFAULT NULL,
-  `status` VARCHAR(45) NOT NULL,
-  `initial_sync_status` VARCHAR(45) NOT NULL DEFAULT 'pending',
-  `webhooks_registered` TINYINT(1) NOT NULL DEFAULT 0,
-  `granted_scopes` TEXT NULL DEFAULT NULL,
-  `last_synced_at` TIMESTAMP NULL DEFAULT NULL,
-  `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
-  `tenant_id` INT NOT NULL,
-  `deleted_at` TIMESTAMP NULL DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  INDEX `fk_ecom_store_connections_wh_tenants1_idx` (`tenant_id` ASC),
-  CONSTRAINT `fk_ecom_store_connections_wh_tenants1`
-    FOREIGN KEY (`tenant_id`)
-    REFERENCES `wh_tenants` (`id`)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- -----------------------------------------------------
--- Table `ecom_sync_logs`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `ecom_sync_logs` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `sync_type` VARCHAR(45) NOT NULL,
-  `external_id` VARCHAR(100) NULL DEFAULT NULL,
-  `status` VARCHAR(45) NOT NULL,
-  `message` TEXT NULL DEFAULT NULL,
-  `synced_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
-  `store_id` INT NOT NULL,
-  `tenant_id` INT NOT NULL,
-  `deleted_at` TIMESTAMP NULL DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  INDEX `fk_ecom_sync_logs_ecom_store_connections1_idx` (`store_id` ASC),
-  INDEX `fk_ecom_sync_logs_wh_tenants1_idx` (`tenant_id` ASC),
-  CONSTRAINT `fk_ecom_sync_logs_ecom_store_connections1`
-    FOREIGN KEY (`store_id`)
-    REFERENCES `ecom_store_connections` (`id`)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE,
-  CONSTRAINT `fk_ecom_sync_logs_wh_tenants1`
-    FOREIGN KEY (`tenant_id`)
-    REFERENCES `wh_tenants` (`id`)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- -----------------------------------------------------
--- Table `ecom_external_orders`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `ecom_external_orders` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `platform` VARCHAR(45) NOT NULL,
-  `external_order_id` VARCHAR(100) NOT NULL,
-  `internal_order_id` INT NULL DEFAULT NULL,
-  `store_name` VARCHAR(100) NULL DEFAULT NULL,
-  `sync_status` VARCHAR(45) NOT NULL,
-  `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
-  `store_id` INT NOT NULL,
-  `tenant_id` INT NOT NULL,
-  `deleted_at` TIMESTAMP NULL DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE INDEX `uq_ecom_external_order` (`store_id`, `external_order_id`),
-  INDEX `fk_ecom_external_orders_ecom_store_connections1_idx` (`store_id` ASC),
-  INDEX `fk_ecom_external_orders_orders1_idx` (`internal_order_id` ASC),
-  INDEX `fk_ecom_external_orders_wh_tenants1_idx` (`tenant_id` ASC),
-  CONSTRAINT `fk_ecom_external_orders_ecom_store_connections1`
-    FOREIGN KEY (`store_id`)
-    REFERENCES `ecom_store_connections` (`id`)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE,
-  CONSTRAINT `fk_ecom_external_orders_orders1`
-    FOREIGN KEY (`internal_order_id`)
-    REFERENCES `orders` (`id`)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE,
-  CONSTRAINT `fk_ecom_external_orders_wh_tenants1`
-    FOREIGN KEY (`tenant_id`)
-    REFERENCES `wh_tenants` (`id`)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- -----------------------------------------------------
--- Table `ecom_synced_records`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `ecom_synced_records` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `store_id` INT NOT NULL,
-  `tenant_id` INT NOT NULL,
-  `entity_type` VARCHAR(45) NOT NULL,
-  `external_id` VARCHAR(100) NOT NULL,
-  `raw_json` LONGTEXT NOT NULL,
-  `normalized_json` LONGTEXT NOT NULL,
-  `source` VARCHAR(100) NOT NULL,
-  `conflict_status` VARCHAR(20) NOT NULL DEFAULT 'none',
-  `pending_raw_json` LONGTEXT NULL DEFAULT NULL,
-  `pending_normalized_json` LONGTEXT NULL DEFAULT NULL,
-  `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `deleted_at` TIMESTAMP NULL DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE INDEX `uq_ecom_synced_store_entity` (`store_id`, `entity_type`, `external_id`),
-  INDEX `idx_ecom_synced_store_type` (`store_id`, `entity_type`),
-  CONSTRAINT `fk_ecom_synced_records_store`
-    FOREIGN KEY (`store_id`) REFERENCES `ecom_store_connections` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT `fk_ecom_synced_records_tenant`
-    FOREIGN KEY (`tenant_id`) REFERENCES `wh_tenants` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- -----------------------------------------------------
--- Table `ecom_oauth_pending_states`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `ecom_oauth_pending_states` (
-  `state` VARCHAR(64) NOT NULL,
-  `shop` TEXT NOT NULL,
-  `tenant_id` INT NOT NULL,
-  `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`state`),
-  INDEX `idx_ecom_oauth_states_created` (`created_at`),
-  CONSTRAINT `fk_ecom_oauth_states_tenant`
-    FOREIGN KEY (`tenant_id`) REFERENCES `wh_tenants` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- -----------------------------------------------------
--- Table `ecom_oauth_sessions`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `ecom_oauth_sessions` (
-  `session_id` VARCHAR(64) NOT NULL,
-  `shop` TEXT NOT NULL,
-  `access_token` TEXT NOT NULL,
-  `scope` TEXT NULL DEFAULT NULL,
-  `store_id` INT NULL DEFAULT NULL,
-  `tenant_id` INT NOT NULL,
-  `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`session_id`),
-  INDEX `idx_ecom_oauth_sessions_created` (`created_at`),
-  CONSTRAINT `fk_ecom_oauth_sessions_tenant`
-    FOREIGN KEY (`tenant_id`) REFERENCES `wh_tenants` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- =============================================================================
 -- FINANCE & ACCOUNTING
 -- =============================================================================
 
 -- -----------------------------------------------------
--- Table `finance_vendor_bills`
+-- Table `finance_bank_accounts`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `finance_bank_accounts` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `bank_name` VARCHAR(100) NOT NULL,
+  `account_title` VARCHAR(100) NOT NULL,
+  `account_number` VARCHAR(100) NOT NULL,
+  `current_balance` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  `status` VARCHAR(45) NOT NULL,
+  `tenant_id` INT NOT NULL,
+  `deleted_at` TIMESTAMP NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  INDEX `fk_finance_bank_accounts_wh_tenants1_idx` (`tenant_id` ASC),
+  CONSTRAINT `fk_finance_bank_accounts_wh_tenants1`
+    FOREIGN KEY (`tenant_id`)
+    REFERENCES `wh_tenants` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -----------------------------------------------------
+-- Table `finance_vendor_bills` (supplier bills, can link to a purchase order)
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `finance_vendor_bills` (
   `id` INT NOT NULL AUTO_INCREMENT,
@@ -1256,10 +1574,24 @@ CREATE TABLE IF NOT EXISTS `finance_vendor_bills` (
   `due_date` DATE NOT NULL,
   `status` VARCHAR(45) NOT NULL,
   `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  `supplier_id` INT NULL DEFAULT NULL,
+  `purchase_order_id` INT NULL DEFAULT NULL,
   `tenant_id` INT NOT NULL,
   `deleted_at` TIMESTAMP NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   INDEX `fk_finance_vendor_bills_wh_tenants1_idx` (`tenant_id` ASC),
+  INDEX `fk_finance_vendor_bills_supplier_idx` (`supplier_id` ASC),
+  INDEX `fk_finance_vendor_bills_po_idx` (`purchase_order_id` ASC),
+  CONSTRAINT `fk_finance_vendor_bills_supplier`
+    FOREIGN KEY (`supplier_id`)
+    REFERENCES `suppliers` (`id`)
+    ON DELETE SET NULL
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_finance_vendor_bills_po`
+    FOREIGN KEY (`purchase_order_id`)
+    REFERENCES `purchase_orders` (`id`)
+    ON DELETE SET NULL
+    ON UPDATE CASCADE,
   CONSTRAINT `fk_finance_vendor_bills_wh_tenants1`
     FOREIGN KEY (`tenant_id`)
     REFERENCES `wh_tenants` (`id`)
@@ -1383,15 +1715,18 @@ CREATE TABLE IF NOT EXISTS `finance_recurring_expenses` (
   `amount` DECIMAL(12,2) NOT NULL,
   `frequency` VARCHAR(45) NOT NULL,
   `next_due_date` DATE NOT NULL,
+  `last_deducted_at` TIMESTAMP NULL DEFAULT NULL,
   `status` VARCHAR(45) NOT NULL,
   `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
   `category_id` INT NOT NULL,
   `sub_category_id` INT NULL DEFAULT NULL,
+  `bank_account_id` INT NULL DEFAULT NULL,
   `tenant_id` INT NOT NULL,
   `deleted_at` TIMESTAMP NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   INDEX `fk_finance_recurring_expenses_finance_expense_categories1_idx` (`category_id` ASC),
   INDEX `fk_fin_recur_exp_fin_exp_sub_cat1_idx` (`sub_category_id` ASC),
+  INDEX `fk_fin_recur_exp_bank_idx` (`bank_account_id` ASC),
   INDEX `fk_finance_recurring_expenses_wh_tenants1_idx` (`tenant_id` ASC),
   CONSTRAINT `fk_finance_recurring_expenses_finance_expense_categories1`
     FOREIGN KEY (`category_id`)
@@ -1403,28 +1738,12 @@ CREATE TABLE IF NOT EXISTS `finance_recurring_expenses` (
     REFERENCES `finance_expense_sub_categories` (`id`)
     ON DELETE CASCADE
     ON UPDATE CASCADE,
+  CONSTRAINT `fk_fin_recur_exp_bank`
+    FOREIGN KEY (`bank_account_id`)
+    REFERENCES `finance_bank_accounts` (`id`)
+    ON DELETE SET NULL
+    ON UPDATE CASCADE,
   CONSTRAINT `fk_finance_recurring_expenses_wh_tenants1`
-    FOREIGN KEY (`tenant_id`)
-    REFERENCES `wh_tenants` (`id`)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- -----------------------------------------------------
--- Table `finance_bank_accounts`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `finance_bank_accounts` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `bank_name` VARCHAR(100) NOT NULL,
-  `account_title` VARCHAR(100) NOT NULL,
-  `account_number` VARCHAR(100) NOT NULL,
-  `current_balance` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
-  `status` VARCHAR(45) NOT NULL,
-  `tenant_id` INT NOT NULL,
-  `deleted_at` TIMESTAMP NULL DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  INDEX `fk_finance_bank_accounts_wh_tenants1_idx` (`tenant_id` ASC),
-  CONSTRAINT `fk_finance_bank_accounts_wh_tenants1`
     FOREIGN KEY (`tenant_id`)
     REFERENCES `wh_tenants` (`id`)
     ON DELETE CASCADE
@@ -1454,151 +1773,9 @@ CREATE TABLE IF NOT EXISTS `finance_transactions` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =============================================================================
--- LOGISTICS PARTNERS
+-- POINT OF SALE (Counter)
+-- Sells finished items from unified stock at a branch.
 -- =============================================================================
-
--- -----------------------------------------------------
--- Table `logistics_courier_partners`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `logistics_courier_partners` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `courier_name` VARCHAR(100) NOT NULL,
-  `account_title` VARCHAR(100) NULL DEFAULT NULL,
-  `account_number` VARCHAR(100) NULL DEFAULT NULL,
-  `api_key` TEXT NULL DEFAULT NULL,
-  `api_secret` TEXT NULL DEFAULT NULL,
-  `status` VARCHAR(45) NOT NULL,
-  `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
-  `tenant_id` INT NOT NULL,
-  `deleted_at` TIMESTAMP NULL DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  INDEX `fk_logistics_courier_partners_wh_tenants1_idx` (`tenant_id` ASC),
-  CONSTRAINT `fk_logistics_courier_partners_wh_tenants1`
-    FOREIGN KEY (`tenant_id`)
-    REFERENCES `wh_tenants` (`id`)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- -----------------------------------------------------
--- Table `logistics_tracking_sync_logs`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `logistics_tracking_sync_logs` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `tracking_number` VARCHAR(100) NOT NULL,
-  `old_status` VARCHAR(45) NULL DEFAULT NULL,
-  `new_status` VARCHAR(45) NULL DEFAULT NULL,
-  `synced_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
-  `response_message` TEXT NULL DEFAULT NULL,
-  `courier_id` INT NOT NULL,
-  `order_id` INT NOT NULL,
-  `tenant_id` INT NOT NULL,
-  `deleted_at` TIMESTAMP NULL DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  INDEX `fk_logistics_tracking_sync_logs_logistics_courier_partners1_idx` (`courier_id` ASC),
-  INDEX `fk_logistics_tracking_sync_logs_orders1_idx` (`order_id` ASC),
-  INDEX `fk_logistics_tracking_sync_logs_wh_tenants1_idx` (`tenant_id` ASC),
-  CONSTRAINT `fk_logistics_tracking_sync_logs_logistics_courier_partners1`
-    FOREIGN KEY (`courier_id`)
-    REFERENCES `logistics_courier_partners` (`id`)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE,
-  CONSTRAINT `fk_logistics_tracking_sync_logs_orders1`
-    FOREIGN KEY (`order_id`)
-    REFERENCES `orders` (`id`)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE,
-  CONSTRAINT `fk_logistics_tracking_sync_logs_wh_tenants1`
-    FOREIGN KEY (`tenant_id`)
-    REFERENCES `wh_tenants` (`id`)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- -----------------------------------------------------
--- Table `logistics_pickup_requests`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `logistics_pickup_requests` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `pickup_date` DATE NOT NULL,
-  `pickup_address` TEXT NOT NULL,
-  `pickup_status` VARCHAR(45) NOT NULL,
-  `response_message` TEXT NULL DEFAULT NULL,
-  `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
-  `courier_id` INT NOT NULL,
-  `tenant_id` INT NOT NULL,
-  `deleted_at` TIMESTAMP NULL DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  INDEX `fk_logistics_pickup_requests_logistics_courier_partners1_idx` (`courier_id` ASC),
-  INDEX `fk_logistics_pickup_requests_wh_tenants1_idx` (`tenant_id` ASC),
-  CONSTRAINT `fk_logistics_pickup_requests_logistics_courier_partners1`
-    FOREIGN KEY (`courier_id`)
-    REFERENCES `logistics_courier_partners` (`id`)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE,
-  CONSTRAINT `fk_logistics_pickup_requests_wh_tenants1`
-    FOREIGN KEY (`tenant_id`)
-    REFERENCES `wh_tenants` (`id`)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- -----------------------------------------------------
--- Table `logistics_pickup_orders`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `logistics_pickup_orders` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `pickup_request_id` INT NOT NULL,
-  `order_id` INT NOT NULL,
-  `tenant_id` INT NOT NULL,
-  `deleted_at` TIMESTAMP NULL DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE INDEX `uk_logistics_pickup_orders_pickup_order` (`pickup_request_id` ASC, `order_id` ASC),
-  INDEX `fk_logistics_pickup_orders_orders1_idx` (`order_id` ASC),
-  INDEX `fk_logistics_pickup_orders_wh_tenants1_idx` (`tenant_id` ASC),
-  CONSTRAINT `fk_logistics_pickup_orders_logistics_pickup_requests1`
-    FOREIGN KEY (`pickup_request_id`)
-    REFERENCES `logistics_pickup_requests` (`id`)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE,
-  CONSTRAINT `fk_logistics_pickup_orders_orders1`
-    FOREIGN KEY (`order_id`)
-    REFERENCES `orders` (`id`)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE,
-  CONSTRAINT `fk_logistics_pickup_orders_wh_tenants1`
-    FOREIGN KEY (`tenant_id`)
-    REFERENCES `wh_tenants` (`id`)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- =============================================================================
--- POS
--- =============================================================================
-
--- -----------------------------------------------------
--- Table `pos_outlets`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `pos_outlets` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `outlet_name` VARCHAR(100) NOT NULL,
-  `location` TEXT NULL DEFAULT NULL,
-  `city` VARCHAR(60) NULL DEFAULT NULL,
-  `status` VARCHAR(45) NOT NULL,
-  `store_open_time` TIME NULL DEFAULT NULL,
-  `store_close_time` TIME NULL DEFAULT NULL,
-  `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
-  `tenant_id` INT NOT NULL,
-  `deleted_at` TIMESTAMP NULL DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  INDEX `fk_pos_outlets_wh_tenants1_idx` (`tenant_id` ASC),
-  CONSTRAINT `fk_pos_outlets_wh_tenants1`
-    FOREIGN KEY (`tenant_id`)
-    REFERENCES `wh_tenants` (`id`)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- -----------------------------------------------------
 -- Table `pos_terminals`
@@ -1609,15 +1786,15 @@ CREATE TABLE IF NOT EXISTS `pos_terminals` (
   `device_code` VARCHAR(100) NOT NULL,
   `status` VARCHAR(45) NOT NULL,
   `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
-  `outlet_id` INT NOT NULL,
+  `branch_id` INT NOT NULL,
   `tenant_id` INT NOT NULL,
   `deleted_at` TIMESTAMP NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
-  INDEX `fk_pos_terminals_pos_outlets1_idx` (`outlet_id` ASC),
+  INDEX `fk_pos_terminals_branch_idx` (`branch_id` ASC),
   INDEX `fk_pos_terminals_wh_tenants1_idx` (`tenant_id` ASC),
-  CONSTRAINT `fk_pos_terminals_pos_outlets1`
-    FOREIGN KEY (`outlet_id`)
-    REFERENCES `pos_outlets` (`id`)
+  CONSTRAINT `fk_pos_terminals_branch`
+    FOREIGN KEY (`branch_id`)
+    REFERENCES `branches` (`id`)
     ON DELETE CASCADE
     ON UPDATE CASCADE,
   CONSTRAINT `fk_pos_terminals_wh_tenants1`
@@ -1637,8 +1814,9 @@ CREATE TABLE IF NOT EXISTS `pos_sales` (
   `discount_amount` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
   `payable_amount` DECIMAL(12,2) NOT NULL,
   `payment_status` VARCHAR(45) NOT NULL,
+  `payment_method` VARCHAR(45) NULL DEFAULT NULL,
   `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
-  `outlet_id` INT NOT NULL,
+  `branch_id` INT NOT NULL,
   `terminal_id` INT NOT NULL,
   `crm_customers_id` INT NULL DEFAULT NULL,
   `created_by` INT NOT NULL,
@@ -1646,14 +1824,14 @@ CREATE TABLE IF NOT EXISTS `pos_sales` (
   `deleted_at` TIMESTAMP NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE INDEX `uk_pos_sales_tenant_sale_no` (`tenant_id` ASC, `sale_no` ASC),
-  INDEX `fk_pos_sales_pos_outlets1_idx` (`outlet_id` ASC),
+  INDEX `fk_pos_sales_branch_idx` (`branch_id` ASC),
   INDEX `fk_pos_sales_pos_terminals1_idx` (`terminal_id` ASC),
   INDEX `fk_pos_sales_crm_customers1_idx` (`crm_customers_id` ASC),
   INDEX `fk_pos_sales_users1_idx` (`created_by` ASC),
   INDEX `fk_pos_sales_wh_tenants1_idx` (`tenant_id` ASC),
-  CONSTRAINT `fk_pos_sales_pos_outlets1`
-    FOREIGN KEY (`outlet_id`)
-    REFERENCES `pos_outlets` (`id`)
+  CONSTRAINT `fk_pos_sales_branch`
+    FOREIGN KEY (`branch_id`)
+    REFERENCES `branches` (`id`)
     ON DELETE CASCADE
     ON UPDATE CASCADE,
   CONSTRAINT `fk_pos_sales_pos_terminals1`
@@ -1684,26 +1862,26 @@ CREATE TABLE IF NOT EXISTS `pos_sales` (
 CREATE TABLE IF NOT EXISTS `pos_sale_items` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `product_name` VARCHAR(150) NOT NULL,
-  `sku` VARCHAR(80) NOT NULL,
-  `quantity` INT NOT NULL,
+  `sku` VARCHAR(80) NULL DEFAULT NULL,
+  `quantity` DECIMAL(12,3) NOT NULL,
   `unit_price` DECIMAL(12,2) NOT NULL,
   `total_price` DECIMAL(12,2) NOT NULL,
   `pos_sale_id` INT NOT NULL,
-  `product_id` INT NULL DEFAULT NULL,
+  `item_id` INT NULL DEFAULT NULL,
   `tenant_id` INT NOT NULL,
   `deleted_at` TIMESTAMP NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   INDEX `fk_pos_sale_items_pos_sales1_idx` (`pos_sale_id` ASC),
-  INDEX `fk_pos_sale_items_pos_products_idx` (`product_id` ASC),
+  INDEX `fk_pos_sale_items_item_idx` (`item_id` ASC),
   INDEX `fk_pos_sale_items_wh_tenants1_idx` (`tenant_id` ASC),
   CONSTRAINT `fk_pos_sale_items_pos_sales1`
     FOREIGN KEY (`pos_sale_id`)
     REFERENCES `pos_sales` (`id`)
     ON DELETE CASCADE
     ON UPDATE CASCADE,
-  CONSTRAINT `fk_pos_sale_items_pos_products`
-    FOREIGN KEY (`product_id`)
-    REFERENCES `pos_products` (`id`)
+  CONSTRAINT `fk_pos_sale_items_item`
+    FOREIGN KEY (`item_id`)
+    REFERENCES `items` (`id`)
     ON DELETE SET NULL
     ON UPDATE CASCADE,
   CONSTRAINT `fk_pos_sale_items_wh_tenants1`
@@ -1723,21 +1901,21 @@ CREATE TABLE IF NOT EXISTS `pos_cash_registers` (
   `cash_collected` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
   `opened_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
   `closed_at` TIMESTAMP NULL DEFAULT NULL,
-  `outlet_id` INT NOT NULL,
+  `branch_id` INT NOT NULL,
   `terminal_id` INT NOT NULL,
   `opened_by` INT NOT NULL,
   `closed_by` INT NULL DEFAULT NULL,
   `tenant_id` INT NOT NULL,
   `deleted_at` TIMESTAMP NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
-  INDEX `fk_pos_cash_registers_pos_outlets1_idx` (`outlet_id` ASC),
+  INDEX `fk_pos_cash_registers_branch_idx` (`branch_id` ASC),
   INDEX `fk_pos_cash_registers_pos_terminals1_idx` (`terminal_id` ASC),
   INDEX `fk_pos_cash_registers_users1_idx` (`opened_by` ASC),
   INDEX `fk_pos_cash_registers_users2_idx` (`closed_by` ASC),
   INDEX `fk_pos_cash_registers_wh_tenants1_idx` (`tenant_id` ASC),
-  CONSTRAINT `fk_pos_cash_registers_pos_outlets1`
-    FOREIGN KEY (`outlet_id`)
-    REFERENCES `pos_outlets` (`id`)
+  CONSTRAINT `fk_pos_cash_registers_branch`
+    FOREIGN KEY (`branch_id`)
+    REFERENCES `branches` (`id`)
     ON DELETE CASCADE
     ON UPDATE CASCADE,
   CONSTRAINT `fk_pos_cash_registers_pos_terminals1`

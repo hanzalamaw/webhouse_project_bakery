@@ -18,7 +18,7 @@ export default function ViewStockMovement() {
   const location = useLocation();
   const { authFetch } = useAuth();
   const navigate = useNavigate();
-  const backPath = location.state?.backPath || `${MODULE_BASE}/procurement/movement-history`;
+  const backPath = location.state?.backPath || `${MODULE_BASE}/stock/movement-history`;
   const [movement, setMovement] = useState(location.state?.movement ?? null);
   const [loading, setLoading] = useState(!location.state?.movement);
   const [error, setError] = useState("");
@@ -74,31 +74,33 @@ export default function ViewStockMovement() {
       <FormPageLayout>
         <PageHeader
           title={typeLabel}
-          description={`${movement.product_name} · ${formatDateTime(movement.created_at)}`}
+          description={`${movement.item_name} · ${formatDateTime(movement.created_at)}`}
           actions={
             <Button variant="secondary" onClick={() => navigate(backPath)}>Back to history</Button>
           }
         />
 
-        <FormBlock title="Product" description="Product included in this movement.">
+        <FormBlock title="Item" description="Item included in this movement.">
           <div className="wh-inv-line-item">
             <div className="wh-inv-line-item__head">
-              <strong>{movement.product_name}</strong>
-              <span className="wh-muted">{movement.sku}</span>
+              <strong>{movement.item_name}</strong>
+              <span className="wh-muted">{movement.unit || "—"}</span>
             </div>
           </div>
         </FormBlock>
 
-        <FormBlock title="Warehouse" description="Warehouse where this movement was recorded.">
+        <FormBlock title="Branch" description="Branch where this movement was recorded.">
           <div className="wh-form-grid">
-            <DetailValue label="Warehouse">{movement.warehouse_name}</DetailValue>
+            <DetailValue label="Branch">{movement.branch_name}</DetailValue>
+            {movement.batch_no && <DetailValue label="Batch">{movement.batch_no}</DetailValue>}
           </div>
         </FormBlock>
 
-        <FormBlock title="Quantities & notes" description="Recorded quantity and notes.">
+        <FormBlock title="Quantities & notes">
           <div className="wh-form-grid">
             <DetailValue label="Quantity">{movement.qty}</DetailValue>
-            <DetailValue label="Notes">{movement.notes || "—"}</DetailValue>
+            <DetailValue label="Unit cost">{movement.unit_cost ?? "—"}</DetailValue>
+            <DetailValue label="Notes" fullWidth>{movement.notes || "—"}</DetailValue>
           </div>
         </FormBlock>
 

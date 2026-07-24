@@ -6,41 +6,11 @@ import { PageHeader } from "../../../../../components/PageHeader";
 import { DashboardFilter } from "../../../../../components/DashboardFilter";
 import { EMPTY_DASHBOARD_FILTER, filterRowsByDashboard } from "../../../../../utils/dashboardFilter";
 import { useFiscalYear } from "../../../../../context/FiscalYearContext";
-import { BarChart, DonutChart, HBars, CHART_COLORS } from "../../../../../components/charts";
-import { StatusBadge } from "../../../../../components/Badge";
+import { HBars, DonutChart, CHART_COLORS } from "../../../../../components/charts";
 import { formatPKR, formatCompactPKR } from "../../../../../utils/currency";
-import { formatDateTime } from "../../../../../utils/dateTime";
-import { MOVEMENT_LABELS, MODULE_BASE } from "../constants";
+import { formatDateTime, formatDate } from "../../../../../utils/dateTime";
+import { MOVEMENT_LABELS, ITEM_TYPE_LABELS, MODULE_BASE } from "../constants";
 import { ProductIcon, WarehouseIcon, ProcurementIcon, LogsIcon } from "../../../../../components/icons";
-
-const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-function lastNMonths(n) {
-  const out = [];
-  const now = new Date();
-  for (let i = n - 1; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    out.push({ key, label: MONTH_SHORT[d.getMonth()], stockIn: 0, stockOut: 0 });
-  }
-  return out;
-}
-
-function buildMovementSeries(trendRows) {
-  const buckets = lastNMonths(6);
-  const index = new Map(buckets.map((b) => [b.key, b]));
-  for (const row of trendRows || []) {
-    const bucket = index.get(row.month_key);
-    if (!bucket) continue;
-    const qty = Number(row.total_qty) || 0;
-    if (row.movement_type === "stock_in" || row.movement_type === "initial_stock") {
-      bucket.stockIn += qty;
-    } else if (row.movement_type === "stock_out") {
-      bucket.stockOut += qty;
-    }
-  }
-  return buckets;
-}
 
 function Kpi({ label, value, hint, tone = "default", icon }) {
   return (
@@ -93,116 +63,59 @@ export default function InventoryDashboard() {
 
   const stats = data?.stats || {};
   const movements = data?.recent_movements || [];
-  const transfers = data?.recent_transfers || [];
+  const lowStock = data?.low_stock_items || [];
+  const expiring = data?.expiring_batches || [];
+  const stockByBranch = data?.stock_by_branch || [];
 
   const filteredMovements = useMemo(
     () => filterRowsByDashboard(movements, "created_at", dashFilter, fiscalYearStart),
     [movements, dashFilter, fiscalYearStart]
   );
-  const filteredTransfers = useMemo(
-    () => filterRowsByDashboard(transfers, "created_at", dashFilter, fiscalYearStart),
-    [transfers, dashFilter, fiscalYearStart]
-  );
-  const movementTrend = data?.movement_trend || [];
-  const movementsByType = data?.movements_by_type || [];
-  const stockByCategory = data?.stock_by_category || [];
-  const stockByWarehouse = data?.stock_by_warehouse || [];
-  const topProducts = data?.top_products || [];
-  const lowStockProducts = data?.low_stock_products || [];
 
   const dash = (n) => (loading ? "—" : n ?? 0);
   const money = (n) => (loading ? "—" : formatPKR(n));
   const num = (n) => (loading ? "—" : Number(n || 0).toLocaleString());
 
-  const stockInSeries = useMemo(() => {
-    const buckets = buildMovementSeries(movementTrend);
-    return buckets.map((b) => ({ label: b.label, value: b.stockIn }));
-  }, [movementTrend]);
-
-  const stockOutSeries = useMemo(() => {
-    const buckets = buildMovementSeries(movementTrend);
-    return buckets.map((b) => ({ label: b.label, value: b.stockOut }));
-  }, [movementTrend]);
-
-  const movementTypeSegments = useMemo(
+  const itemTypeSegments = useMemo(
     () =>
-      movementsByType
-        .map((row, i) => ({
-          label: MOVEMENT_LABELS[row.movement_type] || row.movement_type,
-          value: Number(row.count) || 0,
-          color: CHART_COLORS[i % CHART_COLORS.length],
-        }))
-        .filter((s) => s.value > 0),
-    [movementsByType]
+      [
+        { label: ITEM_TYPE_LABELS.ingredient, value: Number(stats.ingredient_count) || 0, color: CHART_COLORS[0] },
+        { label: ITEM_TYPE_LABELS.finished, value: Number(stats.finished_count) || 0, color: CHART_COLORS[1] },
+        { label: ITEM_TYPE_LABELS.packaging, value: Number(stats.packaging_count) || 0, color: CHART_COLORS[2] },
+      ].filter((s) => s.value > 0),
+    [stats]
   );
 
-  const productStatusSegments = useMemo(() => {
-    const active = Number(stats.active_products) || 0;
-    const inactive = Number(stats.inactive_products) || 0;
-    return [
-      { label: "Active", value: active, color: "var(--color-success)" },
-      { label: "Inactive", value: inactive, color: "var(--text-muted)" },
-    ].filter((s) => s.value > 0);
-  }, [stats]);
-
-  const transferStatusSegments = useMemo(() => {
-    const pending = Number(stats.pending_transfers) || 0;
-    const completed = Number(stats.completed_transfers) || 0;
-    const cancelled = Number(stats.cancelled_transfers) || 0;
-    return [
-      { label: "Pending", value: pending, color: "var(--color-warning)" },
-      { label: "Completed", value: completed, color: "var(--color-success)" },
-      { label: "Cancelled", value: cancelled, color: "var(--text-muted)" },
-    ].filter((s) => s.value > 0);
-  }, [stats]);
-
-  const categoryBars = useMemo(
+  const branchBars = useMemo(
     () =>
-      stockByCategory.map((row) => ({
-        label: row.label || "Uncategorized",
-        value: Number(row.total_qty) || 0,
-      })),
-    [stockByCategory]
-  );
-
-  const warehouseBars = useMemo(
-    () =>
-      stockByWarehouse.map((row, i) => ({
+      stockByBranch.map((row, i) => ({
         label: row.label,
-        value: Number(row.total_qty) || 0,
+        value: Number(row.available_qty) || 0,
         color: CHART_COLORS[i % CHART_COLORS.length],
       })),
-    [stockByWarehouse]
+    [stockByBranch]
   );
 
-  const warehouseValueBars = useMemo(
+  const branchValueBars = useMemo(
     () =>
-      stockByWarehouse.map((row, i) => ({
+      stockByBranch.map((row, i) => ({
         label: row.label,
         value: Number(row.value_cost) || 0,
         color: CHART_COLORS[i % CHART_COLORS.length],
       })),
-    [stockByWarehouse]
+    [stockByBranch]
   );
-
-  const stockHealthPct = useMemo(() => {
-    const total = Number(stats.product_count) || 0;
-    const low = Number(stats.low_stock_count) || 0;
-    const out = Number(stats.out_of_stock_count) || 0;
-    const healthy = Math.max(0, total - low - out);
-    if (!total) return 100;
-    return Math.round((healthy / total) * 100);
-  }, [stats]);
 
   const quickLinks = useMemo(
     () => [
-      { label: "Create Product", path: `${MODULE_BASE}/products/create` },
-      { label: "Stock In", path: `${MODULE_BASE}/procurement/stock-in/create` },
-      { label: "Stock Out", path: `${MODULE_BASE}/procurement/stock-out/create` },
-      { label: "Transfers", path: `${MODULE_BASE}/procurement/transfers/create` },
-      { label: "Categories", path: `${MODULE_BASE}/products/categories` },
-      { label: "Warehouses", path: `${MODULE_BASE}/warehouses` },
-      { label: "Movement History", path: `${MODULE_BASE}/procurement/movement-history` },
+      { label: "Create Item", path: `${MODULE_BASE}/items/create` },
+      { label: "Stock In", path: `${MODULE_BASE}/stock/stock-in/create` },
+      { label: "Stock Out", path: `${MODULE_BASE}/stock/stock-out/create` },
+      { label: "Transfers", path: `${MODULE_BASE}/stock/transfers/create` },
+      { label: "Purchase Order", path: `${MODULE_BASE}/purchasing/purchase-orders/create` },
+      { label: "Branches", path: `${MODULE_BASE}/branches` },
+      { label: "Batches / Expiry", path: `${MODULE_BASE}/stock/batches` },
+      { label: "Wastage", path: `${MODULE_BASE}/wastage` },
     ],
     []
   );
@@ -218,235 +131,95 @@ export default function InventoryDashboard() {
   return (
     <div className="wh-page wh-page--wide">
       <PageHeader
-        title="Inventory & Procurement"
-        description="Real-time overview of products, stock, warehouses, procurement activity, and transfers."
+        title="Stock & Purchasing"
+        description="Bakery stock overview — items, branches, purchases, expiry, and wastage."
       />
 
       {loadError && <p className="wh-field__error">{loadError}</p>}
 
       <DashboardFilter
-        rows={[...movements, ...transfers]}
+        rows={movements}
         dateField="created_at"
         value={dashFilter}
         onChange={setDashFilter}
       />
 
-      {/* Catalog & locations */}
       <div className="wh-dash-grid">
         <div className="wh-dash-col-3">
           <Kpi
-            label="Products"
-            value={dash(stats.product_count)}
-            hint={`${dash(stats.active_products)} active · ${dash(stats.inactive_products)} inactive`}
+            label="Items (Cheezen)"
+            value={dash(stats.item_count)}
+            hint={`${dash(stats.ingredient_count)} ingredients · ${dash(stats.finished_count)} finished · ${dash(stats.packaging_count)} packing`}
             tone="accent"
             icon={<ProductIcon />}
           />
         </div>
         <div className="wh-dash-col-3">
           <Kpi
-            label="Categories"
-            value={dash(stats.category_count)}
-            hint={`${dash(stats.active_categories)} active`}
-          />
-        </div>
-        <div className="wh-dash-col-3">
-          <Kpi
-            label="Warehouses"
-            value={dash(stats.warehouse_count)}
-            hint={`${dash(stats.active_warehouses)} active`}
+            label="Branches (Shakhein)"
+            value={dash(stats.branch_count)}
+            hint={`${dash(stats.category_count)} categories`}
             icon={<WarehouseIcon />}
           />
         </div>
         <div className="wh-dash-col-3">
           <Kpi
-            label="Total Movements"
-            value={dash(stats.total_movements)}
-            hint={`${dash(stats.movements_today)} today`}
+            label="Suppliers"
+            value={dash(stats.supplier_count)}
+            hint={`${dash(stats.open_purchase_orders)} open POs`}
+            icon={<ProcurementIcon />}
+          />
+        </div>
+        <div className="wh-dash-col-3">
+          <Kpi
+            label="Low stock"
+            value={dash(stats.low_stock_count)}
+            hint={`${dash(stats.expiring_soon)} expiring · ${dash(stats.expired_batches)} expired`}
+            tone={Number(stats.low_stock_count) > 0 ? "danger" : "default"}
             icon={<LogsIcon />}
           />
         </div>
       </div>
 
-      {/* Stock quantities & value */}
       <div className="wh-dash-grid">
-        <div className="wh-dash-col-3">
-          <Kpi
-            label="Total Stock"
-            value={num(stats.total_stock_units)}
-            hint={`${num(stats.available_units)} available`}
-            tone="success"
-          />
+        <div className="wh-dash-col-4">
+          <Kpi label="Available stock" value={num(stats.total_available)} hint="Units across all branches" tone="success" />
         </div>
-        <div className="wh-dash-col-3">
-          <Kpi
-            label="Reserved"
-            value={num(stats.reserved_units)}
-            hint="Units on hold"
-            tone="warning"
-          />
+        <div className="wh-dash-col-4">
+          <Kpi label="Stock value (cost)" value={money(stats.stock_value_cost)} hint="Available × cost price" />
         </div>
-        <div className="wh-dash-col-3">
-          <Kpi
-            label="Damaged"
-            value={num(stats.damaged_units)}
-            hint="Unsellable units"
-            tone="danger"
-          />
-        </div>
-        <div className="wh-dash-col-3">
-          <Kpi
-            label="Low / Out of Stock"
-            value={`${dash(stats.low_stock_count)} / ${dash(stats.out_of_stock_count)}`}
-            hint="≤ 5 units / zero stock"
-            tone={Number(stats.out_of_stock_count) > 0 ? "danger" : "default"}
-          />
+        <div className="wh-dash-col-4">
+          <Kpi label="Wastage (30 days)" value={money(stats.wastage_cost_30d)} hint="Barbaadi cost" tone="warning" />
         </div>
       </div>
 
-      {/* Inventory value */}
       <div className="wh-dash-grid">
         <div className="wh-dash-col-4">
-          <Kpi
-            label="Inventory Value (Cost)"
-            value={money(stats.inventory_value_cost)}
-            hint="Available qty × cost price"
-            icon={<ProcurementIcon />}
-          />
-        </div>
-        <div className="wh-dash-col-4">
-          <Kpi
-            label="Inventory Value (Retail)"
-            value={money(stats.inventory_value_retail)}
-            hint="Available qty × selling total"
-            tone="success"
-          />
-        </div>
-        <div className="wh-dash-col-4">
-          <Kpi
-            label="Stock Health"
-            value={`${stockHealthPct}%`}
-            hint={`${dash(stats.low_stock_count)} low · ${dash(stats.out_of_stock_count)} out`}
-            tone={stockHealthPct >= 80 ? "success" : stockHealthPct >= 50 ? "warning" : "danger"}
-          />
-        </div>
-      </div>
-
-      {/* 30-day procurement activity */}
-      <div className="wh-dash-grid">
-        <div className="wh-dash-col-3">
-          <Kpi
-            label="Stock In (30d)"
-            value={dash(stats.stock_in_30d)}
-            hint={`${num(stats.stock_in_qty_30d)} units received`}
-            tone="success"
-          />
-        </div>
-        <div className="wh-dash-col-3">
-          <Kpi
-            label="Stock Out (30d)"
-            value={dash(stats.stock_out_30d)}
-            hint={`${num(stats.stock_out_qty_30d)} units dispatched`}
-            tone="warning"
-          />
-        </div>
-        <div className="wh-dash-col-3">
-          <Kpi
-            label="Transfers (30d)"
-            value={dash(stats.transfers_30d)}
-            hint={`${dash(stats.total_transfers)} all time`}
-            icon={<ProcurementIcon />}
-          />
-        </div>
-        <div className="wh-dash-col-3">
-          <Kpi
-            label="Transfer Movements"
-            value={dash(stats.total_transfer_movements)}
-            hint={`${dash(stats.pending_transfers)} pending transfers`}
-          />
-        </div>
-      </div>
-
-      {/* Charts row 1 — movement trends */}
-      <div className="wh-dash-grid">
-        <div className="wh-dash-col-6">
-          <Panel title="Stock In Volume" subtitle="Units received over the last 6 months">
-            <BarChart data={stockInSeries} formatValue={(v) => String(v)} />
-          </Panel>
-        </div>
-        <div className="wh-dash-col-6">
-          <Panel title="Stock Out Volume" subtitle="Units dispatched over the last 6 months">
-            <BarChart data={stockOutSeries} formatValue={(v) => String(v)} />
-          </Panel>
-        </div>
-      </div>
-
-      {/* Charts row 2 — breakdowns */}
-      <div className="wh-dash-grid">
-        <div className="wh-dash-col-4">
-          <Panel title="Movements by Type">
-            {movementTypeSegments.length ? (
+          <Panel title="Items by type">
+            {itemTypeSegments.length ? (
               <DonutChart
-                segments={movementTypeSegments}
-                centerValue={Number(stats.total_movements) || 0}
-                centerLabel="movements"
+                segments={itemTypeSegments}
+                centerValue={Number(stats.item_count) || 0}
+                centerLabel="items"
               />
             ) : (
-              <p className="wh-panel__empty">No movements recorded yet.</p>
+              <p className="wh-panel__empty">No items yet.</p>
             )}
           </Panel>
         </div>
         <div className="wh-dash-col-4">
-          <Panel title="Products by Status">
-            {productStatusSegments.length ? (
-              <DonutChart
-                segments={productStatusSegments}
-                centerValue={Number(stats.product_count) || 0}
-                centerLabel="products"
-              />
+          <Panel title="Stock by branch" subtitle="Available units">
+            {branchBars.length ? (
+              <HBars data={branchBars} formatValue={(v) => v.toLocaleString()} />
             ) : (
-              <p className="wh-panel__empty">No products yet.</p>
+              <p className="wh-panel__empty">No branch stock yet.</p>
             )}
           </Panel>
         </div>
         <div className="wh-dash-col-4">
-          <Panel title="Transfer Status">
-            {transferStatusSegments.length ? (
-              <DonutChart
-                segments={transferStatusSegments}
-                centerValue={Number(stats.total_transfers) || 0}
-                centerLabel="transfers"
-              />
-            ) : (
-              <p className="wh-panel__empty">No transfers yet.</p>
-            )}
-          </Panel>
-        </div>
-      </div>
-
-      {/* Charts row 3 — stock distribution */}
-      <div className="wh-dash-grid">
-        <div className="wh-dash-col-4">
-          <Panel title="Stock by Category" subtitle="Total units per category">
-            {categoryBars.length ? (
-              <HBars data={categoryBars} formatValue={(v) => v.toLocaleString()} />
-            ) : (
-              <p className="wh-panel__empty">No category data.</p>
-            )}
-          </Panel>
-        </div>
-        <div className="wh-dash-col-4">
-          <Panel title="Stock by Warehouse" subtitle="Total units per location">
-            {warehouseBars.length ? (
-              <HBars data={warehouseBars} formatValue={(v) => v.toLocaleString()} />
-            ) : (
-              <p className="wh-panel__empty">No warehouse data.</p>
-            )}
-          </Panel>
-        </div>
-        <div className="wh-dash-col-4">
-          <Panel title="Value by Warehouse" subtitle="Inventory value at cost">
-            {warehouseValueBars.length ? (
-              <HBars data={warehouseValueBars} formatValue={formatCompactPKR} />
+          <Panel title="Value by branch" subtitle="At cost">
+            {branchValueBars.length ? (
+              <HBars data={branchValueBars} formatValue={formatCompactPKR} />
             ) : (
               <p className="wh-panel__empty">No value data.</p>
             )}
@@ -454,15 +227,14 @@ export default function InventoryDashboard() {
         </div>
       </div>
 
-      {/* Lists row */}
       <div className="wh-dash-grid">
         <div className="wh-dash-col-4">
           <Panel
-            title="Recent Movements"
+            title="Recent movements"
             subtitle="Latest stock activity"
             flush
             action={
-              <Link to={`${MODULE_BASE}/procurement/movement-history`} className="wh-link">
+              <Link to={`${MODULE_BASE}/stock/movement-history`} className="wh-link">
                 View all
               </Link>
             }
@@ -474,15 +246,13 @@ export default function InventoryDashboard() {
                 {filteredMovements.map((m) => (
                   <div key={m.id} className="wh-mini-row">
                     <div className="wh-mini-row__main">
-                      <div className="wh-mini-row__title">
-                        {m.product_name} ({m.sku})
-                      </div>
+                      <div className="wh-mini-row__title">{m.item_name}</div>
                       <div className="wh-mini-row__sub">
-                        {MOVEMENT_LABELS[m.movement_type] || m.movement_type} · {m.warehouse_name} ·{" "}
+                        {MOVEMENT_LABELS[m.movement_type] || m.movement_type} · {m.branch_name} ·{" "}
                         {formatDateTime(m.created_at)}
                       </div>
                     </div>
-                    <span className="wh-mini-row__value">{m.qty > 0 ? `+${m.qty}` : m.qty}</span>
+                    <span className="wh-mini-row__value">{m.qty}</span>
                   </div>
                 ))}
               </div>
@@ -491,94 +261,25 @@ export default function InventoryDashboard() {
         </div>
         <div className="wh-dash-col-4">
           <Panel
-            title="Recent Transfers"
-            subtitle="Warehouse-to-warehouse"
+            title="Low stock alert"
+            subtitle="Below threshold"
             flush
             action={
-              <Link to={`${MODULE_BASE}/procurement/transfers`} className="wh-link">
-                View all
+              <Link to={`${MODULE_BASE}/items/manage`} className="wh-link">
+                Manage items
               </Link>
             }
           >
-            {filteredTransfers.length === 0 ? (
-              <p className="wh-panel__empty">No transfers in this range.</p>
+            {lowStock.length === 0 ? (
+              <p className="wh-panel__empty">All items look fine.</p>
             ) : (
               <div className="wh-mini-list">
-                {filteredTransfers.map((t) => (
-                  <div key={t.id} className="wh-mini-row">
-                    <div className="wh-mini-row__main">
-                      <div className="wh-mini-row__title">{t.product_name}</div>
-                      <div className="wh-mini-row__sub">
-                        {t.from_warehouse_name} → {t.to_warehouse_name} · {formatDateTime(t.created_at)}
-                      </div>
-                    </div>
-                    <span className="wh-mini-row__value">{t.qty}</span>
-                    <StatusBadge status={t.transfer_status} />
-                  </div>
-                ))}
-              </div>
-            )}
-          </Panel>
-        </div>
-        <div className="wh-dash-col-4">
-          <Panel title="Quick Actions">
-            <ul className="wh-list">
-              {quickLinks.map((link) => (
-                <li key={link.path}>
-                  <Link to={link.path} className="wh-link">
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </Panel>
-        </div>
-      </div>
-
-      {/* Top products & low stock */}
-      <div className="wh-dash-grid">
-        <div className="wh-dash-col-6">
-          <Panel title="Top Products by Stock" subtitle="Highest total quantity on hand" flush>
-            {topProducts.length === 0 ? (
-              <p className="wh-panel__empty">No products yet.</p>
-            ) : (
-              <div className="wh-mini-list">
-                {topProducts.map((p) => (
+                {lowStock.map((p) => (
                   <div key={p.id} className="wh-mini-row">
                     <div className="wh-mini-row__main">
-                      <div className="wh-mini-row__title">{p.product_name}</div>
+                      <div className="wh-mini-row__title">{p.item_name}</div>
                       <div className="wh-mini-row__sub">
-                        {p.sku} · {p.category_name || "Uncategorized"}
-                      </div>
-                    </div>
-                    <span className="wh-mini-row__value">{Number(p.total_qty).toLocaleString()} units</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Panel>
-        </div>
-        <div className="wh-dash-col-6">
-          <Panel
-            title="Low Stock Alert"
-            subtitle="Products with ≤ 5 available units"
-            flush
-            action={
-              <Link to={`${MODULE_BASE}/products/manage`} className="wh-link">
-                Manage products
-              </Link>
-            }
-          >
-            {lowStockProducts.length === 0 ? (
-              <p className="wh-panel__empty">All products are adequately stocked.</p>
-            ) : (
-              <div className="wh-mini-list">
-                {lowStockProducts.map((p, i) => (
-                  <div key={`${p.sku}-${i}`} className="wh-mini-row">
-                    <div className="wh-mini-row__main">
-                      <div className="wh-mini-row__title">{p.product_name}</div>
-                      <div className="wh-mini-row__sub">
-                        {p.sku} · {p.category_name || "Uncategorized"}
+                        {p.sku || p.unit} · alert at {p.low_stock_threshold}
                       </div>
                     </div>
                     <span className="wh-mini-row__value" style={{ color: "var(--color-danger)" }}>
@@ -590,46 +291,50 @@ export default function InventoryDashboard() {
             )}
           </Panel>
         </div>
+        <div className="wh-dash-col-4">
+          <Panel
+            title="Expiring soon"
+            subtitle="Within 7 days"
+            flush
+            action={
+              <Link to={`${MODULE_BASE}/stock/batches`} className="wh-link">
+                Batches
+              </Link>
+            }
+          >
+            {expiring.length === 0 ? (
+              <p className="wh-panel__empty">Nothing expiring soon.</p>
+            ) : (
+              <div className="wh-mini-list">
+                {expiring.map((b) => (
+                  <div key={b.id} className="wh-mini-row">
+                    <div className="wh-mini-row__main">
+                      <div className="wh-mini-row__title">{b.item_name}</div>
+                      <div className="wh-mini-row__sub">
+                        {b.batch_no} · {b.branch_name} · {b.expiry_date ? formatDate(b.expiry_date) : "—"}
+                      </div>
+                    </div>
+                    <span className="wh-mini-row__value">{b.qty_remaining}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Panel>
+        </div>
       </div>
 
-      {/* Procurement summary footer */}
       <div className="wh-dash-grid">
         <div className="wh-dash-col-12">
-          <Panel title="Procurement Summary" subtitle="Lifetime stock in vs stock out">
-            <div className="wh-hbars">
-              <div>
-                <div className="wh-hbar__top">
-                  <span className="wh-hbar__label">Stock In</span>
-                  <span className="wh-hbar__val">
-                    {dash(stats.total_stock_in)} events · {num(stats.total_initial_stock)} initial
-                  </span>
-                </div>
-                <div className="wh-hbar__track">
-                  <div
-                    className="wh-hbar__fill"
-                    style={{
-                      width: `${Math.min(100, ((Number(stats.total_stock_in) || 0) / Math.max(1, (Number(stats.total_stock_in) || 0) + (Number(stats.total_stock_out) || 0))) * 100)}%`,
-                      background: "var(--color-success)",
-                    }}
-                  />
-                </div>
-              </div>
-              <div style={{ marginTop: 12 }}>
-                <div className="wh-hbar__top">
-                  <span className="wh-hbar__label">Stock Out</span>
-                  <span className="wh-hbar__val">{dash(stats.total_stock_out)} events</span>
-                </div>
-                <div className="wh-hbar__track">
-                  <div
-                    className="wh-hbar__fill"
-                    style={{
-                      width: `${Math.min(100, ((Number(stats.total_stock_out) || 0) / Math.max(1, (Number(stats.total_stock_in) || 0) + (Number(stats.total_stock_out) || 0))) * 100)}%`,
-                      background: "var(--color-warning)",
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
+          <Panel title="Quick actions">
+            <ul className="wh-list">
+              {quickLinks.map((link) => (
+                <li key={link.path}>
+                  <Link to={link.path} className="wh-link">
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
           </Panel>
         </div>
       </div>

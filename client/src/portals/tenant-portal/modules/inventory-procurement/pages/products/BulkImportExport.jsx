@@ -6,21 +6,21 @@ import { Card } from "../../../../../../components/Card";
 import { Button } from "../../../../../../components/Button";
 
 const CSV_HEADERS = [
-  "product_name",
+  "item_name",
+  "item_type",
   "sku",
   "unit",
   "cost_price",
   "selling_price",
-  "delivery_charges",
   "discount",
   "tax",
   "status",
   "category_name",
-  "warehouse_id",
-  "initial_qty",
-  "reserved_qty",
-  "damaged_qty",
-  "stock_notes",
+  "is_purchased",
+  "is_produced",
+  "is_sold",
+  "shelf_life_days",
+  "low_stock_threshold",
 ];
 
 function parseCsv(text) {
@@ -57,13 +57,13 @@ export default function BulkImportExport() {
     setExporting(true);
     setError("");
     try {
-      const res = await apiFetch("/inventory/products/export", {}, authFetch);
+      const res = await apiFetch("/inventory/items/export", {}, authFetch);
       const csv = toCsv(res.data || []);
       const blob = new Blob([csv], { type: "text/csv" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `inventory-products-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.download = `bakery-items-${new Date().toISOString().slice(0, 10)}.csv`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
@@ -81,8 +81,13 @@ export default function BulkImportExport() {
     setResult(null);
     try {
       const text = await file.text();
-      const rows = parseCsv(text);
-      const res = await apiFetch("/inventory/products/import", { method: "POST", body: JSON.stringify({ rows }) }, authFetch);
+      const rows = parseCsv(text).map((r) => ({
+        ...r,
+        is_purchased: r.is_purchased === "1" || r.is_purchased === "true" || r.is_purchased === true,
+        is_produced: r.is_produced === "1" || r.is_produced === "true" || r.is_produced === true,
+        is_sold: r.is_sold === "1" || r.is_sold === "true" || r.is_sold === true,
+      }));
+      const res = await apiFetch("/inventory/items/import", { method: "POST", body: JSON.stringify({ rows }) }, authFetch);
       setResult(res);
     } catch (err) {
       setError(err.message);
@@ -94,40 +99,40 @@ export default function BulkImportExport() {
 
   const downloadTemplate = () => {
     const sample = [{
-      product_name: "Sample Product",
-      sku: "SKU-001",
-      unit: "piece",
-      cost_price: "100",
-      selling_price: "150",
-      delivery_charges: "20",
-      discount: "10",
-      tax: "5",
+      item_name: "Maida",
+      item_type: "ingredient",
+      sku: "ING-001",
+      unit: "kg",
+      cost_price: "120",
+      selling_price: "0",
+      discount: "0",
+      tax: "0",
       status: "active",
-      category_name: "Electronics",
-      warehouse_id: "1",
-      initial_qty: "10",
-      reserved_qty: "0",
-      damaged_qty: "0",
-      stock_notes: "Initial import",
+      category_name: "Flours",
+      is_purchased: "1",
+      is_produced: "0",
+      is_sold: "0",
+      shelf_life_days: "90",
+      low_stock_threshold: "10",
     }];
     const blob = new Blob([toCsv(sample)], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "inventory-import-template.csv";
+    a.download = "bakery-items-import-template.csv";
     a.click();
     URL.revokeObjectURL(url);
   };
 
   return (
     <div className="wh-page wh-inv-import-export">
-      <PageHeader title="Bulk Import / Export" description="Export your product catalog or import products from CSV." />
+      <PageHeader title="Bulk Import / Export" description="Export your bakery items or import from CSV." />
 
       <div className="wh-inv-import-export__grid">
         <Card>
-          <h3 className="wh-card__title">Export products</h3>
+          <h3 className="wh-card__title">Export items</h3>
           <p className="wh-card__text">
-            Download all products with pricing (cost, selling, delivery, discount, tax), stock totals, and category/warehouse details as CSV.
+            Download all items with type, pricing, flags, and stock totals as CSV.
           </p>
           <div className="wh-card__actions">
             <Button onClick={handleExport} disabled={exporting}>{exporting ? "Exporting…" : "Export CSV"}</Button>
@@ -135,12 +140,9 @@ export default function BulkImportExport() {
         </Card>
 
         <Card>
-          <h3 className="wh-card__title">Import products</h3>
+          <h3 className="wh-card__title">Import items</h3>
           <p className="wh-card__text">
-            Upload a CSV file. Required: product_name, sku, category_name. Optional: unit, cost_price, selling_price, delivery_charges, discount, tax, status, warehouse_id, initial_qty, reserved_qty, damaged_qty, stock_notes.
-          </p>
-          <p className="wh-card__text wh-muted wh-inv-import-export__note">
-            Total price is calculated as (Selling price − Discount) + Tax. Delivery charges are stored separately.
+            Upload a CSV. Required: item_name, category_name. Optional: item_type, sku, unit, prices, flags, shelf_life_days.
           </p>
           <div className="wh-card__actions">
             <Button variant="secondary" onClick={downloadTemplate}>Download template</Button>

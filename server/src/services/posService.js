@@ -1,9 +1,9 @@
 import { posRepository } from "../repositories/posRepository.js";
-import { posInventoryService } from "./posInventoryService.js";
 import {
   POS_MODULE,
   OUTLET_STATUSES,
   TERMINAL_STATUSES,
+  PAYMENT_METHODS,
 } from "../utils/posConstants.js";
 import { resolveOpeningBalance, formatTime12 } from "../utils/posDrawer.js";
 
@@ -280,7 +280,7 @@ export const posService = {
 
     let { register, drawerMeta } = await ensureActiveRegister(tenantId, userId, terminal);
 
-    const products = await posInventoryService.listTerminalProducts(tenantId, terminal.outlet_id);
+    const products = await posRepository.listTerminalProducts(tenantId, terminal.outlet_id);
     return {
       terminal,
       register,
@@ -293,7 +293,7 @@ export const posService = {
     const terminal = await posRepository.getTerminal(tenantId, terminalId);
     if (!terminal) return null;
     const { register, drawerMeta } = await ensureActiveRegister(tenantId, userId, terminal);
-    const products = await posInventoryService.listTerminalProducts(tenantId, terminal.outlet_id);
+    const products = await posRepository.listTerminalProducts(tenantId, terminal.outlet_id);
     return {
       terminal,
       register,
@@ -305,7 +305,7 @@ export const posService = {
   async getTerminalProducts(tenantId, terminalId) {
     const terminal = await posRepository.getTerminal(tenantId, terminalId);
     if (!terminal) return null;
-    const products = await posInventoryService.listTerminalProducts(tenantId, terminal.outlet_id);
+    const products = await posRepository.listTerminalProducts(tenantId, terminal.outlet_id);
     return { terminal_id: terminal.id, outlet_id: terminal.outlet_id, outlet_name: terminal.outlet_name, products };
   },
 
@@ -343,20 +343,19 @@ export const posService = {
     if (!items.length) throw new Error("Add at least one product.");
 
     const paymentMethod = String(body.payment_method || "cash").trim().toLowerCase();
-    const allowedPayments = ["cash", "card", "qris"];
-    if (!allowedPayments.includes(paymentMethod)) {
+    if (!PAYMENT_METHODS.includes(paymentMethod)) {
       throw new Error("Invalid payment method");
     }
 
     const normalized = items.map((item) => {
       const qty = Number(item.quantity);
       const unitPrice = Number(item.unit_price);
-      if (!Number.isInteger(qty) || qty <= 0) throw new Error("Invalid quantity");
+      if (!Number.isFinite(qty) || qty <= 0) throw new Error("Invalid quantity");
       if (!Number.isFinite(unitPrice) || unitPrice < 0) throw new Error("Invalid price");
       return {
-        product_id: item.product_id || null,
+        product_id: item.product_id || item.item_id || null,
         product_name: requireText(item.product_name, "Product name"),
-        sku: requireText(item.sku, "SKU"),
+        sku: item.sku ? String(item.sku).trim() : null,
         quantity: qty,
         unit_price: unitPrice,
         total_price: Math.round(qty * unitPrice * 100) / 100,
@@ -367,15 +366,15 @@ export const posService = {
     const discountAmount = Number(body.discount_amount) || 0;
     const payableAmount = Math.max(0, Math.round((totalAmount - discountAmount) * 100) / 100);
 
-    await posInventoryService.deductSaleStock(tenantId, userId, terminal.outlet_id, normalized);
-
     const cashAmount = paymentMethod === "cash" ? payableAmount : 0;
 
+    // Stock is deducted (FIFO by expiry) inside posRepository.createSale's transaction.
     return posRepository.createSale(tenantId, userId, {
       total_amount: totalAmount,
       discount_amount: discountAmount,
       payable_amount: payableAmount,
-      payment_status: paymentMethod,
+      payment_status: "paid",
+      payment_method: paymentMethod,
       outlet_id: terminal.outlet_id,
       terminal_id: terminalId,
       crm_customers_id: body.crm_customers_id || null,

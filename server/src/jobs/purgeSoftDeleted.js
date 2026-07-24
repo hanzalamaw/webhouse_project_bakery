@@ -17,10 +17,53 @@ const TABLES_WITH_SOFT_DELETE = [
   "audit_logs",
   "sessions",
   "organization_settings",
+  "activity_alerts",
+  // Bakery stock & purchasing
+  "branches",
+  "item_categories",
+  "items",
+  "stock_batches",
+  "stock_levels",
+  "stock_movements",
+  "stock_transfers",
+  "suppliers",
+  "purchase_orders",
+  "purchase_order_items",
+  "wastage",
+  // Production
+  "recipes",
+  "recipe_ingredients",
+  "production_runs",
+  "production_run_consumption",
+  // CRM
   "crm_leads",
   "crm_customers",
   "crm_customer_addresses",
   "crm_customer_complaints",
+  // Orders
+  "order_refunds",
+  "order_exchanges",
+  "order_returns",
+  "order_cancellations",
+  "order_payments",
+  "order_assignments",
+  "order_items",
+  "orders",
+  // Finance
+  "finance_transactions",
+  "finance_vendor_payments",
+  "finance_expenses",
+  "finance_recurring_expenses",
+  "finance_vendor_bills",
+  "finance_expense_sub_categories",
+  "finance_expense_categories",
+  "finance_bank_accounts",
+  // POS
+  "pos_refunds",
+  "pos_sale_items",
+  "pos_sales",
+  "pos_cash_registers",
+  "pos_terminals",
 ];
 
 /**

@@ -10,11 +10,9 @@ import AdminActivityAlerts from "./admin/pages/ActivityAlerts";
 import AdminHelpCenter from "./admin/pages/HelpCenter";
 import { ADMIN_ROUTES } from "./admin/routes.jsx";
 
-import LogisticsDashboard from "./logistics-partners/pages/Dashboard";
-import { getNavItems as getLogisticsNav } from "./logistics-partners/navConfig";
-
 import OrderManagementDashboard from "./order-management/pages/Dashboard";
 import { getNavItems as getOrderManagementNav } from "./order-management/navConfig";
+import { ORDER_MANAGEMENT_ROUTES } from "./order-management/routes.jsx";
 
 import PosDashboard from "./pos/pages/Dashboard";
 import { getNavItems as getPosNav } from "./pos/navConfig";
@@ -28,16 +26,17 @@ import CrmDashboard from "./crm/pages/Dashboard";
 import { getNavItems as getCrmNav } from "./crm/navConfig";
 import { CRM_ROUTES } from "./crm/routes.jsx";
 
-import EcommerceDashboard from "./ecommerce/pages/Dashboard";
-import { getNavItems as getEcommerceNav } from "./ecommerce/navConfig";
-import { ECOMMERCE_ROUTES } from "./ecommerce/routes.jsx";
-
 import FinanceDashboard from "./finance/pages/Dashboard";
 import { getNavItems as getFinanceNav } from "./finance/navConfig";
+import { FINANCE_ROUTES } from "./finance/routes.jsx";
 
 import InventoryDashboard from "./inventory-procurement/pages/Dashboard";
 import { getNavItems as getInventoryNav } from "./inventory-procurement/navConfig";
 import { INVENTORY_ROUTES } from "./inventory-procurement/routes.jsx";
+
+import ProductionDashboard from "./production/pages/Dashboard";
+import { getNavItems as getProductionNav } from "./production/navConfig";
+import { PRODUCTION_ROUTES } from "./production/routes.jsx";
 
 import { MODULE_SECTION_ROUTES } from "./shared/buildModuleNav";
 
@@ -68,82 +67,83 @@ export const TENANT_MODULE_DEFINITIONS = [
     ],
   },
   {
-    slug: "logistics-partners",
-    name: "Logistics Partners",
+    slug: "stock-purchasing",
+    name: "Stock & Purchasing",
     displayNumber: 2,
-    letter: "L",
-    aliases: ["Logistics", "Logistics Partners Management"],
-    Dashboard: LogisticsDashboard,
-    getNavItems: getLogisticsNav,
-  },
-  {
-    slug: "order-management",
-    name: "Order Management",
-    displayNumber: 3,
-    letter: "O",
-    aliases: ["Orders"],
-    Dashboard: OrderManagementDashboard,
-    getNavItems: getOrderManagementNav,
-  },
-  {
-    slug: "pos",
-    name: "POS",
-    displayNumber: 4,
-    letter: "P",
-    aliases: [],
-    Dashboard: PosDashboard,
-    getNavItems: getPosNav,
-    routes: POS_ROUTES,
-  },
-  {
-    slug: "crm",
-    name: "CRM",
-    displayNumber: 5,
-    letter: "C",
-    aliases: [],
-    Dashboard: CrmDashboard,
-    getNavItems: getCrmNav,
-    routes: CRM_ROUTES,
-  },
-  {
-    slug: "ecommerce",
-    name: "E-Commerce Integration",
-    displayNumber: 6,
-    letter: "E",
-    aliases: [],
-    Dashboard: EcommerceDashboard,
-    getNavItems: getEcommerceNav,
-    routes: ECOMMERCE_ROUTES,
-  },
-  {
-    slug: "finance",
-    name: "Finance & Accounting",
-    displayNumber: 7,
-    letter: "F",
-    aliases: [],
-    Dashboard: FinanceDashboard,
-    getNavItems: getFinanceNav,
-  },
-  {
-    slug: "inventory-procurement",
-    name: "Inventory & Procurement",
-    displayNumber: 8,
-    letter: "I",
-    aliases: ["Inventory"],
+    letter: "S",
+    aliases: [
+      "Inventory & Procurement",
+      "inventory-procurement",
+      "Inventory",
+      "Stock",
+      "Purchasing",
+      "Store",
+      "Khareedari",
+    ],
     Dashboard: InventoryDashboard,
     getNavItems: getInventoryNav,
     routes: INVENTORY_ROUTES,
   },
   {
+    slug: "production",
+    name: "Production",
+    displayNumber: 3,
+    letter: "R",
+    aliases: ["Recipes", "Baking"],
+    Dashboard: ProductionDashboard,
+    getNavItems: getProductionNav,
+    routes: PRODUCTION_ROUTES,
+  },
+  {
+    slug: "pos",
+    name: "Point of Sale",
+    displayNumber: 4,
+    letter: "P",
+    aliases: ["POS"],
+    Dashboard: PosDashboard,
+    getNavItems: getPosNav,
+    routes: POS_ROUTES,
+  },
+  {
     slug: "pos-terminal",
     name: "POS Terminal",
-    displayNumber: 9,
+    displayNumber: 5,
     letter: "T",
     aliases: [],
     fullScreen: true,
     Dashboard: PosTerminalDashboard,
     getNavItems: getPosTerminalNav,
     routes: POS_TERMINAL_ROUTES,
+  },
+  {
+    slug: "order-management",
+    name: "Order Management",
+    displayNumber: 6,
+    letter: "O",
+    aliases: ["Orders"],
+    Dashboard: OrderManagementDashboard,
+    getNavItems: getOrderManagementNav,
+    routes: ORDER_MANAGEMENT_ROUTES,
+  },
+  {
+    slug: "crm",
+    name: "CRM",
+    displayNumber: 7,
+    letter: "C",
+    aliases: ["Customers"],
+    Dashboard: CrmDashboard,
+    getNavItems: getCrmNav,
+    routes: CRM_ROUTES,
+  },
+  {
+    slug: "finance",
+    name: "Finance & Accounting",
+    displayNumber: 8,
+    letter: "F",
+    aliases: [],
+    Dashboard: FinanceDashboard,
+    getNavItems: getFinanceNav,
+    routes: FINANCE_ROUTES,
   },
 ];
 
@@ -178,6 +178,7 @@ export function formatModuleLabel(moduleRow) {
 export function moduleMatchesAssignment(definition, assignedModuleName) {
   const assigned = normalizeName(assignedModuleName);
   if (normalizeName(definition.name) === assigned) return true;
+  if (normalizeName(definition.slug) === assigned) return true;
   return (definition.aliases || []).some((alias) => normalizeName(alias) === assigned);
 }
 

@@ -1,8 +1,56 @@
 import { getPool } from "../database/db.js";
 import { parseEntityId } from "./ids.js";
+import { TENANT_SCOPED_TABLES } from "./tenantScope.js";
 
-/** Tables with tenant_id — only these are touched when deleting one tenant. */
+/** Tables with tenant_id — soft-deleted when deleting one tenant (child tables first). */
 const TENANT_CHILD_TABLES = [
+  // Production
+  "production_run_consumption",
+  "production_runs",
+  "recipe_ingredients",
+  "recipes",
+  // Stock & purchasing
+  "wastage",
+  "stock_movements",
+  "stock_transfers",
+  "stock_levels",
+  "stock_batches",
+  "purchase_order_items",
+  "purchase_orders",
+  "suppliers",
+  "items",
+  "item_categories",
+  "branches",
+  // POS terminal (branches-based)
+  "pos_refunds",
+  "pos_sale_items",
+  "pos_sales",
+  "pos_cash_registers",
+  "pos_terminals",
+  // Finance
+  "finance_transactions",
+  "finance_vendor_payments",
+  "finance_expenses",
+  "finance_recurring_expenses",
+  "finance_vendor_bills",
+  "finance_expense_sub_categories",
+  "finance_expense_categories",
+  "finance_bank_accounts",
+  // Orders
+  "order_refunds",
+  "order_exchanges",
+  "order_returns",
+  "order_cancellations",
+  "order_payments",
+  "order_assignments",
+  "order_items",
+  "orders",
+  // CRM
+  "crm_customer_complaints",
+  "crm_customer_addresses",
+  "crm_leads",
+  "crm_customers",
+  // WH billing & platform tenant config
   "wh_tenant_modules",
   "wh_tenant_limits",
   "wh_tenant_subscriptions",
@@ -14,7 +62,7 @@ const TENANT_CHILD_TABLES = [
   "audit_logs",
   "users",
   "roles",
-];
+].filter((t) => TENANT_SCOPED_TABLES.has(t));
 
 async function scopedUpdate(connection, sql, params) {
   const [result] = await connection.execute(sql, params);

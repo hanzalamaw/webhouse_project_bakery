@@ -17,8 +17,8 @@ export const tenantRepository = {
                ORDER BY u.id ASC LIMIT 1) AS super_admin_username,
               tl.max_users, tl.max_warehouses, tl.max_stores, tl.max_orders_per_month,
               (SELECT COUNT(*) FROM users u WHERE u.tenant_id = t.id AND u.deleted_at IS NULL) AS user_count,
-              (SELECT COUNT(*) FROM inventory_warehouses w WHERE w.tenant_id = t.id AND w.deleted_at IS NULL) AS warehouse_count,
-              (SELECT COUNT(*) FROM pos_outlets s WHERE s.tenant_id = t.id AND s.deleted_at IS NULL) AS store_count,
+              (SELECT COUNT(*) FROM branches b WHERE b.tenant_id = t.id AND b.deleted_at IS NULL) AS warehouse_count,
+              (SELECT COUNT(*) FROM branches b WHERE b.tenant_id = t.id AND b.deleted_at IS NULL) AS store_count,
               (SELECT COUNT(*) FROM orders o WHERE o.tenant_id = t.id AND o.deleted_at IS NULL
                  AND MONTH(o.created_at) = MONTH(CURRENT_DATE()) AND YEAR(o.created_at) = YEAR(CURRENT_DATE())) AS orders_this_month,
               ts.billing_cycle, ts.start_date, ts.renewal_date,
@@ -44,8 +44,8 @@ export const tenantRepository = {
     const [rows] = await readDb.query(
       `SELECT t.*, tl.max_users, tl.max_warehouses, tl.max_stores, tl.max_orders_per_month,
               (SELECT COUNT(*) FROM users u WHERE u.tenant_id = t.id AND u.deleted_at IS NULL) AS user_count,
-              (SELECT COUNT(*) FROM inventory_warehouses w WHERE w.tenant_id = t.id AND w.deleted_at IS NULL) AS warehouse_count,
-              (SELECT COUNT(*) FROM pos_outlets s WHERE s.tenant_id = t.id AND s.deleted_at IS NULL) AS store_count,
+              (SELECT COUNT(*) FROM branches b WHERE b.tenant_id = t.id AND b.deleted_at IS NULL) AS warehouse_count,
+              (SELECT COUNT(*) FROM branches b WHERE b.tenant_id = t.id AND b.deleted_at IS NULL) AS store_count,
               (SELECT COUNT(*) FROM orders o WHERE o.tenant_id = t.id AND o.deleted_at IS NULL
                  AND MONTH(o.created_at) = MONTH(CURRENT_DATE()) AND YEAR(o.created_at) = YEAR(CURRENT_DATE())) AS orders_this_month,
               ts.id AS subscription_id, ts.billing_cycle, ts.start_date, ts.renewal_date,

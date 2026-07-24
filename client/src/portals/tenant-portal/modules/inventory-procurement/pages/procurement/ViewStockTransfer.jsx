@@ -18,7 +18,7 @@ export default function ViewStockTransfer() {
   const location = useLocation();
   const { authFetch } = useAuth();
   const navigate = useNavigate();
-  const backPath = `${MODULE_BASE}/procurement/transfers`;
+  const backPath = `${MODULE_BASE}/stock/transfers`;
   const [transfer, setTransfer] = useState(location.state?.transfer ?? null);
   const [loading, setLoading] = useState(!location.state?.transfer);
   const [error, setError] = useState("");
@@ -72,25 +72,25 @@ export default function ViewStockTransfer() {
       <FormPageLayout>
         <PageHeader
           title="Transfer details"
-          description={`${transfer.product_name} · ${formatDateTime(transfer.created_at)}`}
+          description={`${transfer.item_name} · ${formatDateTime(transfer.created_at)}`}
           actions={
             <Button variant="secondary" onClick={() => navigate(backPath)}>Back to transfers</Button>
           }
         />
 
-        <FormBlock title="Product" description="Product being transferred.">
+        <FormBlock title="Item" description="Item being transferred.">
           <div className="wh-inv-line-item">
             <div className="wh-inv-line-item__head">
-              <strong>{transfer.product_name}</strong>
-              <span className="wh-muted">{transfer.sku}</span>
+              <strong>{transfer.item_name}</strong>
+              <span className="wh-muted">{transfer.unit || "—"}</span>
             </div>
           </div>
         </FormBlock>
 
-        <FormBlock title="Warehouses" description="Source and destination warehouses.">
+        <FormBlock title="Branches" description="Source and destination branches.">
           <div className="wh-form-grid">
-            <DetailValue label="From warehouse">{transfer.from_warehouse_name}</DetailValue>
-            <DetailValue label="To warehouse">{transfer.to_warehouse_name}</DetailValue>
+            <DetailValue label="From branch">{transfer.from_branch_name}</DetailValue>
+            <DetailValue label="To branch">{transfer.to_branch_name}</DetailValue>
           </div>
         </FormBlock>
 

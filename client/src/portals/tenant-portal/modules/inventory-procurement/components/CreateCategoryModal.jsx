@@ -3,42 +3,20 @@ import { apiFetch } from "../../../../../api/client";
 import { Modal } from "../../../../../components/Modal";
 import { FormField } from "../../../../../components/FormField";
 import { Button } from "../../../../../components/Button";
-import { PRODUCT_STATUS } from "../constants";
-import ProductPicker from "./ProductPicker";
+import { ITEM_STATUS, ITEM_TYPES, ITEM_TYPE_LABELS } from "../constants";
 
-const EMPTY_FORM = { category_name: "", status: "active", product_ids: [] };
+const EMPTY_FORM = { category_name: "", item_type: "", status: "active" };
 
-export default function CreateCategoryModal({
-  open,
-  onClose,
-  authFetch,
-  onCreated,
-  products = [],
-  showProductPicker = false,
-}) {
+export default function CreateCategoryModal({ open, onClose, authFetch, onCreated }) {
   const [form, setForm] = useState(EMPTY_FORM);
-  const [productSearch, setProductSearch] = useState("");
-  const [productCategoryFilter, setProductCategoryFilter] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (!open) return;
     setForm(EMPTY_FORM);
-    setProductSearch("");
-    setProductCategoryFilter("");
     setError("");
   }, [open]);
-
-  const toggleProduct = (id) => {
-    const sid = String(id);
-    setForm((f) => ({
-      ...f,
-      product_ids: f.product_ids.includes(sid)
-        ? f.product_ids.filter((x) => x !== sid)
-        : [...f.product_ids, sid],
-    }));
-  };
 
   const handleClose = () => {
     if (saving) return;
@@ -60,8 +38,8 @@ export default function CreateCategoryModal({
           method: "POST",
           body: JSON.stringify({
             category_name: form.category_name.trim(),
+            item_type: form.item_type || null,
             status: form.status,
-            product_ids: form.product_ids.map(Number),
           }),
         },
         authFetch
@@ -76,7 +54,7 @@ export default function CreateCategoryModal({
   };
 
   return (
-    <Modal open={open} title="Create category" onClose={handleClose} wide className="wh-modal--category">
+    <Modal open={open} title="Create category" onClose={handleClose} className="wh-modal--category">
       <form onSubmit={handleSubmit} className="wh-form">
         <div className="wh-form-grid">
           <FormField
@@ -88,32 +66,29 @@ export default function CreateCategoryModal({
             autoFocus
           />
           <FormField
+            id="cat_item_type"
+            label="Item type (optional)"
+            as="select"
+            value={form.item_type}
+            onChange={(e) => setForm((f) => ({ ...f, item_type: e.target.value }))}
+          >
+            <option value="">Any</option>
+            {ITEM_TYPES.map((t) => (
+              <option key={t} value={t}>{ITEM_TYPE_LABELS[t] || t}</option>
+            ))}
+          </FormField>
+          <FormField
             id="cat_status"
             label="Status"
             as="select"
             value={form.status}
             onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
           >
-            {PRODUCT_STATUS.map((s) => (
+            {ITEM_STATUS.map((s) => (
               <option key={s} value={s}>{s}</option>
             ))}
           </FormField>
         </div>
-        {showProductPicker && products.length > 0 && (
-          <ProductPicker
-            products={products}
-            selectedIds={form.product_ids}
-            onToggle={toggleProduct}
-            search={productSearch}
-            onSearchChange={setProductSearch}
-            categoryFilter={productCategoryFilter}
-            onCategoryFilterChange={setProductCategoryFilter}
-            showCategoryFilter
-            showWarning
-            showCategoryTag
-            description="Assign products (optional). Products already in another category will be moved."
-          />
-        )}
         {error && <p className="wh-field__error">{error}</p>}
         <div className="wh-modal__actions">
           <Button type="button" variant="secondary" onClick={handleClose}>Cancel</Button>

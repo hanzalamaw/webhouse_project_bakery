@@ -6,37 +6,45 @@ import { moduleBasePath } from "../modules/registry";
 import { useTenantModules } from "../hooks/useTenantModules";
 import heroImage from "../../../assets/Main top-right Image.png";
 import adminImage from "../../../assets/Admin.png";
-import logisticsImage from "../../../assets/Logistics Partners.png";
 import orderImage from "../../../assets/Order Management.png";
 import posImage from "../../../assets/POS.png";
 import crmImage from "../../../assets/CRM.png";
-import ecommerceImage from "../../../assets/E-Commerce Integration.png";
 import financeImage from "../../../assets/Finance & Accounting.png";
 import inventoryImage from "../../../assets/Inventory & Procurement.png";
 import "./ModuleHub.css";
 
 const MODULE_IMAGES = {
   admin: adminImage,
-  "logistics-partners": logisticsImage,
-  "order-management": orderImage,
+  "stock-purchasing": inventoryImage,
+  production: inventoryImage,
   pos: posImage,
-  crm: crmImage,
-  ecommerce: ecommerceImage,
-  finance: financeImage,
-  "inventory-procurement": inventoryImage,
   "pos-terminal": posImage,
+  "order-management": orderImage,
+  crm: crmImage,
+  finance: financeImage,
+};
+
+const MODULE_HUB_LABELS = {
+  admin: "Admin",
+  "stock-purchasing": "Stock & Purchasing (Store / Khareedari)",
+  production: "Production (Paidaawar)",
+  pos: "Point of Sale",
+  "pos-terminal": "POS Terminal",
+  "order-management": "Order Management",
+  crm: "CRM",
+  finance: "Finance & Accounting",
 };
 
 const MODULE_DESCRIPTIONS = {
   admin: "Users, roles, permissions and organization settings.",
-  "logistics-partners": "Courier integrations, tracking and pickup management.",
-  "order-management": "Create, process and manage customer orders.",
-  pos: "In-store sales, terminals and cash management.",
-  crm: "Leads, customers and communication records.",
-  ecommerce: "Connect Shopify, WooCommerce and marketplaces.",
-  finance: "Expenses, transactions and financial reporting.",
-  "inventory-procurement": "Products, warehouses and stock operations.",
-  "pos-terminal": "Cashier checkout — scan-free product grid and shift management.",
+  "stock-purchasing":
+    "Ingredients (kacha maal), bakery items, suppliers, purchasing and stock.",
+  production: "Recipes and baking — make items and use up ingredients.",
+  pos: "Counter sales, tills and cash management for each shop.",
+  "pos-terminal": "Cashier checkout — quick product grid and shift management.",
+  "order-management": "Take and manage custom and bulk cake orders.",
+  crm: "Customers, leads and complaints.",
+  finance: "Expenses, bills, transactions and reporting.",
 };
 
 const POS_LAST_SLUGS = ["pos", "pos-terminal"];
@@ -84,8 +92,10 @@ export default function ModuleHub() {
       ? visible
       : visible.filter((mod) => {
           const description = MODULE_DESCRIPTIONS[mod.slug] || "";
+          const hubLabel = MODULE_HUB_LABELS[mod.slug] || "";
           return (
             mod.name.toLowerCase().includes(query) ||
+            hubLabel.toLowerCase().includes(query) ||
             description.toLowerCase().includes(query)
           );
         });
@@ -169,7 +179,7 @@ export default function ModuleHub() {
                   />
                   <div className="wh-module-card__content">
                     <h2 className="wh-module-card__title">
-                      {index + 1}. {mod.name}
+                      {index + 1}. {MODULE_HUB_LABELS[mod.slug] || mod.name}
                     </h2>
                     <p className="wh-module-card__desc">
                       {MODULE_DESCRIPTIONS[mod.slug]}

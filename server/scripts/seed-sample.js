@@ -26,25 +26,6 @@ const splitSqlStatements = (sql) => {
 const run = async () => {
   const db = await createPool();
 
-  const migrationPaths = [
-    path.join(__dirname, "..", "..", "db", "migrations", "004_login_portal.sql"),
-    path.join(__dirname, "..", "..", "db", "migrations", "007_subscription_login_portal.sql"),
-  ];
-
-  for (const migrationPath of migrationPaths) {
-    if (!fs.existsSync(migrationPath)) continue;
-    const migSql = fs.readFileSync(migrationPath, "utf8");
-    const migStatements = splitSqlStatements(migSql);
-    for (const statement of migStatements) {
-      try {
-        await db.query(statement);
-      } catch (err) {
-        if (err.code !== "ER_DUP_FIELDNAME" && err.code !== "ER_CANT_DROP_FIELD_OR_KEY") throw err;
-      }
-    }
-    console.log(`Migration applied (or already present): ${path.basename(migrationPath)}`);
-  }
-
   const sqlPath = path.join(__dirname, "..", "..", "db", "seeds", "sample_data.sql");
   const sql = fs.readFileSync(sqlPath, "utf8");
   const statements = splitSqlStatements(sql);
@@ -53,6 +34,8 @@ const run = async () => {
     const [result] = await db.query(statement);
     if (Array.isArray(result) && result[0]?.message) {
       console.log(result[0].message);
+    } else if (Array.isArray(result) && result.length && !result.insertId) {
+      console.table(result.slice(0, 20));
     }
   }
 

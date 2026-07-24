@@ -286,7 +286,7 @@ export default function CustomerProfile() {
         </div>
       )}
 
-      <EntityPanel title="Order overview" subtitle="E-commerce orders for this customer in the selected period" flush>
+      <EntityPanel title="Order overview" subtitle="Orders for this customer in the selected period" flush>
         {filteredOrders.length ? (
           <DataTable
             columns={orderColumns}

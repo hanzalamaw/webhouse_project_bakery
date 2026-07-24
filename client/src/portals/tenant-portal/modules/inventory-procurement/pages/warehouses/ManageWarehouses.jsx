@@ -9,8 +9,8 @@ import { Button } from "../../../../../../components/Button";
 import { ConfirmDeleteModal } from "../../../../../../components/ConfirmDeleteModal";
 import { StatusBadge } from "../../../../../../components/Badge";
 import { formatDateTime } from "../../../../../../utils/dateTime";
-
-const MODULE_BASE = "/app/m/inventory-procurement";
+import { formatPKR } from "../../../../../../utils/currency";
+import { MODULE_BASE } from "../../constants";
 
 export default function ManageWarehouses() {
   const { authFetch } = useAuth();
@@ -26,7 +26,7 @@ export default function ManageWarehouses() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiFetch("/inventory/warehouses?page=1&limit=10000&all=1", {}, authFetch);
+      const res = await apiFetch("/inventory/branches?page=1&limit=10000", {}, authFetch);
       setRows(res.data || []);
       setLimits(res.limits || null);
     } catch {
@@ -43,7 +43,7 @@ export default function ManageWarehouses() {
     if (!deleteRow) return;
     setDeleting(true);
     try {
-      await apiFetch(`/inventory/warehouses/${deleteRow.id}`, { method: "DELETE" }, authFetch);
+      await apiFetch(`/inventory/branches/${deleteRow.id}`, { method: "DELETE" }, authFetch);
       setDeleteRow(null);
       await load();
     } catch (e) {
@@ -54,11 +54,14 @@ export default function ManageWarehouses() {
   };
 
   const columns = [
-    { key: "warehouse_name", label: "Warehouse" },
+    { key: "branch_name", label: "Branch" },
+    { key: "code", label: "Code", format: (v) => v || "—" },
     { key: "location", label: "Location", format: (v) => v || "—" },
     { key: "city", label: "City", format: (v) => v || "—" },
-    { key: "product_count", label: "Products", filter: false },
+    { key: "phone", label: "Phone", format: (v) => v || "—" },
+    { key: "item_count", label: "Items", filter: false },
     { key: "total_units", label: "Total Units", filter: false },
+    { key: "opening_balance", label: "Opening balance", format: (v) => formatPKR(v) },
     { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} /> },
     { key: "created_at", label: "Created", format: formatDateTime },
     {
@@ -67,7 +70,7 @@ export default function ManageWarehouses() {
       stopRowClick: true,
       render: (row) => (
         <div className="wh-action-btns">
-          <Button variant="secondary" className="wh-btn--sm" onClick={() => navigate(`${MODULE_BASE}/warehouses/edit/${row.id}`)}>Edit</Button>
+          <Button variant="secondary" className="wh-btn--sm" onClick={() => navigate(`${MODULE_BASE}/branches/edit/${row.id}`)}>Edit</Button>
           <Button variant="danger" className="wh-btn--sm" onClick={() => setDeleteRow(row)}>Delete</Button>
         </div>
       ),
@@ -77,29 +80,29 @@ export default function ManageWarehouses() {
   return (
     <div className="wh-page">
       <PageHeader
-        title="Warehouses"
+        title="Branches (Shakhein)"
         description={
-          limits?.max_warehouses
-            ? `Create and manage warehouse locations (${limits.warehouse_count ?? rows.length} / ${limits.max_warehouses} used).`
-            : "Create and manage warehouse locations for inventory storage."
+          limits?.max_branches
+            ? `Manage bakery branches (${limits.branch_count ?? rows.length} / ${limits.max_branches} used).`
+            : "Manage your bakery branches / shops."
         }
         actions={
-          <Button onClick={() => navigate(`${MODULE_BASE}/warehouses/create`)} disabled={limits?.can_create === false}>
-            Create Warehouse
+          <Button onClick={() => navigate(`${MODULE_BASE}/branches/create`)} disabled={limits?.can_create === false}>
+            Create Branch
           </Button>
         }
       />
 
       {limits && !limits.can_create && (
         <p className="wh-field__error">
-          Warehouse limit reached ({limits.warehouse_count}/{limits.max_warehouses}).
+          Branch limit reached ({limits.branch_count}/{limits.max_branches}).
         </p>
       )}
 
       {error && <p className="wh-field__error">{error}</p>}
 
       <Card className="wh-card--table">
-        <div className="wh-card-table__head"><h3 className="wh-card__title">All warehouses</h3></div>
+        <div className="wh-card-table__head"><h3 className="wh-card__title">All branches</h3></div>
         {loading ? (
           <p className="wh-muted">Loading…</p>
         ) : (
@@ -109,12 +112,19 @@ export default function ManageWarehouses() {
             page={page}
             pageSize={TABLE_PAGE_SIZE}
             onPageChange={setPage}
-            onRowClick={(row) => navigate(`${MODULE_BASE}/warehouses/edit/${row.id}`)}
+            onRowClick={(row) => navigate(`${MODULE_BASE}/branches/edit/${row.id}`)}
           />
         )}
       </Card>
 
-      <ConfirmDeleteModal open={!!deleteRow} title="Delete warehouse" recordName={deleteRow?.warehouse_name || "this warehouse"} onConfirm={confirmDelete} onClose={() => setDeleteRow(null)} loading={deleting} />
+      <ConfirmDeleteModal
+        open={!!deleteRow}
+        title="Delete branch"
+        recordName={deleteRow?.branch_name || "this branch"}
+        onConfirm={confirmDelete}
+        onClose={() => setDeleteRow(null)}
+        loading={deleting}
+      />
     </div>
   );
 }

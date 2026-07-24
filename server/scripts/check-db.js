@@ -22,7 +22,11 @@ try {
     "users",
     "orders",
     "sessions",
-    "logistics_pickup_orders",
+    "branches",
+    "items",
+    "stock_levels",
+    "recipes",
+    "production_runs",
   ];
   const tableNames = tables.map((row) => Object.values(row)[0]);
   const missing = expectedTables.filter((name) => !tableNames.includes(name));

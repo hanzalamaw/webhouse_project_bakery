@@ -8,6 +8,20 @@ export const EMPTY_DASHBOARD_FILTER = {
   dateTo: "",
 };
 
+/** Convert a dashboard filter state into API query params. */
+export function dashboardFilterToQueryParams(filter = {}) {
+  const params = new URLSearchParams();
+  const hasRange = Boolean(filter.dateFrom || filter.dateTo);
+  if (filter.allTime && !filter.year && !hasRange) {
+    params.set("all_time", "1");
+  } else {
+    if (filter.year && !hasRange) params.set("year", filter.year);
+    if (filter.dateFrom) params.set("date_from", filter.dateFrom);
+    if (filter.dateTo) params.set("date_to", filter.dateTo);
+  }
+  return params;
+}
+
 function padDatePart(n) {
   return String(n).padStart(2, "0");
 }

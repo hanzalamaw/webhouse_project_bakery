@@ -20,7 +20,7 @@ export default function StockTransfers() {
   const [actionLoading, setActionLoading] = useState(null);
 
   const openTransfer = (row) => {
-    navigate(`${MODULE_BASE}/procurement/transfers/view/${row.id}`, { state: { transfer: row } });
+    navigate(`${MODULE_BASE}/stock/transfers/view/${row.id}`, { state: { transfer: row } });
   };
 
   const load = useCallback(async () => {
@@ -37,10 +37,10 @@ export default function StockTransfers() {
 
   useEffect(() => { load().catch(() => {}); }, [load]);
 
-  const completeTransfer = async (row) => {
+  const receiveTransfer = async (row) => {
     setActionLoading(row.id);
     try {
-      await apiFetch(`/inventory/stock-transfers/${row.id}/complete`, { method: "POST" }, authFetch);
+      await apiFetch(`/inventory/stock-transfers/${row.id}/receive`, { method: "POST" }, authFetch);
       await load();
     } catch (e) {
       setError(e.message);
@@ -61,11 +61,12 @@ export default function StockTransfers() {
     }
   };
 
+  const canAct = (status) => status === "pending" || status === "in_transit";
+
   const columns = [
-    { key: "product_name", label: "Product" },
-    { key: "sku", label: "SKU" },
-    { key: "from_warehouse_name", label: "From" },
-    { key: "to_warehouse_name", label: "To" },
+    { key: "item_name", label: "Item" },
+    { key: "from_branch_name", label: "From" },
+    { key: "to_branch_name", label: "To" },
     { key: "qty", label: "Qty" },
     { key: "transfer_status", label: "Status", render: (r) => <StatusBadge status={r.transfer_status} /> },
     { key: "created_at", label: "Created", format: formatDateTime },
@@ -76,13 +77,14 @@ export default function StockTransfers() {
       stopRowClick: true,
       render: (row) => (
         <div className="wh-action-btns">
-          {row.transfer_status === "pending" && (
+          {canAct(row.transfer_status) ? (
             <>
-              <Button variant="secondary" className="wh-btn--sm" disabled={actionLoading === row.id} onClick={() => completeTransfer(row)}>Complete</Button>
+              <Button variant="secondary" className="wh-btn--sm" disabled={actionLoading === row.id} onClick={() => receiveTransfer(row)}>Receive</Button>
               <Button variant="danger" className="wh-btn--sm" disabled={actionLoading === row.id} onClick={() => cancelTransfer(row)}>Cancel</Button>
             </>
+          ) : (
+            <span className="wh-muted">—</span>
           )}
-          {row.transfer_status !== "pending" && <span className="wh-muted">—</span>}
         </div>
       ),
     },
@@ -91,9 +93,9 @@ export default function StockTransfers() {
   return (
     <div className="wh-page">
       <PageHeader
-        title="Stock Transfers"
-        description="View transfer history. Create new transfers from the create page."
-        actions={<Button onClick={() => navigate(`${MODULE_BASE}/procurement/transfers/create`)}>Create Transfer</Button>}
+        title="Transfers between branches"
+        description="Move stock from one shakha to another."
+        actions={<Button onClick={() => navigate(`${MODULE_BASE}/stock/transfers/create`)}>Create Transfer</Button>}
       />
       {error && <p className="wh-field__error">{error}</p>}
       <Card className="wh-card--table">

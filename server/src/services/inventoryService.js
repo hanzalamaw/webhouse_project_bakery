@@ -1,50 +1,41 @@
 import { getPool } from "../database/db.js";
 import { inventoryRepository } from "../repositories/inventoryRepository.js";
 import { parsePagination, paginatedResponse } from "../utils/pagination.js";
-
-const STATUS_VALUES = ["active", "inactive"];
-const MOVEMENT_TYPES = ["initial_stock", "stock_in", "stock_out", "transfer_in", "transfer_out"];
-const TRANSFER_STATUSES = ["pending", "completed", "cancelled"];
+import { addStock, consumeStock, computeExpiry } from "./stockEngine.js";
+import {
+  ITEM_TYPES,
+  STATUS_VALUES,
+  UNITS,
+  MOVEMENT_TYPES,
+  TRANSFER_STATUSES,
+  PO_STATUSES,
+  WASTAGE_REASONS,
+} from "../utils/stockConstants.js";
 
 function assertStatus(status, label = "status") {
-  if (!STATUS_VALUES.includes(status)) {
-    throw new Error(`Invalid ${label}. Use: ${STATUS_VALUES.join(", ")}`);
-  }
+  if (!STATUS_VALUES.includes(status)) throw new Error(`Invalid ${label}. Use: ${STATUS_VALUES.join(", ")}`);
 }
-
-function assertMovementType(type) {
-  if (!MOVEMENT_TYPES.includes(type)) {
-    throw new Error(`Invalid movement type. Use: ${MOVEMENT_TYPES.join(", ")}`);
-  }
+function assertItemType(type) {
+  if (!ITEM_TYPES.includes(type)) throw new Error(`Invalid item type. Use: ${ITEM_TYPES.join(", ")}`);
 }
-
-function assertPositiveInt(value, label) {
+function assertQty(value, label = "Quantity") {
   const n = Number(value);
-  if (!Number.isInteger(n) || n <= 0) {
-    throw new Error(`${label} must be a positive integer`);
-  }
+  if (!Number.isFinite(n) || n <= 0) throw new Error(`${label} must be greater than zero`);
   return n;
 }
-
-function assertNonNegativeInt(value, label) {
+function assertMoney(value, label) {
   const n = Number(value);
-  if (!Number.isInteger(n) || n < 0) {
-    throw new Error(`${label} must be a non-negative integer`);
-  }
+  if (!Number.isFinite(n) || n < 0) throw new Error(`${label} must be a valid non-negative number`);
   return n;
 }
-
-function assertPrice(value, label) {
+function nonNegInt(value, label) {
   const n = Number(value);
-  if (Number.isNaN(n) || n < 0) {
-    throw new Error(`${label} must be a valid non-negative number`);
-  }
+  if (!Number.isFinite(n) || n < 0) throw new Error(`${label} must be zero or more`);
   return n;
 }
 
 async function withTransaction(fn) {
-  const pool = getPool();
-  const conn = await pool.getConnection();
+  const conn = await getPool().getConnection();
   try {
     await conn.beginTransaction();
     const result = await fn(conn);
@@ -58,681 +49,579 @@ async function withTransaction(fn) {
   }
 }
 
-function parsePricingFields(body, existing = {}) {
-  return {
-    cost_price: assertPrice(body.cost_price ?? existing.cost_price ?? 0, "Cost price"),
-    selling_price: assertPrice(body.selling_price ?? existing.selling_price ?? 0, "Selling price"),
-    delivery_charges: assertPrice(body.delivery_charges ?? existing.delivery_charges ?? 0, "Delivery charges"),
-    discount: assertPrice(body.discount ?? existing.discount ?? 0, "Discount"),
-    tax: assertPrice(body.tax ?? existing.tax ?? 0, "Tax"),
-  };
+async function ensureItem(tenantId, itemId) {
+  const item = await inventoryRepository.getItemById(tenantId, itemId);
+  if (!item) throw new Error("Item not found");
+  return item;
 }
-
-function normalizeBulkQtyItems(body, label = "item") {
-  const items = body.items;
-  if (!Array.isArray(items) || !items.length) throw new Error("Select at least one product");
-  const sameQty = Boolean(body.same_qty_for_all);
-  if (sameQty) {
-    const qty = assertPositiveInt(body.qty, "Quantity");
-    const notes = body.notes || null;
-    return items.map((item) => ({
-      product_id: Number(item.product_id),
-      qty,
-      notes,
-    }));
-  }
-  return items.map((item, i) => ({
-    product_id: Number(item.product_id),
-    qty: assertPositiveInt(item.qty, `Quantity for ${label} ${i + 1}`),
-    notes: item.notes || null,
-  }));
-}
-
-async function ensureCategory(tenantId, categoryId) {
-  const cat = await inventoryRepository.getCategoryById(tenantId, categoryId);
-  if (!cat) throw new Error("Category not found");
-  return cat;
-}
-
-async function ensureUniqueCategoryName(tenantId, categoryName, excludeId = null) {
-  const existing = await inventoryRepository.findCategoryByName(tenantId, categoryName, excludeId);
-  if (existing) throw new Error("A category with this name already exists");
-}
-
-async function resolveCategoryId(tenantId, body) {
-  const category_name = String(body.category_name || "").trim();
-  if (category_name) {
-    const cat = await inventoryRepository.findCategoryByName(tenantId, category_name);
-    if (!cat) throw new Error(`Category not found: "${category_name}"`);
-    return cat.id;
-  }
-  const legacyId = body.category_id;
-  if (legacyId !== undefined && legacyId !== null && String(legacyId).trim() !== "") {
-    const category_id = Number(legacyId);
-    if (!category_id) throw new Error("Invalid category");
-    await ensureCategory(tenantId, category_id);
-    return category_id;
-  }
-  throw new Error("Category name is required");
-}
-
-async function ensureProduct(tenantId, productId) {
-  const product = await inventoryRepository.getProductById(tenantId, productId);
-  if (!product) throw new Error("Product not found");
-  return product;
-}
-
-async function ensureWarehouse(tenantId, warehouseId) {
-  const wh = await inventoryRepository.getWarehouseById(tenantId, warehouseId);
-  if (!wh) throw new Error("Warehouse not found");
-  return wh;
-}
-
-async function applyStockDelta(tenantId, productId, warehouseId, deltaAvailable, deltaDamaged = 0) {
-  const level = await inventoryRepository.getStockLevel(tenantId, productId, warehouseId);
-  const current = level?.available_qty ?? 0;
-  if (deltaAvailable < 0 && current + deltaAvailable < 0) {
-    throw new Error("Insufficient available stock");
-  }
-  return inventoryRepository.upsertStockLevel(tenantId, productId, warehouseId, deltaAvailable, deltaDamaged);
-}
-
-function parseCreateWarehouseStocks(body) {
-  if (Array.isArray(body.warehouse_stocks) && body.warehouse_stocks.length) {
-    const stocks = body.warehouse_stocks.map((entry, i) => {
-      const label = `warehouse entry ${i + 1}`;
-      const warehouse_id = Number(entry.warehouse_id);
-      if (!warehouse_id) throw new Error(`Select a warehouse for ${label}`);
-      const initial_qty = assertNonNegativeInt(entry.initial_qty ?? entry.available_qty ?? 0, `Available quantity for ${label}`);
-      const reserved_qty = assertNonNegativeInt(entry.reserved_qty ?? 0, `Reserved quantity for ${label}`);
-      const damaged_qty = assertNonNegativeInt(entry.damaged_qty ?? 0, `Damaged quantity for ${label}`);
-      return {
-        warehouse_id,
-        initial_qty,
-        reserved_qty,
-        damaged_qty,
-        stock_notes: entry.stock_notes ? String(entry.stock_notes).trim() : null,
-      };
-    });
-    const ids = stocks.map((s) => s.warehouse_id);
-    if (new Set(ids).size !== ids.length) {
-      throw new Error("Each warehouse can only be selected once");
-    }
-    return stocks;
-  }
-
-  const initial_qty = assertNonNegativeInt(body.initial_qty ?? 0, "Initial quantity");
-  const warehouse_id = body.warehouse_id ? Number(body.warehouse_id) : null;
-  const damaged_qty = assertNonNegativeInt(body.damaged_qty ?? 0, "Damaged quantity");
-  const reserved_qty = assertNonNegativeInt(body.reserved_qty ?? 0, "Reserved quantity");
-
-  if (initial_qty > 0 && !warehouse_id) {
-    throw new Error("Warehouse is required when setting initial stock");
-  }
-  if (!warehouse_id) return [];
-  if (initial_qty === 0 && damaged_qty === 0 && reserved_qty === 0) return [];
-
-  return [{
-    warehouse_id,
-    initial_qty,
-    reserved_qty,
-    damaged_qty,
-    stock_notes: body.stock_notes ? String(body.stock_notes).trim() : null,
-  }];
+async function ensureBranch(tenantId, branchId) {
+  const br = await inventoryRepository.getBranchById(tenantId, branchId);
+  if (!br) throw new Error("Branch not found");
+  return br;
 }
 
 export const inventoryService = {
-  MOVEMENT_TYPES,
-  TRANSFER_STATUSES,
-  STATUS_VALUES,
+  ITEM_TYPES, STATUS_VALUES, UNITS, MOVEMENT_TYPES, TRANSFER_STATUSES, PO_STATUSES, WASTAGE_REASONS,
 
   async dashboard(tenantId) {
-    const [
-      stats,
-      recent_movements,
-      recent_transfers,
-      movement_trend,
-      movements_by_type,
-      stock_by_category,
-      stock_by_warehouse,
-      top_products,
-      low_stock_products,
-    ] = await Promise.all([
+    const [stats, low_stock_items, expiring_batches, recent_movements, stock_by_branch] = await Promise.all([
       inventoryRepository.dashboardStats(tenantId),
+      inventoryRepository.lowStockItems(tenantId, 10),
+      inventoryRepository.expiringBatches(tenantId, { withinDays: 7, limit: 12 }),
       inventoryRepository.recentMovements(tenantId, 10),
-      inventoryRepository.dashboardRecentTransfers(tenantId, 8),
-      inventoryRepository.dashboardMovementTrend(tenantId, 6),
-      inventoryRepository.dashboardMovementsByType(tenantId),
-      inventoryRepository.dashboardStockByCategory(tenantId),
-      inventoryRepository.dashboardStockByWarehouse(tenantId),
-      inventoryRepository.dashboardTopProducts(tenantId, 6),
-      inventoryRepository.dashboardLowStockProducts(tenantId, 8),
+      inventoryRepository.stockByBranch(tenantId),
+    ]);
+    return { stats, low_stock_items, expiring_batches, recent_movements, stock_by_branch };
+  },
+
+  async referenceData(tenantId) {
+    const [categories, branches, items, suppliers] = await Promise.all([
+      inventoryRepository.listCategories(tenantId, { limit: 10000, offset: 0 }),
+      inventoryRepository.listBranchesBrief(tenantId),
+      inventoryRepository.listItemsBrief(tenantId),
+      inventoryRepository.listSuppliersBrief(tenantId),
     ]);
     return {
-      stats,
-      recent_movements,
-      recent_transfers,
-      movement_trend,
-      movements_by_type,
-      stock_by_category,
-      stock_by_warehouse,
-      top_products,
-      low_stock_products,
+      categories: categories.rows,
+      branches,
+      items,
+      suppliers,
+      item_types: ITEM_TYPES,
+      units: UNITS,
+      statuses: STATUS_VALUES,
+      movement_types: MOVEMENT_TYPES,
+      transfer_statuses: TRANSFER_STATUSES,
+      po_statuses: PO_STATUSES,
+      wastage_reasons: WASTAGE_REASONS,
     };
   },
 
-  // Categories
+  // ── Categories ──
   async listCategories(tenantId, query) {
     const { page, limit, offset } = parsePagination(query);
     const { rows, total } = await inventoryRepository.listCategories(tenantId, { limit, offset });
     return paginatedResponse(rows, total, page, limit);
   },
-
   async getCategory(tenantId, id) {
     const category = await inventoryRepository.getCategoryById(tenantId, id);
     if (!category) return null;
-    const products = await inventoryRepository.getCategoryProducts(tenantId, id);
-    const all_products = await inventoryRepository.listAllProductsBrief(tenantId);
-    return { ...category, products, all_products };
+    const items = await inventoryRepository.getCategoryItems(tenantId, id);
+    return { ...category, items };
   },
-
   async createCategory(tenantId, body) {
     const category_name = String(body.category_name || "").trim();
     if (!category_name) throw new Error("Category name is required");
     const status = body.status || "active";
     assertStatus(status);
-    await ensureUniqueCategoryName(tenantId, category_name);
-
-    const id = await inventoryRepository.createCategory(tenantId, { category_name, status });
-    if (Array.isArray(body.product_ids) && body.product_ids.length) {
-      await inventoryRepository.assignProductsToCategory(tenantId, id, body.product_ids.map(Number));
+    if (await inventoryRepository.findCategoryByName(tenantId, category_name)) {
+      throw new Error("A category with this name already exists");
     }
+    const id = await inventoryRepository.createCategory(tenantId, {
+      category_name, item_type: body.item_type || null, status,
+    });
     return this.getCategory(tenantId, id);
   },
-
   async updateCategory(tenantId, id, body) {
     const existing = await inventoryRepository.getCategoryById(tenantId, id);
     if (!existing) return null;
-
     const category_name = String(body.category_name ?? existing.category_name).trim();
     if (!category_name) throw new Error("Category name is required");
     const status = body.status ?? existing.status;
     assertStatus(status);
-    await ensureUniqueCategoryName(tenantId, category_name, id);
-
-    await inventoryRepository.updateCategory(tenantId, id, { category_name, status });
-    if (Array.isArray(body.product_ids)) {
-      await inventoryRepository.assignProductsToCategory(tenantId, id, body.product_ids.map(Number));
+    if (await inventoryRepository.findCategoryByName(tenantId, category_name, id)) {
+      throw new Error("A category with this name already exists");
     }
+    await inventoryRepository.updateCategory(tenantId, id, {
+      category_name, item_type: body.item_type ?? existing.item_type, status,
+    });
     return this.getCategory(tenantId, id);
   },
-
   async removeCategory(tenantId, id) {
     return inventoryRepository.softDeleteCategory(tenantId, id);
   },
 
-  // Products
-  async listProducts(tenantId, query) {
+  // ── Items ──
+  async listItems(tenantId, query) {
     const { page, limit, offset } = parsePagination(query);
-    const { rows, total } = await inventoryRepository.listProducts(tenantId, { limit, offset });
+    const { rows, total } = await inventoryRepository.listItems(tenantId, {
+      limit, offset, item_type: query.item_type || null,
+    });
     return paginatedResponse(rows, total, page, limit);
   },
-
-  async getProduct(tenantId, id) {
-    const product = await inventoryRepository.getProductById(tenantId, id);
-    if (!product) return null;
-    const stock_levels = await inventoryRepository.getProductStockLevels(tenantId, id);
-    return { ...product, stock_levels };
+  async getItem(tenantId, id) {
+    const item = await inventoryRepository.getItemById(tenantId, id);
+    if (!item) return null;
+    const [stock_levels, batches] = await Promise.all([
+      inventoryRepository.getItemStockLevels(tenantId, id),
+      inventoryRepository.getItemBatches(tenantId, id),
+    ]);
+    return { ...item, stock_levels, batches };
   },
-
-  async createProduct(tenantId, userId, body) {
-    const product_name = String(body.product_name || "").trim();
-    const sku = String(body.sku || "").trim();
-    if (!product_name) throw new Error("Product name is required");
-    if (!sku) throw new Error("SKU is required");
-
-    const category_id = await resolveCategoryId(tenantId, body);
-
-    const duplicate = await inventoryRepository.findProductBySku(tenantId, sku);
-    if (duplicate) throw new Error("SKU already exists");
-
-    const status = body.status || "active";
-    assertStatus(status);
-    const unit = String(body.unit || "piece").trim();
-    const pricing = parsePricingFields(body);
-    const warehouseStocks = parseCreateWarehouseStocks(body);
-
-    for (const stock of warehouseStocks) {
-      await ensureWarehouse(tenantId, stock.warehouse_id);
+  async _resolveCategoryId(tenantId, body, existing) {
+    const name = String(body.category_name || "").trim();
+    if (name) {
+      const cat = await inventoryRepository.findCategoryByName(tenantId, name);
+      if (!cat) throw new Error(`Category not found: "${name}"`);
+      return cat.id;
     }
-
-    return withTransaction(async () => {
-      const productId = await inventoryRepository.createProduct(tenantId, {
-        product_name,
-        sku,
-        unit,
-        ...pricing,
-        status,
-        category_id,
-      });
-
-      for (const stock of warehouseStocks) {
-        if (stock.initial_qty > 0 || stock.damaged_qty > 0 || stock.reserved_qty > 0) {
-          await inventoryRepository.setStockLevelAbsolute(tenantId, productId, stock.warehouse_id, {
-            available_qty: stock.initial_qty,
-            reserved_qty: stock.reserved_qty,
-            damaged_qty: stock.damaged_qty,
-          });
-          if (stock.initial_qty > 0) {
-            await inventoryRepository.createMovement(tenantId, userId, {
-              movement_type: "initial_stock",
-              qty: stock.initial_qty,
-              notes: stock.stock_notes || "Initial stock on product creation",
-              product_id: productId,
-              warehouse_id: stock.warehouse_id,
-            });
-          }
-        }
-      }
-
-      return this.getProduct(tenantId, productId);
-    });
+    const raw = body.category_id ?? existing?.category_id;
+    if (raw == null || String(raw).trim() === "") throw new Error("Category is required");
+    const cat = await inventoryRepository.getCategoryById(tenantId, Number(raw));
+    if (!cat) throw new Error("Category not found");
+    return cat.id;
   },
-
-  async updateProduct(tenantId, id, body) {
-    const existing = await inventoryRepository.getProductById(tenantId, id);
-    if (!existing) return null;
-
-    const product_name = String(body.product_name ?? existing.product_name).trim();
-    const sku = String(body.sku ?? existing.sku).trim();
-    if (!product_name) throw new Error("Product name is required");
-    if (!sku) throw new Error("SKU is required");
-
-    const category_id = Number(body.category_id ?? existing.category_id);
-    await ensureCategory(tenantId, category_id);
-
-    const duplicate = await inventoryRepository.findProductBySku(tenantId, sku, id);
-    if (duplicate) throw new Error("SKU already exists");
-
-    const status = body.status ?? existing.status;
+  async _parseItemBody(tenantId, body, existing = null) {
+    const item_name = String(body.item_name ?? existing?.item_name ?? "").trim();
+    if (!item_name) throw new Error("Item name is required");
+    const item_type = body.item_type ?? existing?.item_type ?? "finished";
+    assertItemType(item_type);
+    const status = body.status ?? existing?.status ?? "active";
     assertStatus(status);
+    const category_id = await this._resolveCategoryId(tenantId, body, existing);
 
-    const pricing = parsePricingFields(body, existing);
-
-    await inventoryRepository.updateProduct(tenantId, id, {
-      product_name,
-      sku,
-      unit: String(body.unit ?? existing.unit).trim(),
-      ...pricing,
+    const sku = body.sku != null ? String(body.sku).trim() : existing?.sku ?? null;
+    if (sku) {
+      const dup = await inventoryRepository.findItemBySku(tenantId, sku, existing?.id ?? null);
+      if (dup) throw new Error("SKU already exists");
+    }
+    return {
+      item_name,
+      item_type,
+      sku: sku || null,
+      unit: String(body.unit ?? existing?.unit ?? "piece").trim(),
+      cost_price: assertMoney(body.cost_price ?? existing?.cost_price ?? 0, "Cost price"),
+      selling_price: assertMoney(body.selling_price ?? existing?.selling_price ?? 0, "Selling price"),
+      tax: assertMoney(body.tax ?? existing?.tax ?? 0, "Tax"),
+      discount: assertMoney(body.discount ?? existing?.discount ?? 0, "Discount"),
+      is_purchased: body.is_purchased ?? existing?.is_purchased ?? (item_type !== "finished"),
+      is_produced: body.is_produced ?? existing?.is_produced ?? (item_type === "finished"),
+      is_sold: body.is_sold ?? existing?.is_sold ?? (item_type === "finished"),
+      shelf_life_days: body.shelf_life_days != null && body.shelf_life_days !== ""
+        ? Number(body.shelf_life_days) : (existing?.shelf_life_days ?? null),
+      low_stock_threshold: nonNegInt(body.low_stock_threshold ?? existing?.low_stock_threshold ?? 0, "Low stock alert level"),
+      parent_item_id: body.parent_item_id ? Number(body.parent_item_id) : (existing?.parent_item_id ?? null),
+      variant_label: body.variant_label ? String(body.variant_label).trim() : (existing?.variant_label ?? null),
       status,
       category_id,
-    });
-
-    if (Array.isArray(body.stock_levels) && body.stock_levels.length) {
-      for (const level of body.stock_levels) {
-        const warehouse_id = Number(level.warehouse_id);
-        if (!warehouse_id) continue;
-        await ensureWarehouse(tenantId, warehouse_id);
-        const reserved_qty = assertNonNegativeInt(level.reserved_qty ?? 0, "Reserved quantity");
-        const damaged_qty = assertNonNegativeInt(level.damaged_qty ?? 0, "Damaged quantity");
-        const existingLevel = await inventoryRepository.getStockLevel(tenantId, id, warehouse_id);
-        await inventoryRepository.setStockLevelAbsolute(tenantId, id, warehouse_id, {
-          available_qty: existingLevel?.available_qty ?? 0,
-          reserved_qty,
-          damaged_qty,
+    };
+  },
+  async createItem(tenantId, userId, body) {
+    const data = await this._parseItemBody(tenantId, body);
+    return withTransaction(async (conn) => {
+      const itemId = await inventoryRepository.createItem(tenantId, data);
+      const openings = Array.isArray(body.opening_stock) ? body.opening_stock : [];
+      for (const line of openings) {
+        const branch_id = Number(line.branch_id);
+        const qty = Number(line.qty);
+        if (!branch_id || !qty || qty <= 0) continue;
+        await ensureBranch(tenantId, branch_id);
+        const expiry = line.expiry_date || computeExpiry(new Date(), data.shelf_life_days);
+        await addStock(conn, tenantId, {
+          itemId, branchId: branch_id, qty, unitCost: data.cost_price,
+          sourceType: "opening", movementType: "opening", expiryDate: expiry,
+          notes: "Opening stock", createdBy: userId,
         });
       }
-    }
-
-    return this.getProduct(tenantId, id);
+      return this.getItem(tenantId, itemId);
+    });
   },
-
-  async removeProduct(tenantId, id) {
-    return inventoryRepository.softDeleteProduct(tenantId, id);
+  async updateItem(tenantId, id, body) {
+    const existing = await inventoryRepository.getItemById(tenantId, id);
+    if (!existing) return null;
+    const data = await this._parseItemBody(tenantId, body, existing);
+    await inventoryRepository.updateItem(tenantId, id, data);
+    return this.getItem(tenantId, id);
   },
-
-  async exportProducts(tenantId) {
-    const { rows } = await inventoryRepository.listProducts(tenantId, { limit: 10000, offset: 0 });
+  async removeItem(tenantId, id) {
+    return inventoryRepository.softDeleteItem(tenantId, id);
+  },
+  async exportItems(tenantId) {
+    const { rows } = await inventoryRepository.listItems(tenantId, { limit: 10000, offset: 0 });
     return rows;
   },
-
-  async importProducts(tenantId, userId, rows) {
+  async importItems(tenantId, userId, rows) {
     if (!Array.isArray(rows) || !rows.length) throw new Error("No rows to import");
     const results = { created: 0, skipped: 0, errors: [] };
-
     for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
-      try {
-        await this.createProduct(tenantId, userId, row);
-        results.created += 1;
-      } catch (e) {
-        results.skipped += 1;
-        results.errors.push({ row: i + 1, message: e.message });
-      }
+      try { await this.createItem(tenantId, userId, rows[i]); results.created += 1; }
+      catch (e) { results.skipped += 1; results.errors.push({ row: i + 1, message: e.message }); }
     }
     return results;
   },
 
-  // Warehouses
-  async listWarehouses(tenantId, query) {
+  // ── Branches ──
+  async getBranchLimits(tenantId) {
+    const max_branches = await inventoryRepository.getTenantBranchLimit(tenantId);
+    const branch_count = await inventoryRepository.countBranches(tenantId);
+    return { max_branches, branch_count, can_create: max_branches <= 0 || branch_count < max_branches };
+  },
+  async listBranches(tenantId, query) {
     const { page, limit, offset } = parsePagination(query);
-    const { rows, total } = await inventoryRepository.listWarehouses(tenantId, { limit, offset });
-    const limits = await this.getWarehouseLimits(tenantId);
+    const { rows, total } = await inventoryRepository.listBranches(tenantId, { limit, offset });
+    const limits = await this.getBranchLimits(tenantId);
     return { ...paginatedResponse(rows, total, page, limit), limits };
   },
-
-  async getWarehouseLimits(tenantId) {
-    const max_warehouses = await inventoryRepository.getTenantWarehouseLimit(tenantId);
-    const warehouse_count = await inventoryRepository.countWarehouses(tenantId);
-    return {
-      max_warehouses,
-      warehouse_count,
-      can_create: max_warehouses <= 0 || warehouse_count < max_warehouses,
-    };
+  async getBranch(tenantId, id) {
+    return inventoryRepository.getBranchById(tenantId, id);
   },
-
-  async getWarehouse(tenantId, id) {
-    return inventoryRepository.getWarehouseById(tenantId, id);
-  },
-
-  async createWarehouse(tenantId, body) {
-    const limits = await this.getWarehouseLimits(tenantId);
+  async createBranch(tenantId, body) {
+    const limits = await this.getBranchLimits(tenantId);
     if (!limits.can_create) {
-      throw new Error(
-        `Warehouse limit reached (${limits.warehouse_count}/${limits.max_warehouses}). Contact your administrator to increase the limit.`
-      );
+      throw new Error(`Branch limit reached (${limits.branch_count}/${limits.max_branches}). Contact your administrator.`);
     }
-    const warehouse_name = String(body.warehouse_name || "").trim();
-    if (!warehouse_name) throw new Error("Warehouse name is required");
+    const branch_name = String(body.branch_name || "").trim();
+    if (!branch_name) throw new Error("Branch name is required");
     const status = body.status || "active";
     assertStatus(status);
-
-    const id = await inventoryRepository.createWarehouse(tenantId, {
-      warehouse_name,
-      location: body.location || null,
-      city: body.city || null,
-      status,
+    const id = await inventoryRepository.createBranch(tenantId, {
+      branch_name, code: body.code, location: body.location, city: body.city, phone: body.phone,
+      open_time: body.open_time, close_time: body.close_time,
+      opening_balance: assertMoney(body.opening_balance ?? 0, "Opening balance"), status,
     });
-    return inventoryRepository.getWarehouseById(tenantId, id);
+    return inventoryRepository.getBranchById(tenantId, id);
   },
-
-  async updateWarehouse(tenantId, id, body) {
-    const existing = await inventoryRepository.getWarehouseById(tenantId, id);
+  async updateBranch(tenantId, id, body) {
+    const existing = await inventoryRepository.getBranchById(tenantId, id);
     if (!existing) return null;
-
-    const warehouse_name = String(body.warehouse_name ?? existing.warehouse_name).trim();
-    if (!warehouse_name) throw new Error("Warehouse name is required");
+    const branch_name = String(body.branch_name ?? existing.branch_name).trim();
+    if (!branch_name) throw new Error("Branch name is required");
     const status = body.status ?? existing.status;
     assertStatus(status);
-
-    await inventoryRepository.updateWarehouse(tenantId, id, {
-      warehouse_name,
-      location: body.location ?? existing.location,
-      city: body.city ?? existing.city,
-      status,
+    await inventoryRepository.updateBranch(tenantId, id, {
+      branch_name, code: body.code ?? existing.code, location: body.location ?? existing.location,
+      city: body.city ?? existing.city, phone: body.phone ?? existing.phone,
+      open_time: body.open_time ?? existing.open_time, close_time: body.close_time ?? existing.close_time,
+      opening_balance: assertMoney(body.opening_balance ?? existing.opening_balance ?? 0, "Opening balance"), status,
     });
-    return inventoryRepository.getWarehouseById(tenantId, id);
+    return inventoryRepository.getBranchById(tenantId, id);
+  },
+  async removeBranch(tenantId, id) {
+    return inventoryRepository.softDeleteBranch(tenantId, id);
   },
 
-  async removeWarehouse(tenantId, id) {
-    return inventoryRepository.softDeleteWarehouse(tenantId, id);
-  },
-
-  // Stock movements
+  // ── Stock movements ──
   async listMovements(tenantId, query) {
     const { page, limit, offset } = parsePagination(query);
-    const movement_type = query.movement_type || null;
     const { rows, total } = await inventoryRepository.listMovements(tenantId, {
-      limit,
-      offset,
-      movement_type,
+      limit, offset,
+      movement_type: query.movement_type || null,
+      item_id: query.item_id ? Number(query.item_id) : null,
+      branch_id: query.branch_id ? Number(query.branch_id) : null,
     });
     return paginatedResponse(rows, total, page, limit);
   },
-
   async stockIn(tenantId, userId, body) {
-    const product_id = Number(body.product_id);
-    const warehouse_id = Number(body.warehouse_id);
-    const qty = assertPositiveInt(body.qty, "Quantity");
-    await ensureProduct(tenantId, product_id);
-    await ensureWarehouse(tenantId, warehouse_id);
-
-    return withTransaction(async () => {
-      await applyStockDelta(tenantId, product_id, warehouse_id, qty);
-      const movementId = await inventoryRepository.createMovement(tenantId, userId, {
-        movement_type: "stock_in",
-        qty,
-        notes: body.notes || null,
-        product_id,
-        warehouse_id,
+    const item = await ensureItem(tenantId, Number(body.item_id));
+    await ensureBranch(tenantId, Number(body.branch_id));
+    const qty = assertQty(body.qty);
+    const unitCost = assertMoney(body.unit_cost ?? item.cost_price ?? 0, "Unit cost");
+    const madeOn = body.made_on || null;
+    const expiry = body.expiry_date || computeExpiry(madeOn || new Date(), item.shelf_life_days);
+    return withTransaction(async (conn) => {
+      const batchId = await addStock(conn, tenantId, {
+        itemId: item.id, branchId: Number(body.branch_id), qty, unitCost,
+        sourceType: "purchase", movementType: "purchase_in",
+        madeOn, expiryDate: expiry, notes: body.notes || null, createdBy: userId,
       });
-      const { rows } = await inventoryRepository.listMovements(tenantId, { limit: 1, offset: 0 });
-      return rows[0] || { id: movementId };
+      return { id: batchId };
     });
   },
-
   async stockOut(tenantId, userId, body) {
-    const product_id = Number(body.product_id);
-    const warehouse_id = Number(body.warehouse_id);
-    const qty = assertPositiveInt(body.qty, "Quantity");
-    await ensureProduct(tenantId, product_id);
-    await ensureWarehouse(tenantId, warehouse_id);
-
-    return withTransaction(async () => {
-      await applyStockDelta(tenantId, product_id, warehouse_id, -qty);
-      const movementId = await inventoryRepository.createMovement(tenantId, userId, {
-        movement_type: "stock_out",
-        qty,
-        notes: body.notes || null,
-        product_id,
-        warehouse_id,
+    const item = await ensureItem(tenantId, Number(body.item_id));
+    await ensureBranch(tenantId, Number(body.branch_id));
+    const qty = assertQty(body.qty);
+    return withTransaction(async (conn) => {
+      await consumeStock(conn, tenantId, {
+        itemId: item.id, branchId: Number(body.branch_id), qty,
+        movementType: "adjustment", notes: body.notes || "Manual stock out", createdBy: userId,
       });
-      return { id: movementId };
+      return { success: true };
     });
   },
-
   async bulkStockIn(tenantId, userId, body) {
-    const warehouse_id = Number(body.warehouse_id);
-    if (!warehouse_id) throw new Error("Warehouse is required");
-    await ensureWarehouse(tenantId, warehouse_id);
-    const lines = normalizeBulkQtyItems(body, "product");
-
-    return withTransaction(async () => {
+    const branch_id = Number(body.branch_id);
+    await ensureBranch(tenantId, branch_id);
+    const items = Array.isArray(body.items) ? body.items : [];
+    if (!items.length) throw new Error("Select at least one item");
+    return withTransaction(async (conn) => {
       const created = [];
-      for (const line of lines) {
-        await ensureProduct(tenantId, line.product_id);
-        await applyStockDelta(tenantId, line.product_id, warehouse_id, line.qty);
-        const id = await inventoryRepository.createMovement(tenantId, userId, {
-          movement_type: "stock_in",
-          qty: line.qty,
-          notes: line.notes,
-          product_id: line.product_id,
-          warehouse_id,
+      for (const line of items) {
+        const item = await ensureItem(tenantId, Number(line.item_id));
+        const qty = assertQty(line.qty, `Quantity for ${item.item_name}`);
+        const unitCost = assertMoney(line.unit_cost ?? item.cost_price ?? 0, "Unit cost");
+        const expiry = line.expiry_date || computeExpiry(line.made_on || new Date(), item.shelf_life_days);
+        const batchId = await addStock(conn, tenantId, {
+          itemId: item.id, branchId: branch_id, qty, unitCost,
+          sourceType: "purchase", movementType: "purchase_in",
+          madeOn: line.made_on || null, expiryDate: expiry, notes: line.notes || null, createdBy: userId,
         });
-        created.push({ id, product_id: line.product_id });
+        created.push({ id: batchId, item_id: item.id });
       }
       return { count: created.length, items: created };
     });
   },
 
-  async bulkStockOut(tenantId, userId, body) {
-    const warehouse_id = Number(body.warehouse_id);
-    if (!warehouse_id) throw new Error("Warehouse is required");
-    await ensureWarehouse(tenantId, warehouse_id);
-    const lines = normalizeBulkQtyItems(body, "product");
-
-    return withTransaction(async () => {
-      const created = [];
-      for (const line of lines) {
-        await ensureProduct(tenantId, line.product_id);
-        await applyStockDelta(tenantId, line.product_id, warehouse_id, -line.qty);
-        const id = await inventoryRepository.createMovement(tenantId, userId, {
-          movement_type: "stock_out",
-          qty: line.qty,
-          notes: line.notes,
-          product_id: line.product_id,
-          warehouse_id,
-        });
-        created.push({ id, product_id: line.product_id });
-      }
-      return { count: created.length, items: created };
-    });
-  },
-
-  // Transfers
+  // ── Transfers ──
   async listTransfers(tenantId, query) {
     const { page, limit, offset } = parsePagination(query);
     const { rows, total } = await inventoryRepository.listTransfers(tenantId, { limit, offset });
     return paginatedResponse(rows, total, page, limit);
   },
-
   async createTransfer(tenantId, userId, body) {
-    const product_id = Number(body.product_id);
-    const from_warehouse_id = Number(body.from_warehouse_id);
-    const to_warehouse_id = Number(body.to_warehouse_id);
-    const qty = assertPositiveInt(body.qty, "Quantity");
-
-    if (from_warehouse_id === to_warehouse_id) {
-      throw new Error("Source and destination warehouses must be different");
-    }
-
-    await ensureProduct(tenantId, product_id);
-    await ensureWarehouse(tenantId, from_warehouse_id);
-    await ensureWarehouse(tenantId, to_warehouse_id);
-
+    const item = await ensureItem(tenantId, Number(body.item_id));
+    const from_branch_id = Number(body.from_branch_id);
+    const to_branch_id = Number(body.to_branch_id);
+    if (from_branch_id === to_branch_id) throw new Error("From and To branch must be different");
+    await ensureBranch(tenantId, from_branch_id);
+    await ensureBranch(tenantId, to_branch_id);
+    const qty = assertQty(body.qty);
     const completeNow = body.complete !== false;
 
-    return withTransaction(async () => {
-      if (completeNow) {
-        await applyStockDelta(tenantId, product_id, from_warehouse_id, -qty);
-        await applyStockDelta(tenantId, product_id, to_warehouse_id, qty);
-        await inventoryRepository.createMovement(tenantId, userId, {
-          movement_type: "transfer_out",
-          qty,
-          notes: body.notes || `Transfer to warehouse #${to_warehouse_id}`,
-          product_id,
-          warehouse_id: from_warehouse_id,
-        });
-        await inventoryRepository.createMovement(tenantId, userId, {
-          movement_type: "transfer_in",
-          qty,
-          notes: body.notes || `Transfer from warehouse #${from_warehouse_id}`,
-          product_id,
-          warehouse_id: to_warehouse_id,
-        });
-      }
+    return withTransaction(async (conn) => {
+      const consumption = await consumeStock(conn, tenantId, {
+        itemId: item.id, branchId: from_branch_id, qty,
+        movementType: "transfer_out", referenceType: "transfer",
+        notes: body.notes || `Transfer to branch #${to_branch_id}`, createdBy: userId,
+      });
+      const avgCost = consumption.length
+        ? consumption.reduce((s, c) => s + c.unitCost * c.qty, 0) / qty : item.cost_price;
 
-      const transferId = await inventoryRepository.createTransfer(tenantId, {
-        qty,
-        transfer_status: completeNow ? "completed" : "pending",
-        product_id,
-        from_warehouse_id,
-        to_warehouse_id,
+      const transferId = await inventoryRepository.createTransfer(tenantId, userId, {
+        qty, transfer_status: completeNow ? "received" : "in_transit",
+        expiry_date: body.expiry_date || null, notes: body.notes,
+        item_id: item.id, from_branch_id, to_branch_id,
       });
 
+      if (completeNow) {
+        await addStock(conn, tenantId, {
+          itemId: item.id, branchId: to_branch_id, qty, unitCost: avgCost,
+          sourceType: "transfer", sourceRefId: transferId, movementType: "transfer_in",
+          expiryDate: body.expiry_date || null, referenceType: "transfer", referenceId: transferId,
+          notes: `Transfer from branch #${from_branch_id}`, createdBy: userId,
+        });
+      }
       return inventoryRepository.getTransferById(tenantId, transferId);
     });
   },
-
-  async bulkCreateTransfer(tenantId, userId, body) {
-    const from_warehouse_id = Number(body.from_warehouse_id);
-    const to_warehouse_id = Number(body.to_warehouse_id);
-    if (!from_warehouse_id || !to_warehouse_id) throw new Error("Source and destination warehouses are required");
-    if (from_warehouse_id === to_warehouse_id) {
-      throw new Error("Source and destination warehouses must be different");
-    }
-    await ensureWarehouse(tenantId, from_warehouse_id);
-    await ensureWarehouse(tenantId, to_warehouse_id);
-    const lines = normalizeBulkQtyItems(body, "product");
-    const completeNow = body.complete !== false;
-
-    return withTransaction(async () => {
-      const created = [];
-      for (const line of lines) {
-        await ensureProduct(tenantId, line.product_id);
-        if (completeNow) {
-          await applyStockDelta(tenantId, line.product_id, from_warehouse_id, -line.qty);
-          await applyStockDelta(tenantId, line.product_id, to_warehouse_id, line.qty);
-          await inventoryRepository.createMovement(tenantId, userId, {
-            movement_type: "transfer_out",
-            qty: line.qty,
-            notes: line.notes || `Transfer to warehouse #${to_warehouse_id}`,
-            product_id: line.product_id,
-            warehouse_id: from_warehouse_id,
-          });
-          await inventoryRepository.createMovement(tenantId, userId, {
-            movement_type: "transfer_in",
-            qty: line.qty,
-            notes: line.notes || `Transfer from warehouse #${from_warehouse_id}`,
-            product_id: line.product_id,
-            warehouse_id: to_warehouse_id,
-          });
-        }
-        const transferId = await inventoryRepository.createTransfer(tenantId, {
-          qty: line.qty,
-          transfer_status: completeNow ? "completed" : "pending",
-          product_id: line.product_id,
-          from_warehouse_id,
-          to_warehouse_id,
-        });
-        created.push({ id: transferId, product_id: line.product_id });
-      }
-      return { count: created.length, items: created };
-    });
-  },
-
-  async completeTransfer(tenantId, userId, id) {
+  async receiveTransfer(tenantId, userId, id) {
     const transfer = await inventoryRepository.getTransferById(tenantId, id);
     if (!transfer) return null;
-    if (transfer.transfer_status === "completed") throw new Error("Transfer already completed");
+    if (transfer.transfer_status === "received") throw new Error("Transfer already received");
     if (transfer.transfer_status === "cancelled") throw new Error("Transfer is cancelled");
-
-    return withTransaction(async () => {
-      await applyStockDelta(tenantId, transfer.product_id, transfer.from_warehouse_id, -transfer.qty);
-      await applyStockDelta(tenantId, transfer.product_id, transfer.to_warehouse_id, transfer.qty);
-      await inventoryRepository.createMovement(tenantId, userId, {
-        movement_type: "transfer_out",
-        qty: transfer.qty,
-        notes: `Transfer #${id} out`,
-        product_id: transfer.product_id,
-        warehouse_id: transfer.from_warehouse_id,
+    return withTransaction(async (conn) => {
+      await addStock(conn, tenantId, {
+        itemId: transfer.item_id, branchId: transfer.to_branch_id, qty: transfer.qty,
+        unitCost: 0, sourceType: "transfer", sourceRefId: id, movementType: "transfer_in",
+        expiryDate: transfer.expiry_date || null, referenceType: "transfer", referenceId: id,
+        notes: `Transfer #${id} received`, createdBy: userId,
       });
-      await inventoryRepository.createMovement(tenantId, userId, {
-        movement_type: "transfer_in",
-        qty: transfer.qty,
-        notes: `Transfer #${id} in`,
-        product_id: transfer.product_id,
-        warehouse_id: transfer.to_warehouse_id,
+      await inventoryRepository.updateTransferStatus(tenantId, id, "received");
+      return inventoryRepository.getTransferById(tenantId, id);
+    });
+  },
+  async cancelTransfer(tenantId, userId, id) {
+    const transfer = await inventoryRepository.getTransferById(tenantId, id);
+    if (!transfer) return null;
+    if (transfer.transfer_status === "received") throw new Error("Received transfers cannot be cancelled");
+    if (transfer.transfer_status === "cancelled") throw new Error("Transfer already cancelled");
+    return withTransaction(async (conn) => {
+      // return stock to source branch
+      await addStock(conn, tenantId, {
+        itemId: transfer.item_id, branchId: transfer.from_branch_id, qty: transfer.qty,
+        unitCost: 0, sourceType: "adjustment", movementType: "return_in",
+        referenceType: "transfer", referenceId: id,
+        notes: `Transfer #${id} cancelled — stock returned`, createdBy: userId,
       });
-      await inventoryRepository.updateTransferStatus(tenantId, id, "completed");
+      await inventoryRepository.updateTransferStatus(tenantId, id, "cancelled");
       return inventoryRepository.getTransferById(tenantId, id);
     });
   },
 
-  async cancelTransfer(tenantId, id) {
-    const transfer = await inventoryRepository.getTransferById(tenantId, id);
-    if (!transfer) return null;
-    if (transfer.transfer_status !== "pending") {
-      throw new Error("Only pending transfers can be cancelled");
-    }
-    await inventoryRepository.updateTransferStatus(tenantId, id, "cancelled");
-    return inventoryRepository.getTransferById(tenantId, id);
+  // ── Suppliers ──
+  async listSuppliers(tenantId, query) {
+    const { page, limit, offset } = parsePagination(query);
+    const { rows, total } = await inventoryRepository.listSuppliers(tenantId, { limit, offset });
+    return paginatedResponse(rows, total, page, limit);
+  },
+  async getSupplier(tenantId, id) {
+    return inventoryRepository.getSupplierById(tenantId, id);
+  },
+  async createSupplier(tenantId, body) {
+    const supplier_name = String(body.supplier_name || "").trim();
+    if (!supplier_name) throw new Error("Supplier name is required");
+    const status = body.status || "active";
+    assertStatus(status);
+    const id = await inventoryRepository.createSupplier(tenantId, { ...body, supplier_name, status });
+    return inventoryRepository.getSupplierById(tenantId, id);
+  },
+  async updateSupplier(tenantId, id, body) {
+    const existing = await inventoryRepository.getSupplierById(tenantId, id);
+    if (!existing) return null;
+    const supplier_name = String(body.supplier_name ?? existing.supplier_name).trim();
+    if (!supplier_name) throw new Error("Supplier name is required");
+    const status = body.status ?? existing.status;
+    assertStatus(status);
+    await inventoryRepository.updateSupplier(tenantId, id, {
+      supplier_name,
+      contact_person: body.contact_person ?? existing.contact_person,
+      phone: body.phone ?? existing.phone,
+      email: body.email ?? existing.email,
+      address: body.address ?? existing.address,
+      city: body.city ?? existing.city,
+      status,
+      notes: body.notes ?? existing.notes,
+    });
+    return inventoryRepository.getSupplierById(tenantId, id);
+  },
+  async removeSupplier(tenantId, id) {
+    return inventoryRepository.softDeleteSupplier(tenantId, id);
   },
 
-  // Reference data
-  async referenceData(tenantId) {
-    const [categories, warehouses, products] = await Promise.all([
-      inventoryRepository.listCategories(tenantId, { limit: 10000, offset: 0 }),
-      inventoryRepository.listAllWarehousesBrief(tenantId),
-      inventoryRepository.listAllProductsBrief(tenantId),
-    ]);
-    return {
-      categories: categories.rows,
-      warehouses,
-      products,
-      movement_types: MOVEMENT_TYPES,
-      transfer_statuses: TRANSFER_STATUSES,
-      statuses: STATUS_VALUES,
-    };
+  // ── Purchase orders ──
+  async listPurchaseOrders(tenantId, query) {
+    const { page, limit, offset } = parsePagination(query);
+    const { rows, total } = await inventoryRepository.listPurchaseOrders(tenantId, {
+      limit, offset, status: query.status || null,
+    });
+    return paginatedResponse(rows, total, page, limit);
+  },
+  async getPurchaseOrder(tenantId, id) {
+    return inventoryRepository.getPurchaseOrderById(tenantId, id);
+  },
+  _computePoTotals(lines, discountAmount, taxAmount) {
+    let subtotal = 0;
+    const parsed = lines.map((l, i) => {
+      const item_id = Number(l.item_id);
+      if (!item_id) throw new Error(`Select an item for line ${i + 1}`);
+      const qty = assertQty(l.qty, `Quantity for line ${i + 1}`);
+      const unit_cost = assertMoney(l.unit_cost ?? 0, `Unit cost for line ${i + 1}`);
+      const discount = assertMoney(l.discount ?? 0, `Discount for line ${i + 1}`);
+      const total_price = Math.max(0, qty * unit_cost - discount);
+      subtotal += total_price;
+      return { item_id, qty, unit_cost, discount, total_price, expiry_date: l.expiry_date || null };
+    });
+    const discount_amount = assertMoney(discountAmount ?? 0, "Discount");
+    const tax_amount = assertMoney(taxAmount ?? 0, "Tax");
+    const payable = Math.max(0, subtotal - discount_amount + tax_amount);
+    return { parsed, total_amount: subtotal, discount_amount, tax_amount, payable_amount: payable };
+  },
+  async createPurchaseOrder(tenantId, userId, body) {
+    const supplier = await inventoryRepository.getSupplierById(tenantId, Number(body.supplier_id));
+    if (!supplier) throw new Error("Supplier not found");
+    await ensureBranch(tenantId, Number(body.branch_id));
+    const lines = Array.isArray(body.items) ? body.items : [];
+    if (!lines.length) throw new Error("Add at least one item to the purchase order");
+    const status = body.status && PO_STATUSES.includes(body.status) ? body.status : "ordered";
+    const totals = this._computePoTotals(lines, body.discount_amount, body.tax_amount);
+
+    const poId = await withTransaction(async (conn) => {
+      const po_no = body.po_no || (await inventoryRepository.nextPoNo(tenantId));
+      const id = await inventoryRepository.createPurchaseOrder(conn, tenantId, userId, {
+        po_no,
+        order_date: body.order_date || new Date().toISOString().slice(0, 10),
+        expected_date: body.expected_date || null,
+        status,
+        total_amount: totals.total_amount,
+        discount_amount: totals.discount_amount,
+        tax_amount: totals.tax_amount,
+        payable_amount: totals.payable_amount,
+        notes: body.notes || null,
+        supplier_id: supplier.id,
+        branch_id: Number(body.branch_id),
+      });
+      for (const line of totals.parsed) {
+        await inventoryRepository.createPurchaseOrderItem(conn, tenantId, id, line);
+      }
+      return id;
+    });
+    return this.getPurchaseOrder(tenantId, poId);
+  },
+  async receivePurchaseOrder(tenantId, userId, id, body = {}) {
+    const po = await inventoryRepository.getPurchaseOrderById(tenantId, id);
+    if (!po) return null;
+    if (po.status === "received") throw new Error("Purchase order already received");
+    if (po.status === "cancelled") throw new Error("Purchase order is cancelled");
+
+    // optional partial receive map: { po_item_id: qty }
+    const receiveMap = body.receive || null;
+
+    return withTransaction(async (conn) => {
+      const lines = await inventoryRepository.getPurchaseOrderItems(conn, tenantId, id);
+      const item = {};
+      let allReceived = true;
+      for (const line of lines) {
+        const toReceive = receiveMap && receiveMap[line.id] != null
+          ? Number(receiveMap[line.id])
+          : Number(line.qty) - Number(line.received_qty);
+        if (toReceive > 0) {
+          const itemRow = await ensureItem(tenantId, line.item_id);
+          const expiry = line.expiry_date || computeExpiry(new Date(), itemRow.shelf_life_days);
+          await addStock(conn, tenantId, {
+            itemId: line.item_id, branchId: po.branch_id, qty: toReceive, unitCost: line.unit_cost,
+            sourceType: "purchase", sourceRefId: id, movementType: "purchase_in",
+            expiryDate: expiry, referenceType: "purchase_order", referenceId: id,
+            notes: `PO ${po.po_no} received`, createdBy: userId,
+          });
+          await inventoryRepository.markPoItemReceived(conn, line.id, Number(line.received_qty) + toReceive);
+        }
+        const newReceived = Number(line.received_qty) + (toReceive > 0 ? toReceive : 0);
+        if (newReceived < Number(line.qty)) allReceived = false;
+        item[line.id] = newReceived;
+      }
+      await inventoryRepository.updatePurchaseOrderStatus(conn, tenantId, id, allReceived ? "received" : "partial");
+      return this.getPurchaseOrder(tenantId, id);
+    });
+  },
+  async cancelPurchaseOrder(tenantId, id) {
+    const po = await inventoryRepository.getPurchaseOrderById(tenantId, id);
+    if (!po) return null;
+    if (po.status === "received") throw new Error("Received purchase orders cannot be cancelled");
+    await withTransaction(async (conn) => {
+      await inventoryRepository.updatePurchaseOrderStatus(conn, tenantId, id, "cancelled");
+    });
+    return this.getPurchaseOrder(tenantId, id);
+  },
+  async removePurchaseOrder(tenantId, id) {
+    return inventoryRepository.softDeletePurchaseOrder(tenantId, id);
+  },
+
+  // ── Wastage ──
+  async listWastage(tenantId, query) {
+    const { page, limit, offset } = parsePagination(query);
+    const { rows, total } = await inventoryRepository.listWastage(tenantId, { limit, offset });
+    return paginatedResponse(rows, total, page, limit);
+  },
+  async createWastage(tenantId, userId, body) {
+    const item = await ensureItem(tenantId, Number(body.item_id));
+    await ensureBranch(tenantId, Number(body.branch_id));
+    const qty = assertQty(body.qty);
+    const reason = WASTAGE_REASONS.includes(body.reason) ? body.reason : "other";
+    const wastage_date = body.wastage_date || new Date().toISOString().slice(0, 10);
+    const estimated_cost = body.estimated_cost != null
+      ? assertMoney(body.estimated_cost, "Estimated cost")
+      : qty * Number(item.cost_price || 0);
+    return withTransaction(async (conn) => {
+      await consumeStock(conn, tenantId, {
+        itemId: item.id, branchId: Number(body.branch_id), qty,
+        movementType: "wastage", referenceType: "wastage",
+        notes: body.notes || `Wastage: ${reason}`, createdBy: userId, allowNegative: true,
+      });
+      const wastageId = await inventoryRepository.createWastage(conn, tenantId, userId, {
+        qty, reason, wastage_date, estimated_cost, notes: body.notes,
+        item_id: item.id, batch_id: body.batch_id || null, branch_id: Number(body.branch_id),
+      });
+      return { id: wastageId };
+    });
+  },
+
+  // ── Batches / expiry ──
+  async listBatches(tenantId, query) {
+    const { page, limit, offset } = parsePagination(query);
+    const { rows, total } = await inventoryRepository.listBatches(tenantId, {
+      limit, offset,
+      status: query.status || null,
+      expiring_days: query.expiring_days != null ? Number(query.expiring_days) : null,
+    });
+    return paginatedResponse(rows, total, page, limit);
   },
 };
