@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bakery ERP by Webhouse — Sales Brochure</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Source+Sans+3:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #14201c;
+      --muted: #4a5a54;
+      --soft: #6b7a73;
+      --line: #d5ddd8;
+      --paper: #f4f7f5;
+      --white: #ffffff;
+      --forest: #1b4d3e;
+      --forest-deep: #0f3329;
+      --leaf: #2f6b55;
+      --gold: #c9a24a;
+      --gold-soft: #f3e8c9;
+      --warn: #8b3a2a;
+      --ok: #1f6b4a;
+      --card: #e8f0eb;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      background: #cfd6d2;
+      color: var(--ink);
+      font-family: "Source Sans 3", system-ui, sans-serif;
+      font-size: 11.5pt;
+      line-height: 1.45;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .sheet {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 12mm auto;
+      background: var(--paper);
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 12px 40px rgba(20, 32, 28, 0.18);
+    }
+
+    .sheet + .sheet { page-break-before: always; }
+
+    h1, h2, h3, .brand {
+      font-family: Outfit, system-ui, sans-serif;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+    }
+
+    .urdu {
+      font-style: italic;
+      color: var(--muted);
+    }
+
+    .badge {
+      display: inline-block;
+      font-family: Outfit, sans-serif;
+      font-size: 8.5pt;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--forest);
+      background: var(--gold-soft);
+      border: 1px solid #e2d09a;
+      padding: 4px 10px;
+      border-radius: 999px;
+    }
+
+    /* ---------- PAGE 1 COVER ---------- */
+    .cover {
+      background:
+        radial-gradient(ellipse 80% 55% at 85% 10%, rgba(201, 162, 74, 0.22), transparent 55%),
+        linear-gradient(165deg, #0f3329 0%, #1b4d3e 48%, #245a48 100%);
+      color: #f7faf8;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 18mm 16mm 14mm;
+    }
+
+    .cover .top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .cover .brand-mark {
+      font-family: Outfit, sans-serif;
+      font-weight: 800;
+      font-size: 14pt;
+      letter-spacing: 0.04em;
+    }
+
+    .cover .brand-mark span {
+      color: var(--gold);
+    }
+
+    .cover .for-whom {
+      text-align: right;
+      font-size: 9.5pt;
+      opacity: 0.85;
+      max-width: 55mm;
+    }
+
+    .cover .hero {
+      margin-top: 28mm;
+      max-width: 160mm;
+    }
+
+    .cover .hero .eyebrow {
+      display: inline-block;
+      font-family: Outfit, sans-serif;
+      font-size: 9pt;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 10px;
+    }
+
+    .cover h1 {
+      font-size: 34pt;
+      font-weight: 800;
+      margin-bottom: 12px;
+      color: #fff;
+    }
+
+    .cover .lead {
+      font-size: 13.5pt;
+      max-width: 145mm;
+      opacity: 0.92;
+      line-height: 1.5;
+    }
+
+    .cover .lead strong { color: var(--gold); font-weight: 600; }
+
+    .cover-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 22mm;
+    }
+
+    .cover-pill {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+
+    .cover-pill b {
+      display: block;
+      font-family: Outfit, sans-serif;
+      font-size: 11pt;
+      margin-bottom: 2px;
+    }
+
+    .cover-pill span {
+      font-size: 9.5pt;
+      opacity: 0.8;
+    }
+
+    .cover-foot {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      border-top: 1px solid rgba(255, 255, 255, 0.18);
+      padding-top: 10mm;
+      margin-top: 14mm;
+      font-size: 9.5pt;
+      opacity: 0.85;
+    }
+
+    .cover-foot .tagline {
+      font-family: Outfit, sans-serif;
+      font-weight: 600;
+      font-size: 11pt;
+      color: var(--gold);
+      opacity: 1;
+    }
+
+    /* ---------- INNER PAGES ---------- */
+    .inner {
+      padding: 14mm 15mm 12mm;
+      display: flex;
+      flex-direction: column;
+      min-height: 297mm;
+    }
+
+    .page-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      border-bottom: 2px solid var(--forest);
+      padding-bottom: 8px;
+      margin-bottom: 10mm;
+    }
+
+    .page-head h2 {
+      font-size: 20pt;
+      color: var(--forest-deep);
+      font-weight: 800;
+    }
+
+    .page-head .sub {
+      font-size: 9.5pt;
+      color: var(--soft);
+      text-align: right;
+      max-width: 70mm;
+    }
+
+    .page-num {
+      position: absolute;
+      bottom: 8mm;
+      right: 15mm;
+      font-family: Outfit, sans-serif;
+      font-size: 9pt;
+      color: var(--soft);
+    }
+
+    .page-foot-brand {
+      position: absolute;
+      bottom: 8mm;
+      left: 15mm;
+      font-family: Outfit, sans-serif;
+      font-size: 8.5pt;
+      color: var(--soft);
+      font-weight: 600;
+    }
+
+    /* Problems */
+    .pain-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 8mm;
+    }
+
+    .pain {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--warn);
+      border-radius: 8px;
+      padding: 11px 12px;
+    }
+
+    .pain h3 {
+      font-size: 11pt;
+      color: var(--warn);
+      margin-bottom: 3px;
+    }
+
+    .pain p { font-size: 10pt; color: var(--muted); }
+
+    .fix-banner {
+      background: linear-gradient(90deg, var(--forest-deep), var(--leaf));
+      color: #fff;
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin-bottom: 7mm;
+    }
+
+    .fix-banner h3 {
+      font-size: 13pt;
+      margin-bottom: 4px;
+    }
+
+    .fix-banner p {
+      font-size: 10.5pt;
+      opacity: 0.92;
+    }
+
+    .help-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+    }
+
+    .help {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px;
+      border-top: 3px solid var(--gold);
+    }
+
+    .help .num {
+      font-family: Outfit, sans-serif;
+      font-weight: 800;
+      font-size: 16pt;
+      color: var(--gold);
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+
+    .help h3 {
+      font-size: 11pt;
+      color: var(--forest);
+      margin-bottom: 4px;
+    }
+
+    .help p { font-size: 9.8pt; color: var(--muted); }
+
+    /* Flow */
+    .flow {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      flex: 1;
+    }
+
+    .flow-step {
+      display: grid;
+      grid-template-columns: 18mm 1fr;
+      gap: 10px;
+      align-items: stretch;
+    }
+
+    .flow-time {
+      background: var(--forest);
+      color: #fff;
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 8px 4px;
+      font-family: Outfit, sans-serif;
+    }
+
+    .flow-time b {
+      font-size: 10pt;
+      line-height: 1.2;
+    }
+
+    .flow-time span {
+      font-size: 7.5pt;
+      opacity: 0.8;
+      margin-top: 2px;
+    }
+
+    .flow-body {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+
+    .flow-body h3 {
+      font-size: 11.5pt;
+      color: var(--forest-deep);
+      margin-bottom: 3px;
+    }
+
+    .flow-body p {
+      font-size: 10pt;
+      color: var(--muted);
+    }
+
+    .flow-body .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-top: 7px;
+    }
+
+    .tag {
+      font-family: Outfit, sans-serif;
+      font-size: 8pt;
+      font-weight: 600;
+      background: var(--card);
+      color: var(--forest);
+      padding: 3px 8px;
+      border-radius: 999px;
+    }
+
+    .arrow-down {
+      width: 18mm;
+      text-align: center;
+      color: var(--gold);
+      font-size: 12pt;
+      line-height: 0.6;
+      margin: -2px 0;
+    }
+
+    /* Modules */
+    .mod-intro {
+      margin-bottom: 7mm;
+      font-size: 11pt;
+      color: var(--muted);
+      max-width: 170mm;
+    }
+
+    .mod-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 9px;
+    }
+
+    .mod {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px 13px;
+      display: grid;
+      grid-template-columns: 11mm 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+
+    .mod-icon {
+      width: 11mm;
+      height: 11mm;
+      border-radius: 8px;
+      background: var(--forest);
+      color: var(--gold);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: Outfit, sans-serif;
+      font-weight: 800;
+      font-size: 11pt;
+    }
+
+    .mod h3 {
+      font-size: 11.5pt;
+      color: var(--forest-deep);
+      margin-bottom: 2px;
+    }
+
+    .mod .ur {
+      font-size: 9pt;
+      color: var(--gold);
+      font-weight: 600;
+      font-style: italic;
+      margin-bottom: 4px;
+    }
+
+    .mod p {
+      font-size: 9.6pt;
+      color: var(--muted);
+    }
+
+    /* Benefits + CTA page */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 10px;
+      margin-bottom: 8mm;
+    }
+
+    .panel {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 13px 14px;
+    }
+
+    .panel h3 {
+      font-size: 12.5pt;
+      color: var(--forest);
+      margin-bottom: 8px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .check-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .check-list li {
+      display: grid;
+      grid-template-columns: 6mm 1fr;
+      gap: 8px;
+      font-size: 10pt;
+      color: var(--muted);
+    }
+
+    .check-list li::before {
+      content: "✓";
+      font-weight: 800;
+      color: var(--ok);
+      font-family: Outfit, sans-serif;
+    }
+
+    .money-box {
+      background: linear-gradient(160deg, var(--forest-deep), var(--leaf));
+      color: #fff;
+      border-radius: 12px;
+      padding: 14px;
+    }
+
+    .money-box h3 {
+      font-size: 12.5pt;
+      margin-bottom: 8px;
+      color: var(--gold);
+    }
+
+    .money-box p {
+      font-size: 10pt;
+      opacity: 0.92;
+      margin-bottom: 8px;
+    }
+
+    .money-box ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .money-box li {
+      font-size: 10pt;
+      padding-left: 12px;
+      position: relative;
+    }
+
+    .money-box li::before {
+      content: "●";
+      position: absolute;
+      left: 0;
+      color: var(--gold);
+      font-size: 7pt;
+      top: 3px;
+    }
+
+    .promise {
+      background: var(--gold-soft);
+      border: 1px solid #e2d09a;
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-bottom: 8mm;
+    }
+
+    .promise h3 {
+      font-size: 12pt;
+      color: var(--forest-deep);
+      margin-bottom: 4px;
+    }
+
+    .promise p {
+      font-size: 10.5pt;
+      color: var(--muted);
+    }
+
+    .cta {
+      background: var(--forest-deep);
+      color: #fff;
+      border-radius: 14px;
+      padding: 16px 18px;
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 12px;
+      align-items: center;
+      margin-top: auto;
+    }
+
+    .cta h3 {
+      font-size: 16pt;
+      margin-bottom: 4px;
+    }
+
+    .cta p {
+      font-size: 10.5pt;
+      opacity: 0.9;
+    }
+
+    .cta-side {
+      text-align: center;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 10px;
+      padding: 12px;
+    }
+
+    .cta-side .big {
+      font-family: Outfit, sans-serif;
+      font-size: 13pt;
+      font-weight: 700;
+      color: var(--gold);
+      margin-bottom: 4px;
+    }
+
+    .cta-side .small {
+      font-size: 9pt;
+      opacity: 0.85;
+    }
+
+    .simple-note {
+      margin-top: 7mm;
+      text-align: center;
+      font-size: 10pt;
+      color: var(--soft);
+    }
+
+    .print-hint {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      z-index: 50;
+      background: var(--forest);
+      color: #fff;
+      font-family: Outfit, sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 10px 14px;
+      border-radius: 10px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+      max-width: 220px;
+      line-height: 1.35;
+    }
+
+    .print-hint button {
+      display: block;
+      width: 100%;
+      margin-top: 8px;
+      border: 0;
+      background: var(--gold);
+      color: var(--forest-deep);
+      font-family: Outfit, sans-serif;
+      font-weight: 700;
+      padding: 8px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    @media print {
+      html, body {
+        background: none;
+        margin: 0;
+      }
+      .sheet {
+        margin: 0;
+        box-shadow: none;
+        width: 210mm;
+        height: 297mm;
+        min-height: 297mm;
+        page-break-after: always;
+        break-after: page;
+      }
+      .sheet:last-child {
+        page-break-after: auto;
+        break-after: auto;
+      }
+      .print-hint { display: none !important; }
+      @page {
+        size: A4 portrait;
+        margin: 0;
+      }
+    }
+
+    @media screen and (max-width: 900px) {
+      .sheet {
+        width: 100%;
+        min-height: auto;
+        margin: 0 0 16px;
+        border-radius: 0;
+      }
+      .cover, .inner { padding: 24px 20px 40px; }
+      .cover h1 { font-size: 28px; }
+      .pain-grid, .help-grid, .mod-grid, .two-col, .cta {
+        grid-template-columns: 1fr;
+      }
+      .flow-step { grid-template-columns: 56px 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="print-hint">
+    Print tip: Press <b>Ctrl + P</b> → Destination: <b>Save as PDF</b> → Margins: <b>None</b>
+    <button type="button" onclick="window.print()">Print / Save PDF</button>
+  </div>
+
+  <!-- ===================== PAGE 1: COVER ===================== -->
+  <section class="sheet cover">
+    <div class="top">
+      <div class="brand-mark">WEBHOUSE <span>BAKERY ERP</span></div>
+      <div class="for-whom">Pakistan ke bakery owners, managers aur staff ke liye</div>
+    </div>
+
+    <div class="hero">
+      <div class="eyebrow">Aapka poora bakery — ek system mein</div>
+      <h1>Apni bakery ko copy register se nikaalo. System pe lao.</h1>
+      <p class="lead">
+        Stock gum ho jata hai. Cake order miss ho jata hai. Cash ka hisaab clear nahi hota.
+        <strong>Bakery ERP</strong> aapki rozana ki operation aur paise ki dikkat ko seedha solve karta hai —
+        bohot simple language aur clear flow ke sath.
+      </p>
+    </div>
+
+    <div class="cover-grid">
+      <div class="cover-pill">
+        <b>Stock &amp; Khareedari</b>
+        <span>Maida, cheeni, packaging — sab track</span>
+      </div>
+      <div class="cover-pill">
+        <b>Paidaawar / Baking</b>
+        <span>Nuskha se tayyar cheez banaye</span>
+      </div>
+      <div class="cover-pill">
+        <b>Counter + Orders</b>
+        <span>Walk-in, phone, WhatsApp orders</span>
+      </div>
+      <div class="cover-pill">
+        <b>Finance / Hisaab</b>
+        <span>Wasooli, kharcha, cash drawer</span>
+      </div>
+    </div>
+
+    <div class="cover-foot">
+      <div>
+        <div class="tagline">Centralize Operations. Simplify Growth.</div>
+        <div>Built for Pakistani bakeries — PKR, branches, COD, expiry &amp; wastage</div>
+      </div>
+      <div>Sales Overview · A4 Brochure</div>
+    </div>
+  </section>
+
+  <!-- ===================== PAGE 2: PROBLEMS + HELP ===================== -->
+  <section class="sheet inner">
+    <div class="page-head">
+      <div>
+        <span class="badge">Masla pehle, solution baad mein</span>
+        <h2 style="margin-top:8px;">Rozana ki dikkat — pehchaan lo</h2>
+      </div>
+      <div class="sub">Har bakery mein yeh problems common hain. System inhi ko theek karta hai.</div>
+    </div>
+
+    <div class="pain-grid">
+      <div class="pain">
+        <h3>1. Stock ka andaza</h3>
+        <p>“Maida kitna bacha?” register pe likha hota hai, lekin asli stock alag hota hai. <span class="urdu">Andaza pe kaam — nuksaan pakka.</span></p>
+      </div>
+      <div class="pain">
+        <h3>2. Expiry / Barbaadi</h3>
+        <p>Purani cream, expired item, kharab maal — pata hi nahi chalta kitna paisa barbaad hua. <span class="urdu">Wastage chhupi rehti hai.</span></p>
+      </div>
+      <div class="pain">
+        <h3>3. Order miss</h3>
+        <p>WhatsApp pe cake order aaya, diary mein likha, delivery din bhool gaye. Customer naraz. <span class="urdu">Izzat aur business dono nuqsaan.</span></p>
+      </div>
+      <div class="pain">
+        <h3>4. Cash leakage</h3>
+        <p>Counter pe sale hui, shift band hua — opening aur closing match nahi. <span class="urdu">Paisa kahan gaya? Clear jawab nahi.</span></p>
+      </div>
+      <div class="pain">
+        <h3>5. Supplier hisaab</h3>
+        <p>Kaunsa vendor kitna dena hai? Bill kab aaya? Partial payment? Notebook mein uljhan. <span class="urdu">Hisaab ghalat = tension zyada.</span></p>
+      </div>
+      <div class="pain">
+        <h3>6. Multi-branch confusion</h3>
+        <p>Gulberg mein stock kam, DHA mein zyada — transfer ka record nahi. <span class="urdu">Shakhein alag, control nahi.</span></p>
+      </div>
+    </div>
+
+    <div class="fix-banner">
+      <h3>Bakery ERP kya karta hai?</h3>
+      <p>
+        Yeh software aapki bakery ki <b>poori chain</b> sambhalta hai —
+        kacha maal (ingredients) se le kar counter sale, cake order, delivery, wasooli aur kharche tak.
+        Har cheez ek jagah, clear, aur PKR mein.
+      </p>
+    </div>
+
+    <div class="help-grid">
+      <div class="help">
+        <div class="num">01</div>
+        <h3>Operation clear</h3>
+        <p>Subah bake, din bhar sale, shaam stock check — har step system pe. <span class="urdu">Kaam easy, ghalti kam.</span></p>
+      </div>
+      <div class="help">
+        <div class="num">02</div>
+        <h3>Paisa safe</h3>
+        <p>Cash drawer, wasooli, bills, expenses — har rupay ka track. <span class="urdu">Leakage band.</span></p>
+      </div>
+      <div class="help">
+        <div class="num">03</div>
+        <h3>Growth ready</h3>
+        <p>Ek shop ho ya kai branches — same system, same control. <span class="urdu">Barhao bina chaos ke.</span></p>
+      </div>
+    </div>
+
+    <div class="page-foot-brand">Webhouse · Bakery ERP</div>
+    <div class="page-num">02</div>
+  </section>
+
+  <!-- ===================== PAGE 3: DAILY FLOW ===================== -->
+  <section class="sheet inner">
+    <div class="page-head">
+      <div>
+        <span class="badge">Poora din — ek flow</span>
+        <h2 style="margin-top:8px;">System ka asaan flow</h2>
+      </div>
+      <div class="sub">Subah se raat tak — bakery ka kaam kaise chalega.</div>
+    </div>
+
+    <div class="flow">
+      <div class="flow-step">
+        <div class="flow-time"><b>SUBAH</b><span>Opening</span></div>
+        <div class="flow-body">
+          <h3>1. Stock check karo</h3>
+          <p>
+            Har branch ka stock screen pe dikhega. Low stock aur expiry wale batches pehle nazar aayenge.
+            <span class="urdu">Matlab: pehle se pata chal jayega kya khareedna hai, kya jaldi use karna hai.</span>
+          </p>
+          <div class="tags">
+            <span class="tag">Stock &amp; Khareedari</span>
+            <span class="tag">Expiry alert</span>
+            <span class="tag">Low stock</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="flow-step">
+        <div class="flow-time"><b>BAKE</b><span>Paidaawar</span></div>
+        <div class="flow-body">
+          <h3>2. Nuskhe se bake chalao</h3>
+          <p>
+            Recipe (nuskha) select karo → bake run start → system khud kacha maal kaat dega (purana stock pehle — FIFO)
+            aur tayyar cheez stock mein add kar dega.
+            <span class="urdu">Andaza nahi — exact quantity aur cost.</span>
+          </p>
+          <div class="tags">
+            <span class="tag">Nuskhay</span>
+            <span class="tag">Pakana / Bake run</span>
+            <span class="tag">Cost tracking</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="flow-step">
+        <div class="flow-time"><b>COUNTER</b><span>POS</span></div>
+        <div class="flow-body">
+          <h3>3. Customer aaya — turant becho</h3>
+          <p>
+            POS Terminal kholo, item tap karo, cash/card le lo. Stock automatically kam hoga.
+            Shift open/close se cash drawer ka hisaab clear rahega.
+            <span class="urdu">Counter pe tez sale, bilkul clear cash.</span>
+          </p>
+          <div class="tags">
+            <span class="tag">POS Terminal</span>
+            <span class="tag">Cash shift</span>
+            <span class="tag">Auto stock cut</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="flow-step">
+        <div class="flow-time"><b>ORDERS</b><span>Cake &amp; bulk</span></div>
+        <div class="flow-body">
+          <h3>4. Phone / WhatsApp order register karo</h3>
+          <p>
+            Customer save karo, order banao (date, address, COD/cash/bank), staff assign karo,
+            invoice aur delivery slip print karo. Partial payment bhi chalega.
+            <span class="urdu">Koi order miss nahi hoga.</span>
+          </p>
+          <div class="tags">
+            <span class="tag">Order Management</span>
+            <span class="tag">CRM customer</span>
+            <span class="tag">COD / Delivery</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="flow-step">
+        <div class="flow-time"><b>SHAAM</b><span>Closing</span></div>
+        <div class="flow-body">
+          <h3>5. Barbaadi, transfer, hisaab band karo</h3>
+          <p>
+            Expired/kharab maal wastage mein likho. Branch se branch stock transfer karo.
+            Finance mein wasooli, supplier bill aur aaj ke kharche update karo.
+            <span class="urdu">Din ka poora picture — ek nazar mein.</span>
+          </p>
+          <div class="tags">
+            <span class="tag">Barbaadi</span>
+            <span class="tag">Transfers</span>
+            <span class="tag">Finance closing</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-foot-brand">Webhouse · Bakery ERP</div>
+    <div class="page-num">03</div>
+  </section>
+
+  <!-- ===================== PAGE 4: MODULES ===================== -->
+  <section class="sheet inner">
+    <div class="page-head">
+      <div>
+        <span class="badge">Modules — simple words</span>
+        <h2 style="margin-top:8px;">Andar kya-kya milta hai</h2>
+      </div>
+      <div class="sub">Har module ek kaam ke liye. Staff ko sirf apna hissa dikhega (roles &amp; permissions).</div>
+    </div>
+
+    <p class="mod-intro">
+      Socho jaise bakery ke alag departments — store, kitchen, counter, order desk, accounts —
+      lekin sab ek hi computer / tablet system mein connected.
+    </p>
+
+    <div class="mod-grid">
+      <div class="mod">
+        <div class="mod-icon">1</div>
+        <div>
+          <h3>Stock &amp; Purchasing</h3>
+          <div class="ur">Khareedari · Cheezen · Shakhein · Barbaadi</div>
+          <p>Ingredients, tayyar items, packaging. Suppliers, purchase orders, stock in/out, branch transfer, expiry batches aur wastage record.</p>
+        </div>
+      </div>
+
+      <div class="mod">
+        <div class="mod-icon">2</div>
+        <div>
+          <h3>Production</h3>
+          <div class="ur">Paidaawar · Nuskhay · Pakana</div>
+          <p>Har item ka nuskha save. Bake run se kacha maal use hota hai, finished goods stock mein aate hain — cost ke sath.</p>
+        </div>
+      </div>
+
+      <div class="mod">
+        <div class="mod-icon">3</div>
+        <div>
+          <h3>POS + POS Terminal</h3>
+          <div class="ur">Counter sale · Cash drawer</div>
+          <p>Full-screen cashier screen. Tez billing, shift opening balance, collected cash, closing — leakage kam.</p>
+        </div>
+      </div>
+
+      <div class="mod">
+        <div class="mod-icon">4</div>
+        <div>
+          <h3>Order Management</h3>
+          <div class="ur">Custom cake · Delivery · Wapas / Badla</div>
+          <p>Advance orders, payments, assignment, invoice/packing/delivery docs, return, exchange, refund, cancel — sab documented.</p>
+        </div>
+      </div>
+
+      <div class="mod">
+        <div class="mod-icon">5</div>
+        <div>
+          <h3>CRM</h3>
+          <div class="ur">Customers · Leads · Complaints</div>
+          <p>Customer list, phone/WhatsApp se aane wale leads, complaint follow-up. Customer dobara aaye — relationship strong.</p>
+        </div>
+      </div>
+
+      <div class="mod">
+        <div class="mod-icon">6</div>
+        <div>
+          <h3>Finance &amp; Accounting</h3>
+          <div class="ur">Wasooli · Kharchay · Bank / Cash</div>
+          <p>Customer payments, vendor bills, daily/recurring expenses, bank aur cash accounts, poora transaction trail — PKR mein.</p>
+        </div>
+      </div>
+
+      <div class="mod">
+        <div class="mod-icon">7</div>
+        <div>
+          <h3>Admin</h3>
+          <div class="ur">Users · Roles · Settings</div>
+          <p>Kaun kya dekh sakta hai — aap decide karo. Logo, timezone (Karachi), currency (PKR), audit logs, activity alerts.</p>
+        </div>
+      </div>
+
+      <div class="mod">
+        <div class="mod-icon">★</div>
+        <div>
+          <h3>Pakistan ke liye banaya</h3>
+          <div class="ur">Local style · Local needs</div>
+          <p>PKR, Asia/Karachi, COD, WhatsApp/phone orders, maida-cheeni units (kg, dozen, tray), multi-branch bakery chains.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-foot-brand">Webhouse · Bakery ERP</div>
+    <div class="page-num">04</div>
+  </section>
+
+  <!-- ===================== PAGE 5: VALUE + CTA ===================== -->
+  <section class="sheet inner">
+    <div class="page-head">
+      <div>
+        <span class="badge">Fayda seedha — owner ke liye</span>
+        <h2 style="margin-top:8px;">Paisa, control, sukoon</h2>
+      </div>
+      <div class="sub">Is system se aapko kya milta hai — clear words mein.</div>
+    </div>
+
+    <div class="two-col">
+      <div class="panel">
+        <h3>Operational fayde</h3>
+        <ul class="check-list">
+          <li>Stock hamesha clear — kis branch mein kya hai</li>
+          <li>Expiry pehle use — barbaadi kam</li>
+          <li>Bake cost pata — nuskha + quantity se</li>
+          <li>Counter sale tez — stock khud update</li>
+          <li>Cake / WhatsApp orders miss nahi hote</li>
+          <li>Return / exchange ka proper record</li>
+          <li>Staff sirf apna module dekhe — control aapka</li>
+        </ul>
+      </div>
+      <div class="money-box">
+        <h3>Financial fayde</h3>
+        <p>Copy register ki jagah digital hisaab — har rupay ka rasta clear.</p>
+        <ul>
+          <li>Cash drawer opening / closing match</li>
+          <li>Wasooli (customer payment) track</li>
+          <li>Supplier bills aur partial payments</li>
+          <li>Rent, bill, daily kharcha record</li>
+          <li>Bank + cash accounts ek jagah</li>
+          <li>COD outstanding nazar aaye</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="promise">
+      <h3>Asaan si baat</h3>
+      <p>
+        Agar aap abhi register, WhatsApp chats aur “yaad rakho” pe chal rahe ho —
+        to har mahine chhupa nuksaan ho raha hai: gum stock, miss order, cash mismatch, expired maal.
+        <b>Bakery ERP</b> yeh sab ek flow mein band karta hai.
+        Seekhna mushkil nahi — screens simple hain, Urdu labels bhi system mein hain
+        (Khareedari, Paidaawar, Wasooli, Barbaadi…).
+      </p>
+    </div>
+
+    <div class="cta">
+      <div>
+        <h3>Demo dekho. Khud faisla karo.</h3>
+        <p>
+          Apni bakery ka 1 din is system pe chala ke dekho —
+          stock, bake, counter, order, hisaab. Webhouse team aapko simple language mein samjhayegi.
+        </p>
+      </div>
+      <div class="cta-side">
+        <div class="big">Webhouse</div>
+        <div class="small">Bakery ERP<br />Pakistan bakeries ke liye<br />Secure · Scalable · Built for Growth</div>
+      </div>
+    </div>
+
+    <p class="simple-note">
+      Yeh document print karke bakery owner / manager ko dikhaya ja sakta hai · Ctrl+P → Save as PDF
+    </p>
+
+    <div class="page-foot-brand">Webhouse · Bakery ERP</div>
+    <div class="page-num">05</div>
+  </section>
+</body>
+</html>
