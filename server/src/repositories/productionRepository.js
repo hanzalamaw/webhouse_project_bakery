@@ -51,7 +51,26 @@ export const productionRepository = {
        ORDER BY i.item_name ASC`,
       [id, tenantId]
     );
-    return { ...rows[0], ingredients };
+    const [[runStats]] = await readDb.query(
+      `SELECT COUNT(*) AS bake_count,
+              COALESCE(SUM(quantity_produced), 0) AS total_produced,
+              COALESCE(SUM(total_cost), 0) AS total_bake_cost
+       FROM production_runs
+       WHERE recipe_id = ? AND tenant_id = ? AND deleted_at IS NULL AND status != 'cancelled'`,
+      [id, tenantId]
+    );
+    const batchCost = ingredients.reduce(
+      (sum, ing) => sum + (Number(ing.quantity) || 0) * (Number(ing.cost_price) || 0),
+      0
+    );
+    return {
+      ...rows[0],
+      ingredients,
+      bake_count: Number(runStats?.bake_count || 0),
+      total_produced: Number(runStats?.total_produced || 0),
+      total_bake_cost: Number(runStats?.total_bake_cost || 0),
+      estimated_batch_cost: batchCost,
+    };
   },
 
   async getRecipeForItem(tenantId, itemId) {

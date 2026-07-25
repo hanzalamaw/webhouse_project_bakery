@@ -7,6 +7,8 @@ import { FormField } from "../../../../../../components/FormField";
 import { Button } from "../../../../../../components/Button";
 import { FormBlock } from "../../../../../../components/FormBlock";
 import { FormPageLayout, FormActions } from "../../../../../../components/FormPageLayout";
+import { UnsavedChangesDialog } from "../../../../../../components/UnsavedChangesDialog";
+import { useFormUnsavedGuard } from "../../../../../../hooks/useFormUnsavedGuard";
 import { MODULE_BASE, ITEM_STATUS } from "../../constants";
 
 const EMPTY = {
@@ -28,6 +30,7 @@ export default function CreateWarehouse() {
   const { authFetch } = useAuth();
   const navigate = useNavigate();
   const [form, setForm] = useState(EMPTY);
+  const [baseline, setBaseline] = useState(() => (isEdit ? null : JSON.stringify(EMPTY)));
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -39,7 +42,7 @@ export default function CreateWarehouse() {
     setLoading(true);
     apiFetch(`/inventory/branches/${resolvedId}`, {}, authFetch)
       .then((row) => {
-        setForm({
+        const next = {
           branch_name: row.branch_name || "",
           code: row.code || "",
           location: row.location || "",
@@ -49,11 +52,16 @@ export default function CreateWarehouse() {
           close_time: row.close_time || "",
           opening_balance: row.opening_balance ?? "0",
           status: row.status || "active",
-        });
+        };
+        setForm(next);
+        setBaseline(JSON.stringify(next));
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [isEdit, resolvedId, authFetch]);
+
+  const { dialogOpen, stayOnPage, leavePage, reloadPending, navigateSafely } =
+    useFormUnsavedGuard(form, { baseline, enabled: !loading });
 
   const submit = async (e) => {
     e.preventDefault();
@@ -75,7 +83,7 @@ export default function CreateWarehouse() {
       } else {
         await apiFetch("/inventory/branches", { method: "POST", body: JSON.stringify(payload) }, authFetch);
       }
-      navigate(backPath);
+      navigateSafely(backPath);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -96,7 +104,7 @@ export default function CreateWarehouse() {
       <FormPageLayout>
         <PageHeader
           title={isEdit ? "Edit Branch" : "Create Branch"}
-          description={isEdit ? "Update branch details." : "Add a bakery branch / shop (shakha)."}
+          description={isEdit ? "Update branch details." : "Add a bakery branch / shop."}
           actions={<Button variant="secondary" onClick={() => navigate(backPath)}>Back to branches</Button>}
         />
         <form onSubmit={submit} className="wh-form-stack">
@@ -124,6 +132,12 @@ export default function CreateWarehouse() {
           </FormActions>
         </form>
       </FormPageLayout>
+      <UnsavedChangesDialog
+        open={dialogOpen}
+        onStay={stayOnPage}
+        onDiscard={leavePage}
+        reloadPending={reloadPending}
+      />
     </div>
   );
 }

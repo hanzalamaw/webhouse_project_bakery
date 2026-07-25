@@ -9,6 +9,8 @@ import { Button } from "../../../../../../components/Button";
 import { SearchableSelect } from "../../../../../../components/SearchableSelect";
 import { FormBlock } from "../../../../../../components/FormBlock";
 import { FormPageLayout, FormActions } from "../../../../../../components/FormPageLayout";
+import { UnsavedChangesDialog } from "../../../../../../components/UnsavedChangesDialog";
+import { useFormUnsavedGuard } from "../../../../../../hooks/useFormUnsavedGuard";
 import { MODULE_BASE, PAYMENT_METHODS, PAYMENT_RECORD_STATUSES } from "../../constants";
 
 const EMPTY = { order_id: "", payment_method: "cod", amount: "", payment_status: "pending", paid_at: "" };
@@ -20,6 +22,7 @@ export default function CreatePayment() {
   const { canCreate, canEdit, readOnly } = useModulePermission("order-management");
   const navigate = useNavigate();
   const [form, setForm] = useState(EMPTY);
+  const [baseline, setBaseline] = useState(() => (isEdit ? null : JSON.stringify(EMPTY)));
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -29,6 +32,8 @@ export default function CreatePayment() {
   const disabled = readOnly || (isEdit ? !canEdit : !canCreate);
   const formDisabled = disabled;
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const { dialogOpen, stayOnPage, leavePage, reloadPending, navigateSafely } =
+    useFormUnsavedGuard(form, { baseline, enabled: !loading });
 
   const orderOptions = useMemo(
     () => orders.map((o) => ({ value: String(o.id), label: `${o.order_no} — ${formatOrderLabel(o)}` })),
@@ -49,13 +54,17 @@ export default function CreatePayment() {
           const rows = await fetchAllTableRows("/orders/payments/list", authFetch);
           const row = rows.find((r) => String(r.id) === String(paymentId));
           if (row) {
-            setForm({
+            const next = {
               order_id: String(row.order_id),
               payment_method: row.payment_method,
               amount: String(row.amount),
               payment_status: row.payment_status,
               paid_at: row.paid_at ? row.paid_at.slice(0, 16) : "",
-            });
+            };
+            setForm(next);
+            setBaseline(JSON.stringify(next));
+          } else {
+            setBaseline(JSON.stringify(EMPTY));
           }
         }
       } catch (e) {
@@ -81,10 +90,11 @@ export default function CreatePayment() {
       };
       if (isEdit) {
         await apiFetch(`/orders/payments/${paymentId}`, { method: "PUT", body: JSON.stringify(body) }, authFetch);
+        setBaseline(JSON.stringify(form));
         setMessage("Payment updated successfully.");
       } else {
         await apiFetch("/orders/payments", { method: "POST", body: JSON.stringify(body) }, authFetch);
-        navigate(`${MODULE_BASE}/payments/manage`);
+        navigateSafely(`${MODULE_BASE}/payments/manage`);
       }
     } catch (err) {
       setError(err.message);
@@ -131,6 +141,12 @@ export default function CreatePayment() {
           </FormActions>
         </form>
       </FormPageLayout>
+      <UnsavedChangesDialog
+        open={dialogOpen}
+        onStay={stayOnPage}
+        onDiscard={leavePage}
+        reloadPending={reloadPending}
+      />
     </div>
   );
 }

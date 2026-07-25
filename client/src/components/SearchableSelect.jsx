@@ -67,10 +67,19 @@ export function SearchableSelect({
     onChange(option.value);
     setOpen(false);
     setQuery("");
+    inputRef.current?.focus();
+  };
+
+  const closeIfFocusLeft = () => {
+    requestAnimationFrame(() => {
+      if (!rootRef.current?.contains(document.activeElement)) {
+        setOpen(false);
+      }
+    });
   };
 
   return (
-    <div className="wh-field wh-search-select" ref={rootRef}>
+    <div className="wh-field wh-search-select" ref={rootRef} onBlur={closeIfFocusLeft}>
       {labelText ? (
         <label className="wh-field__label" htmlFor={id}>
           {labelText}
@@ -86,6 +95,9 @@ export function SearchableSelect({
           placeholder={loading ? loadingText : placeholderText}
           disabled={disabled || loading}
           autoComplete="off"
+          role="combobox"
+          aria-expanded={open}
+          aria-autocomplete="list"
           onFocus={() => {
             if (!disabled && !loading) {
               setOpen(true);
@@ -97,11 +109,31 @@ export function SearchableSelect({
             setOpen(true);
           }}
           onKeyDown={(e) => {
-            if (e.key === "Escape") setOpen(false);
+            if (e.key === "Escape") {
+              setOpen(false);
+              return;
+            }
+            if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+              e.preventDefault();
+              if (!open) {
+                setOpen(true);
+                setQuery(selected?.label || "");
+              }
+              const buttons = rootRef.current?.querySelectorAll(".wh-search-select__option");
+              if (!buttons?.length) return;
+              const active = document.activeElement;
+              const idx = [...buttons].indexOf(active);
+              let next = 0;
+              if (e.key === "ArrowDown") next = idx < 0 ? 0 : Math.min(idx + 1, buttons.length - 1);
+              else next = idx < 0 ? buttons.length - 1 : Math.max(idx - 1, 0);
+              buttons[next]?.focus();
+              return;
+            }
             if (e.key === "Enter" && filtered[0]) {
               e.preventDefault();
               pick(filtered[0]);
             }
+            if (e.key === "Tab") setOpen(false);
           }}
         />
         <button
@@ -132,9 +164,35 @@ export function SearchableSelect({
                 <button
                   type="button"
                   role="option"
+                  tabIndex={-1}
                   className={`wh-search-select__option${option.value === value ? " selected" : ""}`}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => pick(option)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      e.preventDefault();
+                      setOpen(false);
+                      inputRef.current?.focus();
+                      return;
+                    }
+                    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                      e.preventDefault();
+                      const buttons = rootRef.current?.querySelectorAll(".wh-search-select__option");
+                      if (!buttons?.length) return;
+                      const idx = [...buttons].indexOf(e.currentTarget);
+                      const next =
+                        e.key === "ArrowDown"
+                          ? Math.min(idx + 1, buttons.length - 1)
+                          : Math.max(idx - 1, 0);
+                      buttons[next]?.focus();
+                      return;
+                    }
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      pick(option);
+                    }
+                    if (e.key === "Tab") setOpen(false);
+                  }}
                 >
                   {option.label}
                 </button>

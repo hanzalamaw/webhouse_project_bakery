@@ -75,12 +75,12 @@ export default function OrderView() {
   };
 
   if (loading) {
-    return <div className="wh-page"><p className="wh-muted">Loading…</p></div>;
+    return <div className="wh-page wh-page--wide"><p className="wh-muted">Loading…</p></div>;
   }
 
   if (!order) {
     return (
-      <div className="wh-page">
+      <div className="wh-page wh-page--wide">
         <PageHeader title="Order" />
         <p className="wh-field__error">{error || "Order not found"}</p>
       </div>
@@ -100,7 +100,7 @@ export default function OrderView() {
   const canEditOrder = canEdit && String(order.order_status || "").toLowerCase() !== "cancelled";
 
   return (
-    <div className="wh-page">
+    <div className="wh-page wh-page--wide">
       <PageHeader
         title={`Order ${order.order_no}`}
         description={`Placed ${formatDateTime(order.created_at)}${order.created_by_name ? ` · by ${order.created_by_name}` : ""}`}

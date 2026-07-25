@@ -10,6 +10,16 @@ function tw(alias) {
   return `${alias}.tenant_id = ? AND ${alias}.deleted_at IS NULL`;
 }
 
+/** Map POS payment method onto Order Management payment_method vocabulary. */
+function mapPosPaymentToOrder(method) {
+  const m = String(method || "cash").trim().toLowerCase();
+  if (m === "bank") return "bank_transfer";
+  if (["cash", "card", "qr", "easypaisa", "jazzcash", "online", "cod", "bank_transfer", "other"].includes(m)) {
+    return m;
+  }
+  return "other";
+}
+
 // Branch columns aliased to the field names the POS UI already expects.
 const OUTLET_COLS = `
   b.id, b.branch_name AS outlet_name, b.location, b.city, b.status,
@@ -259,7 +269,8 @@ export const posRepository = {
     return `PS-${String((Number(row.cnt) || 0) + 1).padStart(6, "0")}`;
   },
 
-  // Runs in a single transaction: create sale, insert lines, deduct stock (FIFO), record cash.
+  // Runs in a single transaction: create sale, insert lines, deduct stock (FIFO),
+  // record cash, and project a paid Order Management order + payment.
   async createSale(tenantId, userId, data) {
     const conn = await getPool().getConnection();
     try {
@@ -299,6 +310,67 @@ export const posRepository = {
           [data.register_cash_amount, data.register_id, tenantId]
         );
       }
+
+      // Mirror into Order Management so the sale + payment appear there.
+      const orderNo = saleNo;
+      const [orderResult] = await conn.execute(
+        `INSERT INTO orders
+           (order_no, order_source, order_status, payment_status, fulfillment_status,
+            total_amount, discount_amount, delivery_charges, payable_amount,
+            city, delivery_address, delivery_date, notes,
+            customer_id, branch_id, created_by, tenant_id)
+         VALUES (?, 'pos', 'delivered', 'paid', 'fulfilled',
+                 ?, ?, 0, ?,
+                 NULL, NULL, NULL, ?,
+                 ?, ?, ?, ?)`,
+        [
+          orderNo,
+          data.total_amount,
+          data.discount_amount || 0,
+          data.payable_amount,
+          `POS terminal sale ${saleNo}`,
+          data.crm_customers_id || null,
+          data.outlet_id,
+          userId,
+          tenantId,
+        ]
+      );
+      const orderId = orderResult.insertId;
+
+      for (const item of data.items) {
+        await conn.execute(
+          `INSERT INTO order_items
+             (product_name, sku, quantity, unit_price, discount, total_price, order_id, item_id, tenant_id)
+           VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?)`,
+          [
+            item.product_name,
+            item.sku || "N/A",
+            item.quantity,
+            item.unit_price,
+            item.total_price,
+            orderId,
+            item.product_id || null,
+            tenantId,
+          ]
+        );
+      }
+
+      await conn.execute(
+        `INSERT INTO order_payments (payment_method, amount, payment_status, paid_at, order_id, tenant_id)
+         VALUES (?, ?, 'paid', NOW(), ?, ?)`,
+        [
+          mapPosPaymentToOrder(data.payment_method),
+          data.payable_amount,
+          orderId,
+          tenantId,
+        ]
+      );
+
+      await conn.execute(
+        `UPDATE pos_sales SET order_id = ? WHERE id = ? AND tenant_id = ?`,
+        [orderId, saleId, tenantId]
+      );
+
       await conn.commit();
       return this.getSale(tenantId, saleId);
     } catch (e) {

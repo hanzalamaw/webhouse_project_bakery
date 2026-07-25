@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { apiFetch } from "../../../../../api/client";
 import { Button } from "../../../../../components/Button";
 import { FormField } from "../../../../../components/FormField";
+import { DiscountField } from "../../../../../components/DiscountField";
 import { Modal } from "../../../../../components/Modal";
 import ProductCatalogPicker from "../../../../../components/ProductCatalogPicker";
 import { useAuth } from "../../../../../context/AuthContext";
@@ -707,14 +708,18 @@ export default function TerminalCheckout() {
               <h3>Payment method</h3>
             </div>
             <div className="pos-terminal-v2__payment-methods">
-              {["cash", "card", "qris"].map((method) => (
+              {[
+                { value: "cash", label: "CASH" },
+                { value: "card", label: "CARD" },
+                { value: "qr", label: "QR" },
+              ].map((method) => (
                 <button
-                  key={method}
+                  key={method.value}
                   type="button"
-                  className={`pos-terminal-v2__payment-method${paymentMethod === method ? " is-active" : ""}`}
-                  onClick={() => setPaymentMethod(method)}
+                  className={`pos-terminal-v2__payment-method${paymentMethod === method.value ? " is-active" : ""}`}
+                  onClick={() => setPaymentMethod(method.value)}
                 >
-                  {method.toUpperCase()}
+                  {method.label}
                 </button>
               ))}
             </div>
@@ -741,14 +746,12 @@ export default function TerminalCheckout() {
               <span>Net subtotal</span>
               <strong>{formatPKR(subtotal)}</strong>
             </div>
-            <FormField
+            <DiscountField
               id="discount_amount"
               label="Order discount"
-              type="number"
-              min="0"
-              step="0.01"
               value={discountAmount}
-              onChange={(event) => setDiscountAmount(event.target.value)}
+              baseAmount={subtotal}
+              onChange={setDiscountAmount}
             />
             {discount > 0 && (
               <div className="pos-terminal-v2__summary-row pos-terminal-v2__summary-row--deduction">

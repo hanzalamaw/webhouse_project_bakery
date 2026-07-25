@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../../../../context/AuthContext";
 import { apiFetch, fetchAllTableRows, TABLE_PAGE_SIZE } from "../../../../../../api/client";
 import { PageHeader } from "../../../../../../components/PageHeader";
@@ -7,16 +8,17 @@ import { DataTable } from "../../../../../../components/DataTable";
 import { FormField } from "../../../../../../components/FormField";
 import { Button } from "../../../../../../components/Button";
 import { SearchableSelect } from "../../../../../../components/SearchableSelect";
-import ProductCatalogPicker from "../../../../../../components/ProductCatalogPicker";
+import { ProductSelectField } from "../../../../../../components/ProductSelectField";
 import { Modal } from "../../../../../../components/Modal";
 import { FormBlock } from "../../../../../../components/FormBlock";
 import { useInventoryReference } from "../../hooks/useInventoryReference";
 import { formatDate, formatDateTime } from "../../../../../../utils/dateTime";
 import { formatPKR } from "../../../../../../utils/currency";
-import { WASTAGE_REASONS, WASTAGE_REASON_LABELS } from "../../constants";
+import { WASTAGE_REASONS, WASTAGE_REASON_LABELS, MODULE_BASE } from "../../constants";
 
 export default function Wastage() {
   const { authFetch } = useAuth();
+  const navigate = useNavigate();
   const { items, branches } = useInventoryReference();
   const [rows, setRows] = useState([]);
   const [page, setPage] = useState(1);
@@ -117,7 +119,7 @@ export default function Wastage() {
   return (
     <div className="wh-page">
       <PageHeader
-        title="Wastage (Barbaadi)"
+        title="Wastage"
         description="Record spoiled, expired, or damaged stock removed from a branch."
         actions={<Button onClick={openCreate}>Record Wastage</Button>}
       />
@@ -126,23 +128,26 @@ export default function Wastage() {
         {loading ? (
           <p className="wh-muted">Loading…</p>
         ) : (
-          <DataTable columns={columns} rows={rows} page={page} pageSize={TABLE_PAGE_SIZE} onPageChange={setPage} />
+          <DataTable
+            columns={columns}
+            rows={rows}
+            page={page}
+            pageSize={TABLE_PAGE_SIZE}
+            onPageChange={setPage}
+            onRowClick={(row) => navigate(`${MODULE_BASE}/wastage/view/${row.id}`, { state: { row } })}
+          />
         )}
       </Card>
 
       <Modal open={open} title="Record wastage" onClose={() => !saving && setOpen(false)} wide>
         <form onSubmit={submit} className="wh-form">
-          <FormBlock title="Select item" description="Tap the item being wasted.">
-            <ProductCatalogPicker
+          <FormBlock title="Select item" description="Choose the item being wasted.">
+            <ProductSelectField
               items={items}
-              title="Products"
               mode="single"
+              entityLabel="items"
               value={form.item_id}
-              onSelect={(product) => setForm((f) => ({ ...f, item_id: String(product.id) }))}
-              showPrice
-              showStock={false}
-              priceField="cost_price"
-              maxHeight={220}
+              onChange={(id) => setForm((f) => ({ ...f, item_id: id }))}
               emptyMessage="No items found."
             />
           </FormBlock>

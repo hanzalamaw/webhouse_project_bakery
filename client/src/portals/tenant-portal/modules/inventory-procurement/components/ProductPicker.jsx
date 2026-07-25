@@ -1,62 +1,60 @@
-import ProductCatalogPicker from "../../../../../components/ProductCatalogPicker";
+import { ProductSelectField } from "../../../../../components/ProductSelectField";
 
-/** Multi-select bakery item picker — shared catalog card UI. */
+/** Multi-select bakery item picker — opens a searchable checkbox modal. */
 export default function ProductPicker({
   products,
   items,
   selectedIds,
   onToggle,
+  onChange,
   search,
   onSearchChange,
   categoryFilter,
   onCategoryFilterChange,
   showCategoryFilter,
-  showCategoryTag,
-  showWarning,
+  showCategoryTag = true,
+  showWarning = false,
   description,
-  tall = false,
+  tall,
   entityLabel = "items",
   storeName,
   branchName,
-  showPrice = true,
-  showStock = false,
-  priceField = "cost_price",
+  showPrice,
+  showStock,
+  priceField,
   onRefresh,
   refreshing,
+  emptyMessage,
+  disabled,
 }) {
-  // Legacy search/category props are ignored — catalog picker manages its own filters.
   void search;
   void onSearchChange;
   void categoryFilter;
   void onCategoryFilterChange;
   void showCategoryFilter;
-  void showCategoryTag;
+  void tall;
+  void storeName;
+  void branchName;
+  void showPrice;
+  void showStock;
+  void priceField;
+  void onRefresh;
+  void refreshing;
 
   return (
-    <div className="wh-inv-product-picker">
-      {showWarning && (
-        <div className="wh-inv-warning">
-          <strong>Note:</strong> Selecting an item moves it into this category.
-        </div>
-      )}
-      <ProductCatalogPicker
-        items={items || products}
-        title={entityLabel === "products" ? "Products" : "Items"}
-        description={description || `Tap to select ${entityLabel}.`}
-        storeName={storeName}
-        branchName={branchName}
-        mode="multi"
-        selectedIds={selectedIds}
-        onToggle={(id) => onToggle(id)}
-        showPrice={showPrice}
-        showStock={showStock}
-        priceField={priceField}
-        maxHeight={tall ? 320 : 280}
-        emptyMessage={`No ${entityLabel} match your search.`}
-        onRefresh={onRefresh}
-        refreshing={refreshing}
-        showRefresh={Boolean(onRefresh)}
-      />
-    </div>
+    <ProductSelectField
+      mode="multi"
+      products={products}
+      items={items}
+      selectedIds={selectedIds}
+      onToggle={onToggle}
+      onChange={onChange}
+      entityLabel={entityLabel}
+      description={description}
+      showWarning={showWarning}
+      showCategoryTag={showCategoryTag}
+      emptyMessage={emptyMessage}
+      disabled={disabled}
+    />
   );
 }

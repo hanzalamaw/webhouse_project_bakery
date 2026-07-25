@@ -158,10 +158,20 @@ export const inventoryService = {
     ]);
     return { ...item, stock_levels, batches };
   },
-  async _resolveCategoryId(tenantId, body, existing) {
+  async _resolveCategoryId(tenantId, body, existing, { createIfMissing = false } = {}) {
     const name = String(body.category_name || "").trim();
     if (name) {
-      const cat = await inventoryRepository.findCategoryByName(tenantId, name);
+      let cat = await inventoryRepository.findCategoryByName(tenantId, name);
+      if (!cat && createIfMissing) {
+        const rawType = body.item_type != null ? String(body.item_type).trim() : "";
+        const item_type = ITEM_TYPES.includes(rawType) ? rawType : null;
+        const id = await inventoryRepository.createCategory(tenantId, {
+          category_name: name,
+          item_type,
+          status: "active",
+        });
+        return id;
+      }
       if (!cat) throw new Error(`Category not found: "${name}"`);
       return cat.id;
     }
@@ -171,14 +181,14 @@ export const inventoryService = {
     if (!cat) throw new Error("Category not found");
     return cat.id;
   },
-  async _parseItemBody(tenantId, body, existing = null) {
+  async _parseItemBody(tenantId, body, existing = null, opts = {}) {
     const item_name = String(body.item_name ?? existing?.item_name ?? "").trim();
     if (!item_name) throw new Error("Item name is required");
     const item_type = body.item_type ?? existing?.item_type ?? "finished";
     assertItemType(item_type);
     const status = body.status ?? existing?.status ?? "active";
     assertStatus(status);
-    const category_id = await this._resolveCategoryId(tenantId, body, existing);
+    const category_id = await this._resolveCategoryId(tenantId, body, existing, opts);
 
     const sku = body.sku != null ? String(body.sku).trim() : existing?.sku ?? null;
     if (sku) {
@@ -209,8 +219,8 @@ export const inventoryService = {
       category_id,
     };
   },
-  async createItem(tenantId, userId, body) {
-    const data = await this._parseItemBody(tenantId, body);
+  async createItem(tenantId, userId, body, opts = {}) {
+    const data = await this._parseItemBody(tenantId, body, null, opts);
     return withTransaction(async (conn) => {
       const itemId = await inventoryRepository.createItem(tenantId, data);
       const openings = Array.isArray(body.opening_stock) ? body.opening_stock : [];
@@ -247,8 +257,13 @@ export const inventoryService = {
     if (!Array.isArray(rows) || !rows.length) throw new Error("No rows to import");
     const results = { created: 0, skipped: 0, errors: [] };
     for (let i = 0; i < rows.length; i++) {
-      try { await this.createItem(tenantId, userId, rows[i]); results.created += 1; }
-      catch (e) { results.skipped += 1; results.errors.push({ row: i + 1, message: e.message }); }
+      try {
+        await this.createItem(tenantId, userId, rows[i], { createIfMissing: true });
+        results.created += 1;
+      } catch (e) {
+        results.skipped += 1;
+        results.errors.push({ row: i + 1, message: e.message });
+      }
     }
     return results;
   },
@@ -266,7 +281,25 @@ export const inventoryService = {
     return { ...paginatedResponse(rows, total, page, limit), limits };
   },
   async getBranch(tenantId, id) {
-    return inventoryRepository.getBranchById(tenantId, id);
+    const branch = await inventoryRepository.getBranchById(tenantId, id);
+    if (!branch) return null;
+    const [stock_levels, recent_movements, wastage] = await Promise.all([
+      inventoryRepository.getBranchStockLevels(tenantId, id),
+      inventoryRepository.getBranchRecentMovements(tenantId, id, 12),
+      inventoryRepository.getBranchWastageSummary(tenantId, id),
+    ]);
+    const low_stock = stock_levels.filter(
+      (row) => Number(row.available_qty) <= Number(row.low_stock_threshold || 0)
+    );
+    return {
+      ...branch,
+      stock_levels,
+      recent_movements,
+      low_stock_count: low_stock.length,
+      wastage_count: Number(wastage.wastage_count || 0),
+      wastage_cost: Number(wastage.wastage_cost || 0),
+      wastage_qty: Number(wastage.wastage_qty || 0),
+    };
   },
   async createBranch(tenantId, body) {
     const limits = await this.getBranchLimits(tenantId);
@@ -448,7 +481,10 @@ export const inventoryService = {
     return paginatedResponse(rows, total, page, limit);
   },
   async getSupplier(tenantId, id) {
-    return inventoryRepository.getSupplierById(tenantId, id);
+    const supplier = await inventoryRepository.getSupplierById(tenantId, id);
+    if (!supplier) return null;
+    const purchase_orders = await inventoryRepository.getSupplierPurchaseOrders(tenantId, id, 25);
+    return { ...supplier, purchase_orders };
   },
   async createSupplier(tenantId, body) {
     const supplier_name = String(body.supplier_name || "").trim();
@@ -594,6 +630,9 @@ export const inventoryService = {
     const { page, limit, offset } = parsePagination(query);
     const { rows, total } = await inventoryRepository.listWastage(tenantId, { limit, offset });
     return paginatedResponse(rows, total, page, limit);
+  },
+  async getWastage(tenantId, id) {
+    return inventoryRepository.getWastageById(tenantId, id);
   },
   async createWastage(tenantId, userId, body) {
     const item = await ensureItem(tenantId, Number(body.item_id));

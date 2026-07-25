@@ -7,6 +7,8 @@ const EXACT = {
   "User not found": "We could not find your account. Please sign in again.",
   "Tenant account is not active": "This company account is not active. Contact your administrator.",
   "Invalid credentials": "The username or password is incorrect.",
+  "Username does not exist.": "Username does not exist.",
+  "Incorrect password.": "Incorrect password.",
   "NetworkError": "Could not connect. Check your internet connection and try again.",
   "Failed to fetch": "Could not connect. Check your internet connection and try again.",
   "Username is required": "Please enter a username.",

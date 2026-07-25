@@ -26,7 +26,11 @@ export default function InvoicePrinting() {
   const [error, setError] = useState("");
 
   const orderOptions = useMemo(
-    () => orders.map((o) => ({ value: String(o.id), label: o.order_no })),
+    () =>
+      orders.map((o) => ({
+        value: String(o.id),
+        label: `${o.order_no} — ${o.customer_name || "No customer"}${o.payable_amount != null ? ` (${formatPKR(o.payable_amount)})` : ""}`,
+      })),
     [orders]
   );
 
@@ -97,14 +101,16 @@ export default function InvoicePrinting() {
 
         <Card>
         <div className="wh-form-grid wh-form-grid--2">
-          <FormField label="Order">
-            <SearchableSelect
-              options={orderOptions}
-              value={orderId}
-              onChange={setOrderId}
-              placeholder={loading ? "Loading orders…" : "Select order"}
-            />
-          </FormField>
+          <SearchableSelect
+            id="print-order"
+            label="Order"
+            options={orderOptions}
+            value={orderId}
+            onChange={setOrderId}
+            placeholder={loading ? "Loading orders…" : "Search by order no or customer…"}
+            emptyMessage="No matching orders"
+            disabled={loading}
+          />
           <FormField
             id="print-doc-type"
             label="Document type"

@@ -10,6 +10,8 @@ import { useInventoryReference } from "../../hooks/useInventoryReference";
 import { MODULE_BASE } from "../../constants";
 import { FormBlock } from "../../../../../../components/FormBlock";
 import { FormPageLayout, FormActions } from "../../../../../../components/FormPageLayout";
+import { UnsavedChangesDialog } from "../../../../../../components/UnsavedChangesDialog";
+import { useFormUnsavedGuard } from "../../../../../../hooks/useFormUnsavedGuard";
 import ProductPicker from "../../components/ProductPicker";
 
 const CONFIG = {
@@ -38,6 +40,18 @@ function resolveOperation(pathname) {
   if (pathname.includes("/transfers/create")) return "transfer";
   return "stock-in";
 }
+
+const EMPTY_BULK_STATE = {
+  selectedIds: [],
+  branchId: "",
+  fromBranchId: "",
+  toBranchId: "",
+  sameQtyForAll: true,
+  sharedQty: "",
+  sharedNotes: "",
+  lineDetails: {},
+  completeNow: true,
+};
 
 export default function CreateBulkStock() {
   const navigate = useNavigate();
@@ -69,6 +83,33 @@ export default function CreateBulkStock() {
     () => items.filter((p) => selectedIds.includes(String(p.id))),
     [items, selectedIds]
   );
+
+  const formState = useMemo(
+    () => ({
+      selectedIds,
+      branchId,
+      fromBranchId,
+      toBranchId,
+      sameQtyForAll,
+      sharedQty,
+      sharedNotes,
+      lineDetails,
+      completeNow,
+    }),
+    [
+      selectedIds,
+      branchId,
+      fromBranchId,
+      toBranchId,
+      sameQtyForAll,
+      sharedQty,
+      sharedNotes,
+      lineDetails,
+      completeNow,
+    ]
+  );
+  const { dialogOpen, stayOnPage, leavePage, reloadPending, navigateSafely } =
+    useFormUnsavedGuard(formState, { baseline: JSON.stringify(EMPTY_BULK_STATE) });
 
   const toggleItem = (id) => {
     const sid = String(id);
@@ -179,7 +220,7 @@ export default function CreateBulkStock() {
           );
         }
       }
-      navigate(config.backPath);
+      navigateSafely(config.backPath);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -201,7 +242,7 @@ export default function CreateBulkStock() {
         />
 
         <form onSubmit={handleSubmit} className="wh-form-stack">
-          <FormBlock title="Select items" description="Choose one or more bakery items for this operation.">
+          <FormBlock title="Select items" description="Open the list to choose one or more bakery items for this operation.">
             <ProductPicker
               items={items}
               selectedIds={selectedIds}
@@ -333,6 +374,12 @@ export default function CreateBulkStock() {
           </FormActions>
         </form>
       </FormPageLayout>
+      <UnsavedChangesDialog
+        open={dialogOpen}
+        onStay={stayOnPage}
+        onDiscard={leavePage}
+        reloadPending={reloadPending}
+      />
     </div>
   );
 }

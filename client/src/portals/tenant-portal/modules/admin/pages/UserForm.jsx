@@ -80,7 +80,7 @@ export default function UserForm() {
     return serializeForm(form) !== serializeForm(EMPTY_FORM);
   }, [baseline, form, isEdit]);
 
-  const { dialogOpen, stayOnPage, leavePage } = useUnsavedChangesGuard(isDirty, { enabled: isEdit || isDirty });
+  const { dialogOpen, stayOnPage, leavePage, navigateSafely } = useUnsavedChangesGuard(isDirty, { enabled: isEdit || isDirty });
 
   useEffect(() => {
     apiFetch("/tenant/roles", {}, authFetch)
@@ -179,7 +179,7 @@ export default function UserForm() {
       if (isEdit) {
         await apiFetch(`/tenant/users/${userId}`, { method: "PUT", body: JSON.stringify(payload) }, authFetch);
         setBaseline(serializeForm({ ...form, password: "" }));
-        navigate(`${MODULE_BASE}/user-management`);
+        navigateSafely(`${MODULE_BASE}/user-management`);
         return;
       }
 

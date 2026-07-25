@@ -94,7 +94,7 @@ export default function StockTransfers() {
     <div className="wh-page">
       <PageHeader
         title="Transfers between branches"
-        description="Move stock from one shakha to another."
+        description="Move stock from one branch to another."
         actions={<Button onClick={() => navigate(`${MODULE_BASE}/stock/transfers/create`)}>Create Transfer</Button>}
       />
       {error && <p className="wh-field__error">{error}</p>}

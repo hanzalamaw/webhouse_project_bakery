@@ -1,9 +1,11 @@
 import CreateProduct from "./pages/products/CreateProduct";
 import ManageProducts from "./pages/products/ManageProducts";
+import ItemView from "./pages/products/ItemView";
 import Categories from "./pages/products/Categories";
 import BulkImportExport from "./pages/products/BulkImportExport";
 import CreateWarehouse from "./pages/warehouses/CreateWarehouse";
 import ManageWarehouses from "./pages/warehouses/ManageWarehouses";
+import BranchView from "./pages/warehouses/BranchView";
 import StockIn from "./pages/procurement/StockIn";
 import StockOut from "./pages/procurement/StockOut";
 import StockTransfers from "./pages/procurement/StockTransfers";
@@ -14,23 +16,27 @@ import ViewStockTransfer from "./pages/procurement/ViewStockTransfer";
 import Batches from "./pages/stock/Batches";
 import ManageSuppliers from "./pages/purchasing/ManageSuppliers";
 import CreateSupplier from "./pages/purchasing/CreateSupplier";
+import SupplierView from "./pages/purchasing/SupplierView";
 import ManagePurchaseOrders from "./pages/purchasing/ManagePurchaseOrders";
 import CreatePurchaseOrder from "./pages/purchasing/CreatePurchaseOrder";
 import ViewPurchaseOrder from "./pages/purchasing/ViewPurchaseOrder";
 import Wastage from "./pages/wastage/Wastage";
+import WastageView from "./pages/wastage/WastageView";
 
 export const INVENTORY_ROUTES = [
   // Items (Cheezen)
   { path: "items/create", element: <CreateProduct /> },
   { path: "items/edit/:itemId", element: <CreateProduct /> },
+  { path: "items/view/:itemId", element: <ItemView /> },
   { path: "items/manage", element: <ManageProducts /> },
   { path: "items/categories", element: <Categories /> },
   { path: "items/import-export", element: <BulkImportExport /> },
 
-  // Branches (Shakhein)
+  // Branches
   { path: "branches", element: <ManageWarehouses /> },
   { path: "branches/create", element: <CreateWarehouse /> },
   { path: "branches/edit/:branchId", element: <CreateWarehouse /> },
+  { path: "branches/view/:branchId", element: <BranchView /> },
 
   // Stock
   { path: "stock/stock-in", element: <StockIn /> },
@@ -48,10 +54,12 @@ export const INVENTORY_ROUTES = [
   { path: "purchasing/suppliers", element: <ManageSuppliers /> },
   { path: "purchasing/suppliers/create", element: <CreateSupplier /> },
   { path: "purchasing/suppliers/edit/:supplierId", element: <CreateSupplier /> },
+  { path: "purchasing/suppliers/view/:supplierId", element: <SupplierView /> },
   { path: "purchasing/purchase-orders", element: <ManagePurchaseOrders /> },
   { path: "purchasing/purchase-orders/create", element: <CreatePurchaseOrder /> },
   { path: "purchasing/purchase-orders/view/:poId", element: <ViewPurchaseOrder /> },
 
-  // Wastage (Barbaadi)
+  // Wastage
   { path: "wastage", element: <Wastage /> },
+  { path: "wastage/view/:wastageId", element: <WastageView /> },
 ];

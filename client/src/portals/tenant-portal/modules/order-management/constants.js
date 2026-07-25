@@ -16,7 +16,7 @@ export const ORDER_SOURCES = [
   "csv_import",
 ];
 
-export const PAYMENT_METHODS = ["cod", "card", "bank_transfer", "cash", "online", "other"];
+export const PAYMENT_METHODS = ["cod", "card", "bank_transfer", "cash", "online", "qr", "easypaisa", "jazzcash", "other"];
 export const PAYMENT_RECORD_STATUSES = ["pending", "paid", "partial", "failed", "refunded"];
 /** Bank or cash when recording an order payment entry */
 export const ORDER_PAYMENT_CHANNELS = ["bank_transfer", "cash"];
@@ -93,6 +93,9 @@ export const PAYMENT_METHOD_LABELS = {
   bank_transfer: "Bank Transfer",
   cash: "Cash",
   online: "Online",
+  qr: "QR",
+  easypaisa: "Easypaisa",
+  jazzcash: "JazzCash",
   other: "Other",
 };
 

@@ -8,23 +8,46 @@ import { useBlocker, useNavigate } from "react-router-dom";
 export function useUnsavedChangesGuard(isDirty, { enabled = true } = {}) {
   const navigate = useNavigate();
   const bypassRef = useRef(false);
-  const active = enabled && Boolean(isDirty) && !bypassRef.current;
-  const blocker = useBlocker(() => {
-    if (bypassRef.current) return false;
-    return enabled && Boolean(isDirty);
-  });
+  const shouldWarn = enabled && Boolean(isDirty);
+
+  const shouldBlock = useCallback(
+    ({ currentLocation, nextLocation }) => {
+      if (bypassRef.current) return false;
+      if (!shouldWarn) return false;
+      return (
+        currentLocation.pathname !== nextLocation.pathname ||
+        currentLocation.search !== nextLocation.search
+      );
+    },
+    [shouldWarn]
+  );
+
+  const blocker = useBlocker(shouldBlock);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [reloadPending, setReloadPending] = useState(false);
 
   useEffect(() => {
-    if (blocker.state === "blocked") {
+    if (blocker.state !== "blocked") return;
+    // Form became clean after a blocked navigation (e.g. save) — let it through
+    if (!shouldWarn) {
+      bypassRef.current = true;
+      blocker.proceed();
+      setDialogOpen(false);
       setReloadPending(false);
-      setDialogOpen(true);
+      return;
     }
-  }, [blocker.state]);
+    setReloadPending(false);
+    setDialogOpen(true);
+  }, [blocker, shouldWarn]);
 
   useEffect(() => {
-    if (!(enabled && isDirty)) return undefined;
+    if (shouldWarn) return;
+    setDialogOpen(false);
+    setReloadPending(false);
+  }, [shouldWarn]);
+
+  useEffect(() => {
+    if (!shouldWarn) return undefined;
     const onKeyDown = (e) => {
       const isReloadKey = e.key === "F5" || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "r");
       if (!isReloadKey) return;
@@ -42,7 +65,7 @@ export function useUnsavedChangesGuard(isDirty, { enabled = true } = {}) {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("beforeunload", onBeforeUnload);
     };
-  }, [enabled, isDirty]);
+  }, [shouldWarn]);
 
   const stayOnPage = useCallback(() => {
     if (blocker.state === "blocked") blocker.reset();
@@ -73,5 +96,12 @@ export function useUnsavedChangesGuard(isDirty, { enabled = true } = {}) {
     [navigate]
   );
 
-  return { dialogOpen, stayOnPage, leavePage, reloadPending, navigateSafely, active };
+  return {
+    dialogOpen,
+    stayOnPage,
+    leavePage,
+    reloadPending,
+    navigateSafely,
+    active: shouldWarn && !bypassRef.current,
+  };
 }

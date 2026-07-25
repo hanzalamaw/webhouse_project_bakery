@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { PageHeader } from "../../../../../components/PageHeader";
 import { FormPageAlerts } from "../../../../../components/FormPageLayout";
 import { Card } from "../../../../../components/Card";
 import { DataTable } from "../../../../../components/DataTable";
 import { TableToolbar } from "../../../../../components/TableToolbar";
+import { humanizeKey } from "../../../../../components/LogDetailBody";
 import { Button } from "../../../../../components/Button";
 import { StatusBadge } from "../../../../../components/Badge";
 import { useAuth } from "../../../../../context/AuthContext";
@@ -16,6 +18,7 @@ import { formatDateTime } from "../../../../../utils/dateTime";
 export default function ActivityAlerts() {
   const { authFetch } = useAuth();
   const { canEdit } = useModulePermission("admin");
+  const navigate = useNavigate();
   const [rows, setRows] = useState([]);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -58,8 +61,8 @@ export default function ActivityAlerts() {
 
   const columns = [
     { key: "title", label: "Title" },
-    { key: "alert_type", label: "Type" },
-    { key: "priority", label: "Priority" },
+    { key: "alert_type", label: "Type", format: (v) => humanizeKey(v || "") || "—" },
+    { key: "priority", label: "Priority", format: (v) => humanizeKey(v || "") || "—" },
     {
       key: "is_read",
       label: "Status",
@@ -69,6 +72,7 @@ export default function ActivityAlerts() {
     {
       label: "Actions",
       filter: false,
+      stopRowClick: true,
       render: (row) =>
         !row.is_read ? (
           <Button
@@ -110,6 +114,7 @@ export default function ActivityAlerts() {
               page={page}
               pageSize={TABLE_PAGE_SIZE}
               onPageChange={setPage}
+              onRowClick={(row) => navigate(`view/${row.id}`, { state: { row } })}
             />
           </>
         )}

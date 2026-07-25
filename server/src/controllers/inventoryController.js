@@ -114,6 +114,7 @@ export const inventoryController = {
 
   // Wastage
   listWastage: (req, res) => ok(res, inventoryService.listWastage(req.tenantId, req.query)),
+  getWastage: (req, res) => handleId(req, res, "Wastage", (id) => inventoryService.getWastage(req.tenantId, id)),
   async createWastage(req, res) {
     try { res.status(201).json(await inventoryService.createWastage(req.tenantId, req.userId, req.body)); }
     catch (e) { res.status(400).json({ message: e.message }); }

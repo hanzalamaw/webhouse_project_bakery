@@ -4,6 +4,7 @@ import { inventoryRepository } from "../repositories/inventoryRepository.js";
 import { parsePagination, paginatedResponse } from "../utils/pagination.js";
 import { addStock, consumeStock, computeExpiry, getAvailable } from "./stockEngine.js";
 import { UNITS, STATUS_VALUES } from "../utils/stockConstants.js";
+import { toStockQty } from "../utils/unitConversion.js";
 
 const RUN_STATUSES = ["planned", "in_progress", "completed", "cancelled"];
 
@@ -71,29 +72,39 @@ export const productionService = {
   async getRecipe(tenantId, id) {
     return productionRepository.getRecipeById(tenantId, id);
   },
-  _parseIngredients(body) {
+  async _parseIngredients(tenantId, body) {
     const list = Array.isArray(body.ingredients) ? body.ingredients : [];
     if (!list.length) throw new Error("Add at least one ingredient to the recipe");
-    return list.map((ing, i) => {
+    const out = [];
+    for (let i = 0; i < list.length; i++) {
+      const ing = list[i];
       const ingredient_item_id = Number(ing.ingredient_item_id);
       if (!ingredient_item_id) throw new Error(`Select an ingredient for row ${i + 1}`);
       const quantity = assertQty(ing.quantity, `Quantity for ingredient ${i + 1}`);
-      return { ingredient_item_id, quantity, unit: ing.unit || "g", notes: ing.notes || null };
-    });
+      const item = await ensureItem(tenantId, ingredient_item_id);
+      // Always store the recipe line in the item's stock unit — never a different unit.
+      const stockUnit = item.unit || "g";
+      out.push({
+        ingredient_item_id,
+        quantity,
+        unit: stockUnit,
+        notes: ing.notes || null,
+      });
+    }
+    return out;
   },
   async createRecipe(tenantId, body) {
     const recipe_name = String(body.recipe_name || "").trim();
     if (!recipe_name) throw new Error("Recipe name is required");
     const finished = await ensureItem(tenantId, Number(body.item_id));
     const status = STATUS_VALUES.includes(body.status) ? body.status : "active";
-    const ingredients = this._parseIngredients(body);
-    for (const ing of ingredients) await ensureItem(tenantId, ing.ingredient_item_id);
+    const ingredients = await this._parseIngredients(tenantId, body);
 
     const recipeId = await withTransaction(async (conn) => {
       const id = await productionRepository.createRecipe(conn, tenantId, {
         recipe_name,
         yield_qty: assertQty(body.yield_qty ?? 1, "Yield quantity"),
-        yield_unit: body.yield_unit || finished.unit || "piece",
+        yield_unit: finished.unit || body.yield_unit || "piece",
         instructions: body.instructions,
         prep_time_mins: body.prep_time_mins ? Number(body.prep_time_mins) : null,
         status,
@@ -111,14 +122,13 @@ export const productionService = {
     if (!recipe_name) throw new Error("Recipe name is required");
     const finished = await ensureItem(tenantId, Number(body.item_id ?? existing.item_id));
     const status = STATUS_VALUES.includes(body.status) ? body.status : existing.status;
-    const ingredients = body.ingredients ? this._parseIngredients(body) : null;
-    if (ingredients) for (const ing of ingredients) await ensureItem(tenantId, ing.ingredient_item_id);
+    const ingredients = body.ingredients ? await this._parseIngredients(tenantId, body) : null;
 
     await withTransaction(async (conn) => {
       await productionRepository.updateRecipe(conn, tenantId, id, {
         recipe_name,
         yield_qty: assertQty(body.yield_qty ?? existing.yield_qty, "Yield quantity"),
-        yield_unit: body.yield_unit ?? existing.yield_unit,
+        yield_unit: finished.unit || body.yield_unit || existing.yield_unit,
         instructions: body.instructions ?? existing.instructions,
         prep_time_mins: body.prep_time_mins != null ? Number(body.prep_time_mins) : existing.prep_time_mins,
         status,
@@ -168,12 +178,15 @@ export const productionService = {
     try {
       const lines = [];
       for (const ing of recipe.ingredients) {
-        const needed = Number(ing.quantity) * factor;
+        // Recipe qty may be in a different unit than the item is stocked in
+        // (e.g. recipe "piece" vs item "dozen"). Compare in the stock unit.
+        const stockUnit = ing.ingredient_unit || ing.unit;
+        const needed = toStockQty(Number(ing.quantity) * factor, ing.unit, stockUnit);
         const available = await getAvailable(conn, tenantId, ing.ingredient_item_id, branch_id);
         lines.push({
           ingredient_item_id: ing.ingredient_item_id,
           ingredient_name: ing.ingredient_name,
-          unit: ing.unit,
+          unit: stockUnit,
           needed_qty: needed,
           available_qty: available,
           enough: available >= needed,
@@ -208,10 +221,14 @@ export const productionService = {
       if (!recipe) throw new Error("No recipe found for this item. Create a recipe or provide ingredients.");
       recipeId = recipe.id;
       const factor = quantity / Number(recipe.yield_qty || 1);
-      ingredientLines = recipe.ingredients.map((ing) => ({
-        ingredient_item_id: ing.ingredient_item_id,
-        qty: Number(ing.quantity) * factor,
-      }));
+      ingredientLines = recipe.ingredients.map((ing) => {
+        // Convert the recipe quantity into the item's stock unit before consuming.
+        const stockUnit = ing.ingredient_unit || ing.unit;
+        return {
+          ingredient_item_id: ing.ingredient_item_id,
+          qty: toStockQty(Number(ing.quantity) * factor, ing.unit, stockUnit),
+        };
+      });
     }
 
     const expiry = body.expiry_date || computeExpiry(produced_on, finished.shelf_life_days, finished.shelf_life_unit);

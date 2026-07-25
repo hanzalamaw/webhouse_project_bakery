@@ -1,55 +1,54 @@
-import ProductCatalogPicker from "../../../../../components/ProductCatalogPicker";
+import { ProductSelectField } from "../../../../../components/ProductSelectField";
 
-/** Multi-select product picker — shared catalog card UI. */
+/** Multi-select product picker — opens a searchable checkbox modal. */
 export default function ProductPicker({
   products,
   selectedIds,
   onToggle,
+  onChange,
   search,
   onSearchChange,
   categoryFilter,
   onCategoryFilterChange,
   showCategoryFilter,
-  showCategoryTag,
-  showWarning,
+  showCategoryTag = true,
+  showWarning = false,
   description,
-  tall = false,
+  tall,
   storeName,
-  showPrice = true,
-  showStock = true,
+  showPrice,
+  showStock,
   onRefresh,
   refreshing,
+  emptyMessage,
+  disabled,
 }) {
   void search;
   void onSearchChange;
   void categoryFilter;
   void onCategoryFilterChange;
   void showCategoryFilter;
-  void showCategoryTag;
+  void tall;
+  void storeName;
+  void showPrice;
+  void showStock;
+  void onRefresh;
+  void refreshing;
 
   return (
-    <div className="wh-inv-product-picker">
-      {showWarning && (
-        <div className="wh-inv-warning">
-          <strong>Note:</strong> Selecting a product removes it from its existing category and assigns it here.
-        </div>
-      )}
-      <ProductCatalogPicker
-        products={products}
-        title="Products"
-        description={description || "Tap to select products."}
-        storeName={storeName}
-        mode="multi"
-        selectedIds={selectedIds}
-        onToggle={(id) => onToggle(id)}
-        showPrice={showPrice}
-        showStock={showStock}
-        maxHeight={tall ? 320 : 280}
-        emptyMessage="No products match your search."
-        onRefresh={onRefresh}
-        refreshing={refreshing}
-        showRefresh={Boolean(onRefresh)}
-      />
-    </div>
+    <ProductSelectField
+      mode="multi"
+      products={products}
+      selectedIds={selectedIds}
+      onToggle={onToggle}
+      onChange={onChange}
+      entityLabel="products"
+      description={description}
+      showWarning={showWarning}
+      warningText="Selecting a product removes it from its existing category and assigns it here."
+      showCategoryTag={showCategoryTag}
+      emptyMessage={emptyMessage}
+      disabled={disabled}
+    />
   );
 }

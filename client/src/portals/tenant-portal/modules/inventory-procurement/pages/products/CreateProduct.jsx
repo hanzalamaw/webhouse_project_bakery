@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../../../../../context/AuthContext";
 import { apiFetch } from "../../../../../../api/client";
 import { PageHeader } from "../../../../../../components/PageHeader";
 import { FormField } from "../../../../../../components/FormField";
+import { DiscountField } from "../../../../../../components/DiscountField";
 import { Button } from "../../../../../../components/Button";
 import { SearchableSelect } from "../../../../../../components/SearchableSelect";
 import { useInventoryReference } from "../../hooks/useInventoryReference";
@@ -12,39 +13,43 @@ import { FormPageLayout, FormActions } from "../../../../../../components/FormPa
 import CreateCategoryModal from "../../components/CreateCategoryModal";
 import { UnsavedChangesDialog } from "../../../../../../components/UnsavedChangesDialog";
 import { useUnsavedChangesGuard } from "../../../../../../hooks/useUnsavedChangesGuard";
+import { appendCreatedItemReturn } from "../../../../../../utils/formDraft";
 import { ITEM_STATUS, ITEM_TYPES, ITEM_TYPE_LABELS, ITEM_UNITS, SHELF_LIFE_UNITS, DEFAULT_SHELF_LIFE_UNIT, MODULE_BASE } from "../../constants";
 import { formatTotalPrice } from "../../utils/pricing";
-
-const INITIAL = {
-  item_name: "",
-  sku: "",
-  unit: "piece",
-  item_type: "finished",
-  status: "active",
-  cost_price: "",
-  selling_price: "",
-  discount: "0",
-  tax: "0",
-  category_id: "",
-  is_purchased: false,
-  is_produced: true,
-  is_sold: true,
-  shelf_life_days: "",
-  shelf_life_unit: DEFAULT_SHELF_LIFE_UNIT,
-  low_stock_threshold: "0",
-  variant_label: "",
-  parent_item_id: "",
-};
-
-function emptyBranchEntry(key) {
-  return { _key: key, branch_id: "", qty: "0" };
-}
 
 function defaultsForType(item_type) {
   if (item_type === "ingredient" || item_type === "packaging") {
     return { is_purchased: true, is_produced: false, is_sold: false };
   }
   return { is_purchased: false, is_produced: true, is_sold: true };
+}
+
+function buildInitial(itemType) {
+  const type = ITEM_TYPES.includes(itemType) ? itemType : "finished";
+  return {
+    item_name: "",
+    sku: "",
+    unit: "piece",
+    item_type: type,
+    status: "active",
+    cost_price: "",
+    selling_price: "",
+    discount: "0",
+    tax: "0",
+    category_id: "",
+    ...defaultsForType(type),
+    shelf_life_days: "",
+    shelf_life_unit: DEFAULT_SHELF_LIFE_UNIT,
+    low_stock_threshold: "0",
+    variant_label: "",
+    parent_item_id: "",
+  };
+}
+
+const INITIAL = buildInitial("finished");
+
+function emptyBranchEntry(key) {
+  return { _key: key, branch_id: "", qty: "0" };
 }
 
 function mapItemToForm(item) {
@@ -84,9 +89,13 @@ export default function CreateProduct() {
   const { itemId, productId } = useParams();
   const resolvedId = itemId || productId;
   const isEdit = Boolean(resolvedId);
+  const [searchParams] = useSearchParams();
+  const returnTo = searchParams.get("returnTo");
+  const selectFor = searchParams.get("selectFor");
+  const prefType = searchParams.get("item_type");
   const { authFetch } = useAuth();
   const { categories, branches, items, loading: refLoading, reload } = useInventoryReference();
-  const [form, setForm] = useState(INITIAL);
+  const [form, setForm] = useState(() => (isEdit ? INITIAL : buildInitial(prefType)));
   const [baseline, setBaseline] = useState(null);
   const [stockLevels, setStockLevels] = useState([]);
   const branchKeyRef = useRef(0);
@@ -142,8 +151,8 @@ export default function CreateProduct() {
 
   useEffect(() => {
     if (isEdit || baseline !== null) return;
-    setBaseline(serializeItemState(INITIAL, [emptyBranchEntry("br-1")]));
-  }, [isEdit, baseline]);
+    setBaseline(serializeItemState(buildInitial(prefType), [emptyBranchEntry("br-1")]));
+  }, [isEdit, baseline, prefType]);
 
   const isDirty = useMemo(() => {
     if (baseline === null) return false;
@@ -153,6 +162,11 @@ export default function CreateProduct() {
   const { dialogOpen, stayOnPage, leavePage, reloadPending, navigateSafely } = useUnsavedChangesGuard(isDirty, {
     enabled: !loadingItem && baseline !== null,
   });
+
+  const returnHint =
+    !isEdit && returnTo
+      ? "After saving, you will return to your previous form with this item selected."
+      : "";
 
   const updateOpening = (key, field, value) => {
     setOpeningStock((rows) => rows.map((row) => (row._key === key ? { ...row, [field]: value } : row)));
@@ -171,7 +185,13 @@ export default function CreateProduct() {
     return "";
   };
 
-  const goManage = () => navigateSafely(`${MODULE_BASE}/items/manage`);
+  const goManage = () => {
+    if (!isEdit && returnTo) {
+      navigateSafely(appendCreatedItemReturn(returnTo, null, selectFor), { replace: true });
+      return;
+    }
+    navigateSafely(`${MODULE_BASE}/items/manage`);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -208,8 +228,10 @@ export default function CreateProduct() {
       if (isEdit) {
         await apiFetch(`/inventory/items/${resolvedId}`, { method: "PUT", body: JSON.stringify(payload) }, authFetch);
         setMessage("Item updated successfully.");
+        setBaseline(serializeItemState(form, openingStock));
+        setTimeout(() => navigateSafely(`${MODULE_BASE}/items/manage`), 700);
       } else {
-        await apiFetch(
+        const created = await apiFetch(
           "/inventory/items",
           {
             method: "POST",
@@ -225,11 +247,15 @@ export default function CreateProduct() {
           },
           authFetch
         );
-        setMessage("Item created successfully.");
-        await reload();
+        setBaseline(serializeItemState(form, openingStock));
+        if (returnTo) {
+          navigateSafely(appendCreatedItemReturn(returnTo, created?.id, selectFor), { replace: true });
+        } else {
+          setMessage("Item created successfully.");
+          await reload();
+          setTimeout(() => navigateSafely(`${MODULE_BASE}/items/manage`), 700);
+        }
       }
-      setBaseline(serializeItemState(form, openingStock));
-      setTimeout(() => navigateSafely(`${MODULE_BASE}/items/manage`), 700);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -259,7 +285,7 @@ export default function CreateProduct() {
           }
           actions={
             <Button variant="secondary" onClick={goManage}>
-              Manage Items
+              {!isEdit && returnTo ? "Back without saving" : "Manage Items"}
             </Button>
           }
         />
@@ -341,7 +367,13 @@ export default function CreateProduct() {
             <div className="wh-form-grid">
               <FormField id="cost_price" label="Cost price (PKR)" type="number" min="0" step="0.01" value={form.cost_price} onChange={(e) => set("cost_price", e.target.value)} required />
               <FormField id="selling_price" label="Selling price (PKR)" type="number" min="0" step="0.01" value={form.selling_price} onChange={(e) => set("selling_price", e.target.value)} required />
-              <FormField id="discount" label="Discount (PKR)" type="number" min="0" step="0.01" value={form.discount} onChange={(e) => set("discount", e.target.value)} />
+              <DiscountField
+                id="discount"
+                label="Discount"
+                value={form.discount}
+                baseAmount={form.selling_price}
+                onChange={(v) => set("discount", v)}
+              />
               <FormField id="tax" label="Tax (PKR)" type="number" min="0" step="0.01" value={form.tax} onChange={(e) => set("tax", e.target.value)} />
               <FormField id="total_price" label="Total price (PKR)" value={formatTotalPrice(form.selling_price, form.discount, form.tax)} displayOnly />
             </div>
@@ -382,7 +414,7 @@ export default function CreateProduct() {
           </FormBlock>
 
           {!isEdit ? (
-            <FormBlock title="Opening stock (optional)" description="Starting quantity at one or more branches (shakhein).">
+            <FormBlock title="Opening stock (optional)" description="Starting quantity at one or more branches.">
               {branchOptions.length === 0 ? (
                 <p className="wh-field__error">No branches found. Create a branch first if you want opening stock.</p>
               ) : (
@@ -457,7 +489,7 @@ export default function CreateProduct() {
           )}
 
           {error && <p className="wh-field__error">{error}</p>}
-          {message && <p className="wh-form-message">{message}</p>}
+          {(message || returnHint) && <p className="wh-form-message">{message || returnHint}</p>}
 
           <FormActions>
             <Button type="button" variant="secondary" onClick={goManage}>

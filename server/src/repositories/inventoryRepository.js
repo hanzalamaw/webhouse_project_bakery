@@ -350,12 +350,58 @@ export const inventoryRepository = {
 
   async getBranchById(tenantId, id) {
     const [rows] = await readDb.query(
-      `SELECT id, branch_name, code, location, city, phone, open_time, close_time,
-              opening_balance, status, created_at, tenant_id
-       FROM branches WHERE id = ? AND ${tw("branches")} LIMIT 1`,
+      `SELECT br.id, br.branch_name, br.code, br.location, br.city, br.phone,
+              br.open_time, br.close_time, br.opening_balance, br.status, br.created_at, br.tenant_id,
+              COUNT(DISTINCT sl.item_id) AS item_count,
+              COALESCE(SUM(sl.available_qty), 0) AS total_units,
+              COALESCE(SUM(sl.available_qty * i.cost_price), 0) AS stock_value
+       FROM branches br
+       LEFT JOIN stock_levels sl ON sl.branch_id = br.id AND sl.deleted_at IS NULL
+       LEFT JOIN items i ON i.id = sl.item_id AND i.deleted_at IS NULL
+       WHERE br.id = ? AND ${tw("br")}
+       GROUP BY br.id LIMIT 1`,
       [id, tenantId]
     );
     return rows[0] || null;
+  },
+
+  async getBranchStockLevels(tenantId, branchId) {
+    const [rows] = await readDb.query(
+      `SELECT sl.id, sl.available_qty, sl.reserved_qty, sl.damaged_qty, sl.updated_at,
+              sl.item_id, i.item_name, i.sku, i.unit, i.item_type, i.cost_price, i.low_stock_threshold
+       FROM stock_levels sl
+       JOIN items i ON i.id = sl.item_id AND i.deleted_at IS NULL
+       WHERE sl.branch_id = ? AND ${tw("sl")}
+       ORDER BY i.item_name ASC`,
+      [branchId, tenantId]
+    );
+    return rows;
+  },
+
+  async getBranchRecentMovements(tenantId, branchId, limit = 10) {
+    const [rows] = await readDb.query(
+      `SELECT m.id, m.movement_type, m.qty, m.unit_cost, m.notes, m.created_at,
+              m.item_id, i.item_name, i.unit, u.name AS created_by_name
+       FROM stock_movements m
+       JOIN items i ON i.id = m.item_id AND i.deleted_at IS NULL
+       LEFT JOIN users u ON u.id = m.created_by
+       WHERE m.branch_id = ? AND m.tenant_id = ? AND m.deleted_at IS NULL
+       ORDER BY m.created_at DESC, m.id DESC LIMIT ?`,
+      [branchId, tenantId, limit]
+    );
+    return rows;
+  },
+
+  async getBranchWastageSummary(tenantId, branchId) {
+    const [[row]] = await readDb.query(
+      `SELECT COUNT(*) AS wastage_count,
+              COALESCE(SUM(estimated_cost), 0) AS wastage_cost,
+              COALESCE(SUM(qty), 0) AS wastage_qty
+       FROM wastage
+       WHERE branch_id = ? AND tenant_id = ? AND deleted_at IS NULL`,
+      [branchId, tenantId]
+    );
+    return row || { wastage_count: 0, wastage_cost: 0, wastage_qty: 0 };
   },
 
   async createBranch(tenantId, d) {
@@ -567,11 +613,33 @@ export const inventoryRepository = {
 
   async getSupplierById(tenantId, id) {
     const [rows] = await readDb.query(
-      `SELECT id, supplier_name, contact_person, phone, email, address, city, status, notes, created_at, tenant_id
-       FROM suppliers WHERE id = ? AND ${tw("suppliers")} LIMIT 1`,
+      `SELECT s.id, s.supplier_name, s.contact_person, s.phone, s.email, s.address, s.city,
+              s.status, s.notes, s.created_at, s.tenant_id,
+              COUNT(po.id) AS purchase_order_count,
+              COALESCE(SUM(CASE WHEN po.status NOT IN ('cancelled') THEN po.payable_amount ELSE 0 END), 0) AS total_spend,
+              COALESCE(SUM(CASE WHEN po.status IN ('draft', 'ordered', 'partial') THEN 1 ELSE 0 END), 0) AS open_po_count
+       FROM suppliers s
+       LEFT JOIN purchase_orders po ON po.supplier_id = s.id AND po.deleted_at IS NULL
+       WHERE s.id = ? AND ${tw("s")}
+       GROUP BY s.id LIMIT 1`,
       [id, tenantId]
     );
     return rows[0] || null;
+  },
+
+  async getSupplierPurchaseOrders(tenantId, supplierId, limit = 20) {
+    const [rows] = await readDb.query(
+      `SELECT po.id, po.po_no, po.order_date, po.expected_date, po.status, po.payable_amount,
+              po.created_at, br.branch_name, COUNT(poi.id) AS line_count
+       FROM purchase_orders po
+       JOIN branches br ON br.id = po.branch_id
+       LEFT JOIN purchase_order_items poi ON poi.purchase_order_id = po.id AND poi.deleted_at IS NULL
+       WHERE po.supplier_id = ? AND po.tenant_id = ? AND po.deleted_at IS NULL
+       GROUP BY po.id
+       ORDER BY po.created_at DESC LIMIT ?`,
+      [supplierId, tenantId, limit]
+    );
+    return rows;
   },
 
   async createSupplier(tenantId, d) {
@@ -747,5 +815,21 @@ export const inventoryRepository = {
       [tenantId]
     );
     return { rows, total };
+  },
+
+  async getWastageById(tenantId, id) {
+    const [rows] = await readDb.query(
+      `SELECT w.id, w.qty, w.reason, w.wastage_date, w.estimated_cost, w.notes, w.created_at,
+              w.item_id, w.branch_id, w.batch_id, i.item_name, i.sku, i.unit, i.cost_price,
+              br.branch_name, br.city, u.name AS created_by_name, b.batch_no
+       FROM wastage w
+       JOIN items i ON i.id = w.item_id AND i.deleted_at IS NULL
+       JOIN branches br ON br.id = w.branch_id AND br.deleted_at IS NULL
+       LEFT JOIN users u ON u.id = w.created_by
+       LEFT JOIN stock_batches b ON b.id = w.batch_id
+       WHERE w.id = ? AND w.tenant_id = ? AND w.deleted_at IS NULL LIMIT 1`,
+      [id, tenantId]
+    );
+    return rows[0] || null;
   },
 };

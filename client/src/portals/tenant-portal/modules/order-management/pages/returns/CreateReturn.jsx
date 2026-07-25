@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 
 import { useNavigate } from "react-router-dom";
 
@@ -17,6 +17,8 @@ import { Button } from "../../../../../../components/Button";
 import { FormBlock } from "../../../../../../components/FormBlock";
 
 import { FormPageLayout, FormPageAlerts, FormActions } from "../../../../../../components/FormPageLayout";
+import { UnsavedChangesDialog } from "../../../../../../components/UnsavedChangesDialog";
+import { useFormUnsavedGuard } from "../../../../../../hooks/useFormUnsavedGuard";
 
 import { AfterSalesOrderSection } from "../../components/AfterSalesOrderSection";
 
@@ -25,6 +27,7 @@ import { useAfterSalesOrders } from "../../hooks/useAfterSalesOrders";
 import { MODULE_BASE, RETURN_STATUSES, RETURN_STATUS_LABELS } from "../../constants";
 import { afterSalesIneligibilityMessage, isOrderEligibleForReturn } from "../../utils/afterSalesRules";
 
+const EMPTY = { order_id: "", return_status: "requested", reason: "" };
 
 
 export default function CreateReturn() {
@@ -37,7 +40,15 @@ export default function CreateReturn() {
 
   const { orders, loading, error: loadError, prefillOrderId } = useAfterSalesOrders(authFetch);
 
-  const [form, setForm] = useState({ order_id: "", return_status: "requested", reason: "" });
+  const [form, setForm] = useState(() => ({
+    ...EMPTY,
+    order_id: prefillOrderId ? String(prefillOrderId) : "",
+  }));
+
+  const [baseline] = useState(() => JSON.stringify({
+    ...EMPTY,
+    order_id: prefillOrderId ? String(prefillOrderId) : "",
+  }));
 
   const [saving, setSaving] = useState(false);
 
@@ -51,6 +62,9 @@ export default function CreateReturn() {
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
+  const { dialogOpen, stayOnPage, leavePage, reloadPending, navigateSafely } =
+    useFormUnsavedGuard(form, { baseline, enabled: !loading });
+
   const selectedOrder = useMemo(
     () => orders.find((o) => String(o.id) === String(form.order_id)) || null,
     [orders, form.order_id]
@@ -59,18 +73,6 @@ export default function CreateReturn() {
   const ineligibleMessage = selectedOrder && !orderEligible
     ? afterSalesIneligibilityMessage(selectedOrder, "return")
     : null;
-
-  useEffect(() => {
-
-    if (prefillOrderId) {
-
-      setForm((f) => ({ ...f, order_id: String(prefillOrderId) }));
-
-    }
-
-  }, [prefillOrderId]);
-
-
 
   const submit = async (e) => {
 
@@ -106,7 +108,7 @@ export default function CreateReturn() {
 
       }, authFetch);
 
-      navigate(managePath);
+      navigateSafely(managePath);
 
     } catch (err) {
 
@@ -257,6 +259,13 @@ export default function CreateReturn() {
         </form>
 
       </FormPageLayout>
+
+      <UnsavedChangesDialog
+        open={dialogOpen}
+        onStay={stayOnPage}
+        onDiscard={leavePage}
+        reloadPending={reloadPending}
+      />
 
     </div>
 

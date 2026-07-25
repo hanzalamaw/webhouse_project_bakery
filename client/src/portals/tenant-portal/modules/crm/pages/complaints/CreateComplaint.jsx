@@ -9,6 +9,8 @@ import { Button } from "../../../../../../components/Button";
 import { FormBlock } from "../../../../../../components/FormBlock";
 import { FormPageLayout, FormActions } from "../../../../../../components/FormPageLayout";
 import { SearchableSelect } from "../../../../../../components/SearchableSelect";
+import { UnsavedChangesDialog } from "../../../../../../components/UnsavedChangesDialog";
+import { useFormUnsavedGuard } from "../../../../../../hooks/useFormUnsavedGuard";
 import { StatusBadge } from "../../../../../../components/Badge";
 import { formatDateTime } from "../../../../../../utils/dateTime";
 import {
@@ -39,6 +41,7 @@ export default function CreateComplaint() {
   const { crm_users } = useCrmReference();
   const navigate = useNavigate();
   const [form, setForm] = useState(EMPTY);
+  const [baseline, setBaseline] = useState(() => (isEdit ? null : JSON.stringify(EMPTY)));
   const [customers, setCustomers] = useState([]);
   const [meta, setMeta] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -70,7 +73,7 @@ export default function CreateComplaint() {
         if (isEdit) {
           const row = await apiFetch(`/crm/complaints/${complaintId}`, {}, authFetch);
           setMeta(row);
-          setForm({
+          const next = {
             customer_id: String(row.customer_id),
             subject: row.subject || "",
             description: row.description || "",
@@ -79,7 +82,9 @@ export default function CreateComplaint() {
             issue_type: row.issue_type || "complaint",
             assigned_to: row.assigned_to ? String(row.assigned_to) : "",
             resolution_note: row.resolution_note || "",
-          });
+          };
+          setForm(next);
+          setBaseline(JSON.stringify(next));
         }
       } catch (e) {
         setError(e.message);
@@ -88,6 +93,9 @@ export default function CreateComplaint() {
       }
     })().catch(() => {});
   }, [isEdit, complaintId, authFetch]);
+
+  const { dialogOpen, stayOnPage, leavePage, reloadPending, navigateSafely } =
+    useFormUnsavedGuard(form, { baseline, enabled: !loading });
 
   const submit = async (e) => {
     e.preventDefault();
@@ -103,10 +111,10 @@ export default function CreateComplaint() {
       };
       if (isEdit) {
         await apiFetch(`/crm/complaints/${complaintId}`, { method: "PUT", body: JSON.stringify(body) }, authFetch);
-        navigate(`${MODULE_BASE}/complaints/manage`);
+        navigateSafely(`${MODULE_BASE}/complaints/manage`);
       } else {
         await apiFetch("/crm/complaints", { method: "POST", body: JSON.stringify(body) }, authFetch);
-        navigate(`${MODULE_BASE}/complaints/manage`);
+        navigateSafely(`${MODULE_BASE}/complaints/manage`);
       }
     } catch (err) {
       setError(err.message);
@@ -218,6 +226,12 @@ export default function CreateComplaint() {
           </FormActions>
         </form>
       </FormPageLayout>
+      <UnsavedChangesDialog
+        open={dialogOpen}
+        onStay={stayOnPage}
+        onDiscard={leavePage}
+        reloadPending={reloadPending}
+      />
     </div>
   );
 }

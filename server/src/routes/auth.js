@@ -34,7 +34,10 @@ async function whAdminLogin(db, normalized, password, JWT_SECRET, JWT_EXPIRES_IN
     [normalized]
   );
   const user = rows[0];
-  if (!user || !verifyPassword(password, user.password)) return null;
+  if (!user) return { authError: "USERNAME_NOT_FOUND" };
+  if (!verifyPassword(password, user.password)) {
+    return { authError: "INCORRECT_PASSWORD" };
+  }
 
   await db.execute("UPDATE wh_admin_users SET last_login_at = NOW() WHERE id = ?", [user.id]);
 
@@ -74,17 +77,16 @@ async function tenantLogin(
     [portal, normalized]
   );
   const row = rows[0];
-  if (!row || !verifyPassword(password, row.password)) {
-    if (row) {
-      await createActivityAlert({
-        tenantId: row.tid,
-        alertType: "failed_login",
-        title: "Failed login attempt",
-        message: `Failed login for ${normalized} from ${ip || "unknown IP"}.`,
-        priority: "high",
-      });
-    }
-    return null;
+  if (!row) return { authError: "USERNAME_NOT_FOUND" };
+  if (!verifyPassword(password, row.password)) {
+    await createActivityAlert({
+      tenantId: row.tid,
+      alertType: "failed_login",
+      title: "Failed login attempt",
+      message: `Failed login for ${normalized} from ${ip || "unknown IP"}.`,
+      priority: "high",
+    });
+    return { authError: "INCORRECT_PASSWORD" };
   }
 
   await db.execute("UPDATE users SET last_login_at = NOW() WHERE id = ?", [row.id]);
@@ -154,11 +156,16 @@ export function registerAuthRoutes(app, db, { JWT_SECRET, JWT_EXPIRES_IN, JWT_RE
 
     const normalized = String(username).trim().toLowerCase();
     if (!normalized.startsWith("w.")) {
-      return res.status(401).json({ message: "Invalid credentials" });
+      return res.status(401).json({ message: "Username does not exist." });
     }
 
     const result = await whAdminLogin(db, normalized, password, JWT_SECRET, JWT_EXPIRES_IN, JWT_REFRESH_EXPIRES_IN);
-    if (!result) return res.status(401).json({ message: "Invalid credentials" });
+    if (result.authError === "USERNAME_NOT_FOUND") {
+      return res.status(401).json({ message: "Username does not exist." });
+    }
+    if (result.authError === "INCORRECT_PASSWORD") {
+      return res.status(401).json({ message: "Incorrect password." });
+    }
     res.json(result);
   };
 
@@ -188,7 +195,12 @@ export function registerAuthRoutes(app, db, { JWT_SECRET, JWT_EXPIRES_IN, JWT_RE
       deviceInfo,
       { forceLogoutOthers: Boolean(req.body.forceLogoutOthers) }
     );
-    if (!result) return res.status(401).json({ message: "Invalid credentials" });
+    if (result.authError === "USERNAME_NOT_FOUND") {
+      return res.status(401).json({ message: "Username does not exist." });
+    }
+    if (result.authError === "INCORRECT_PASSWORD") {
+      return res.status(401).json({ message: "Incorrect password." });
+    }
     if (result.error) return res.status(403).json({ message: result.error });
     if (result.conflict) {
       return res.status(409).json({

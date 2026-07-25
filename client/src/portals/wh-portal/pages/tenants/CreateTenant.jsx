@@ -459,7 +459,7 @@ export default function CreateTenant() {
     return current !== JSON.stringify(stripDraftMeta(buildInitial()));
   }, [baseline, draft, isEdit]);
 
-  const { dialogOpen, stayOnPage, leavePage: proceedLeave, reloadPending } = useUnsavedChangesGuard(isDirty, { enabled: hydrated && (isEdit || isDirty) });
+  const { dialogOpen, stayOnPage, leavePage: proceedLeave, reloadPending, navigateSafely } = useUnsavedChangesGuard(isDirty, { enabled: hydrated && (isEdit || isDirty) });
 
   const discardLeave = () => {
     clearDraft();
@@ -607,7 +607,7 @@ export default function CreateTenant() {
         await apiFetch(`/tenants/${routeTenantId}/full`, { method: "PUT", body: JSON.stringify(payload) }, authFetch);
         setBaseline(JSON.stringify(stripDraftMeta(draft)));
         clearDraft();
-        navigate("/webhouse-portal/tenants/manage");
+        navigateSafely("/webhouse-portal/tenants/manage");
       } else {
         const createdPassword = draft.super_admin.password;
         const created = await apiFetch("/tenants", { method: "POST", body: JSON.stringify(payload) }, authFetch);
@@ -943,7 +943,7 @@ export default function CreateTenant() {
         open={detailsOpen}
         onClose={() => {
           setDetailsOpen(false);
-          navigate("/webhouse-portal/tenants/manage");
+          navigateSafely("/webhouse-portal/tenants/manage");
         }}
         title={detailsTitle}
         sections={detailsSections}

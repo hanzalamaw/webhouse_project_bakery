@@ -1,5 +1,6 @@
 import { readDb } from "../database/db.js";
 import { logTenantAudit } from "./tenantAudit.js";
+import { getAuditContext } from "./auditContext.js";
 
 let cachedCrmModuleId = null;
 
@@ -21,7 +22,7 @@ export async function logCrmActivity(tenantId, userId, action, summary, extra = 
     moduleId,
     action: `crm_${action}`,
     newValue: { summary, ...extra },
-    skipIfImpersonated: false,
+    skipIfImpersonated: true,
     impersonatedBy: ctx?.impersonatedBy ?? null,
     ipAddress: ctx?.ip ?? null,
   });

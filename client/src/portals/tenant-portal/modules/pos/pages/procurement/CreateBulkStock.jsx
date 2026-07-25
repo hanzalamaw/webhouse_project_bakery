@@ -182,7 +182,7 @@ export default function CreateBulkStock() {
         />
 
         <form onSubmit={handleSubmit} className="wh-form-stack">
-        <FormBlock title="Select products" description="Choose one or more products for this operation.">
+        <FormBlock title="Select products" description="Open the list to choose one or more products for this operation.">
           <ProductPicker
             products={filteredProducts}
             selectedIds={selectedIds}

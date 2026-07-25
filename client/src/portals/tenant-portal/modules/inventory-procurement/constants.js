@@ -51,7 +51,7 @@ export const MOVEMENT_LABELS = {
   sale_out: "Sale Out",
   transfer_in: "Transfer In",
   transfer_out: "Transfer Out",
-  wastage: "Wastage (Barbaadi)",
+  wastage: "Wastage",
   adjustment: "Stock Out / Adjustment",
   return_in: "Return In",
   opening: "Opening Stock",

@@ -9,7 +9,17 @@ import { FormPageLayout, FormPageAlerts, FormActions } from "../../../../../comp
 import { FormBlock } from "../../../../../components/FormBlock";
 import { FormField } from "../../../../../components/FormField";
 import { Button } from "../../../../../components/Button";
+import { UnsavedChangesDialog } from "../../../../../components/UnsavedChangesDialog";
+import { useFormUnsavedGuard } from "../../../../../hooks/useFormUnsavedGuard";
 import { MODULE_BASE, BANK_ACCOUNT_STATUSES } from "../constants";
+
+const EMPTY = {
+  bank_name: "",
+  account_title: "",
+  account_number: "",
+  current_balance: "0",
+  status: "active",
+};
 
 export default function CreateBankAccount() {
   const { accountId } = useParams();
@@ -18,13 +28,8 @@ export default function CreateBankAccount() {
   const { canCreate, canEdit } = useModulePermission("finance");
   const { amountLabel } = useMoney();
   const navigate = useNavigate();
-  const [form, setForm] = useState({
-    bank_name: "",
-    account_title: "",
-    account_number: "",
-    current_balance: "0",
-    status: "active",
-  });
+  const [form, setForm] = useState(EMPTY);
+  const [baseline, setBaseline] = useState(() => (isEdit ? null : JSON.stringify(EMPTY)));
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -38,13 +43,15 @@ export default function CreateBankAccount() {
         if (!active) return;
         const row = rows.find((r) => String(r.id) === String(accountId));
         if (!row) throw new Error("Account not found");
-        setForm({
+        const next = {
           bank_name: row.bank_name || "",
           account_title: row.account_title || "",
           account_number: row.account_number || "",
           current_balance: String(row.current_balance ?? 0),
           status: row.status || "active",
-        });
+        };
+        setForm(next);
+        setBaseline(JSON.stringify(next));
       })
       .catch((e) => active && setError(e.message))
       .finally(() => active && setLoading(false));
@@ -52,6 +59,9 @@ export default function CreateBankAccount() {
   }, [authFetch, accountId, isEdit]);
 
   const disabled = isEdit ? !canEdit : !canCreate;
+
+  const { dialogOpen, stayOnPage, leavePage, reloadPending, navigateSafely } =
+    useFormUnsavedGuard(form, { baseline, enabled: !loading });
 
   const submit = async (e) => {
     e.preventDefault();
@@ -62,10 +72,11 @@ export default function CreateBankAccount() {
       const body = { ...form, current_balance: Number(form.current_balance) };
       if (isEdit) {
         await apiFetch(`/finance/bank-accounts/${accountId}`, { method: "PUT", body: JSON.stringify(body) }, authFetch);
+        setBaseline(JSON.stringify(form));
         setMessage("Bank account updated successfully.");
       } else {
         await apiFetch("/finance/bank-accounts", { method: "POST", body: JSON.stringify(body) }, authFetch);
-        navigate(`${MODULE_BASE}/bank-accounts`);
+        navigateSafely(`${MODULE_BASE}/bank-accounts`);
       }
     } catch (err) {
       setError(err.message);
@@ -105,6 +116,12 @@ export default function CreateBankAccount() {
           </FormActions>
         </form>
       </FormPageLayout>
+      <UnsavedChangesDialog
+        open={dialogOpen}
+        onStay={stayOnPage}
+        onDiscard={leavePage}
+        reloadPending={reloadPending}
+      />
     </div>
   );
 }

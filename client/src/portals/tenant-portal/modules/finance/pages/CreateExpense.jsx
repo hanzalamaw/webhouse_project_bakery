@@ -9,8 +9,20 @@ import { FormPageLayout, FormPageAlerts, FormActions } from "../../../../../comp
 import { FormBlock } from "../../../../../components/FormBlock";
 import { FormField } from "../../../../../components/FormField";
 import { Button } from "../../../../../components/Button";
+import { UnsavedChangesDialog } from "../../../../../components/UnsavedChangesDialog";
+import { useFormUnsavedGuard } from "../../../../../hooks/useFormUnsavedGuard";
 import { MODULE_BASE, EXPENSE_PAYMENT_METHODS, PAYMENT_METHOD_LABELS } from "../constants";
 import { toInputDate } from "../../../../../utils/billing";
+
+const emptyForm = () => ({
+  expense_title: "",
+  amount: "",
+  payment_method: "cash",
+  expense_date: toInputDate(new Date()),
+  notes: "",
+  category_id: "",
+  sub_category_id: "",
+});
 
 export default function CreateExpense() {
   const { expenseId } = useParams();
@@ -21,15 +33,8 @@ export default function CreateExpense() {
   const navigate = useNavigate();
   const [categories, setCategories] = useState([]);
   const [subCategories, setSubCategories] = useState([]);
-  const [form, setForm] = useState({
-    expense_title: "",
-    amount: "",
-    payment_method: "cash",
-    expense_date: toInputDate(new Date()),
-    notes: "",
-    category_id: "",
-    sub_category_id: "",
-  });
+  const [form, setForm] = useState(emptyForm);
+  const [baseline, setBaseline] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -48,7 +53,7 @@ export default function CreateExpense() {
         if (isEdit) {
           const row = rows.find((r) => String(r.id) === String(expenseId));
           if (!row) throw new Error("Expense not found");
-          setForm({
+          const next = {
             expense_title: row.expense_title || "",
             amount: String(row.amount ?? ""),
             payment_method: row.payment_method || "cash",
@@ -56,9 +61,15 @@ export default function CreateExpense() {
             notes: row.notes || "",
             category_id: String(row.category_id || ""),
             sub_category_id: row.sub_category_id ? String(row.sub_category_id) : "",
-          });
-        } else if (ref.categories?.length) {
-          setForm((f) => ({ ...f, category_id: String(ref.categories[0].id) }));
+          };
+          setForm(next);
+          setBaseline(JSON.stringify(next));
+        } else {
+          const next = ref.categories?.length
+            ? { ...emptyForm(), category_id: String(ref.categories[0].id) }
+            : emptyForm();
+          setForm(next);
+          setBaseline(JSON.stringify(next));
         }
       })
       .catch((e) => active && setError(e.message))
@@ -72,6 +83,9 @@ export default function CreateExpense() {
   );
 
   const disabled = isEdit ? !canEdit : !canCreate;
+
+  const { dialogOpen, stayOnPage, leavePage, reloadPending, navigateSafely } =
+    useFormUnsavedGuard(form, { baseline, enabled: !loading });
 
   const submit = async (e) => {
     e.preventDefault();
@@ -87,10 +101,11 @@ export default function CreateExpense() {
       };
       if (isEdit) {
         await apiFetch(`/finance/expenses/${expenseId}`, { method: "PUT", body: JSON.stringify(body) }, authFetch);
+        setBaseline(JSON.stringify(form));
         setMessage("Expense updated successfully.");
       } else {
         await apiFetch("/finance/expenses", { method: "POST", body: JSON.stringify(body) }, authFetch);
-        navigate(`${MODULE_BASE}/expenses`);
+        navigateSafely(`${MODULE_BASE}/expenses`);
       }
     } catch (err) {
       setError(err.message);
@@ -140,6 +155,12 @@ export default function CreateExpense() {
           </FormActions>
         </form>
       </FormPageLayout>
+      <UnsavedChangesDialog
+        open={dialogOpen}
+        onStay={stayOnPage}
+        onDiscard={leavePage}
+        reloadPending={reloadPending}
+      />
     </div>
   );
 }

@@ -1747,14 +1747,17 @@ CREATE TABLE IF NOT EXISTS `pos_sales` (
   `branch_id` INT NOT NULL,
   `terminal_id` INT NOT NULL,
   `crm_customers_id` INT NULL DEFAULT NULL,
+  `order_id` INT NULL DEFAULT NULL,
   `created_by` INT NOT NULL,
   `tenant_id` INT NOT NULL,
   `deleted_at` TIMESTAMP NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE INDEX `uk_pos_sales_tenant_sale_no` (`tenant_id` ASC, `sale_no` ASC),
+  UNIQUE INDEX `uk_pos_sales_order_id` (`order_id` ASC),
   INDEX `fk_pos_sales_branch_idx` (`branch_id` ASC),
   INDEX `fk_pos_sales_pos_terminals1_idx` (`terminal_id` ASC),
   INDEX `fk_pos_sales_crm_customers1_idx` (`crm_customers_id` ASC),
+  INDEX `fk_pos_sales_orders_idx` (`order_id` ASC),
   INDEX `fk_pos_sales_users1_idx` (`created_by` ASC),
   INDEX `fk_pos_sales_wh_tenants1_idx` (`tenant_id` ASC),
   CONSTRAINT `fk_pos_sales_branch`
@@ -1771,6 +1774,11 @@ CREATE TABLE IF NOT EXISTS `pos_sales` (
     FOREIGN KEY (`crm_customers_id`)
     REFERENCES `crm_customers` (`id`)
     ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_pos_sales_orders`
+    FOREIGN KEY (`order_id`)
+    REFERENCES `orders` (`id`)
+    ON DELETE SET NULL
     ON UPDATE CASCADE,
   CONSTRAINT `fk_pos_sales_users1`
     FOREIGN KEY (`created_by`)

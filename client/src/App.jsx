@@ -19,6 +19,7 @@ import ManageModules from "./portals/wh-portal/pages/modules/ManageModules";
 import CreateSubscription from "./portals/wh-portal/pages/subscriptions/CreateSubscription";
 import ManageSubscriptions from "./portals/wh-portal/pages/subscriptions/ManageSubscriptions";
 import Logs from "./portals/wh-portal/pages/logs/Logs";
+import LogDetail from "./portals/wh-portal/pages/logs/LogDetail";
 import ErpLogin from "./portals/tenant-portal/pages/ErpLogin";
 import ModuleHub from "./portals/tenant-portal/pages/ModuleHub";
 import ModulePlaceholder from "./portals/tenant-portal/pages/ModulePlaceholder";
@@ -134,6 +135,7 @@ const router = createBrowserRouter([
       { path: "/webhouse-portal/modules/create", element: <CreateModule /> },
       { path: "/webhouse-portal/modules/edit/:moduleId", element: <CreateModule /> },
       { path: "/webhouse-portal/logs", element: <Logs /> },
+      { path: "/webhouse-portal/logs/view/:logId", element: <LogDetail /> },
       { path: "/webhouse-portal/tenants/create", element: <CreateTenant /> },
       { path: "/webhouse-portal/tenants/edit/:tenantId", element: <CreateTenant /> },
       { path: "/webhouse-portal/tenants/view/:tenantId", element: <TenantView /> },

@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { useT } from "../context/LanguageContext";
+import { EyeIcon, EyeOffIcon } from "./icons";
 
 export function FormField({
   id,
@@ -15,6 +17,8 @@ export function FormField({
   ...rest
 }) {
   const t = useT();
+  const [revealed, setRevealed] = useState(false);
+  const isPassword = type === "password";
   const labelText = typeof label === "string" ? t(label) : label;
   const placeholderText = typeof placeholder === "string" ? t(placeholder) : placeholder;
   const errorText = typeof error === "string" ? t(error) : error;
@@ -57,6 +61,29 @@ export function FormField({
           placeholder={placeholderText}
           {...fieldRest}
         />
+      ) : isPassword ? (
+        <div className="wh-field__password">
+          <input
+            id={id}
+            type={revealed ? "text" : "password"}
+            className={`wh-field__input wh-field__input--password${rest.readOnly ? " wh-field__input--readonly" : ""}`}
+            value={value}
+            onChange={onChange}
+            placeholder={placeholderText}
+            autoComplete={autoComplete ?? "off"}
+            {...fieldRest}
+          />
+          <button
+            type="button"
+            className="wh-field__password-toggle"
+            onClick={() => setRevealed((s) => !s)}
+            aria-label={revealed ? t("Hide password") : t("Show password")}
+            title={revealed ? t("Hide password") : t("Show password")}
+            tabIndex={-1}
+          >
+            {revealed ? <EyeOffIcon /> : <EyeIcon />}
+          </button>
+        </div>
       ) : (
         <input
           id={id}

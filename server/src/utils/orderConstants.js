@@ -15,7 +15,7 @@ export const ORDER_SOURCES = [
   "csv_import",
 ];
 
-export const PAYMENT_METHODS = ["cod", "card", "bank_transfer", "cash", "online", "other"];
+export const PAYMENT_METHODS = ["cod", "card", "bank_transfer", "cash", "online", "qr", "easypaisa", "jazzcash", "other"];
 export const PAYMENT_RECORD_STATUSES = ["pending", "paid", "partial", "failed", "refunded"];
 
 export const RETURN_STATUSES = ["requested", "approved", "received", "rejected", "completed"];

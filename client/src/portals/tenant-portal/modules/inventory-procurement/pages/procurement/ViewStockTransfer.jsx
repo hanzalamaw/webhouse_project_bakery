@@ -3,9 +3,9 @@ import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { useAuth } from "../../../../../../context/AuthContext";
 import { fetchAllTableRows } from "../../../../../../api/client";
 import { PageHeader } from "../../../../../../components/PageHeader";
-import { FormBlock } from "../../../../../../components/FormBlock";
-import { FormPageLayout } from "../../../../../../components/FormPageLayout";
+import { Card } from "../../../../../../components/Card";
 import { Button } from "../../../../../../components/Button";
+import { StatCard } from "../../../../../../components/StatCard";
 import { StatusBadge } from "../../../../../../components/Badge";
 import { DetailValue } from "../../../../../../components/DetailValue";
 import { formatDateTime } from "../../../../../../utils/dateTime";
@@ -49,61 +49,68 @@ export default function ViewStockTransfer() {
   }, [load, location.state?.transfer]);
 
   if (loading) {
-    return (
-      <div className="wh-page">
-        <FormPageLayout><p className="wh-muted">Loading…</p></FormPageLayout>
-      </div>
-    );
+    return <div className="wh-page"><p className="wh-muted">Loading…</p></div>;
   }
 
   if (!transfer) {
     return (
       <div className="wh-page">
-        <FormPageLayout>
-          <div className="wh-alert wh-alert--error">{error || "Transfer not found"}</div>
-          <Button variant="secondary" onClick={() => navigate(backPath)}>Back to transfers</Button>
-        </FormPageLayout>
+        <PageHeader title="Transfer" />
+        <p className="wh-field__error">{error || "Transfer not found"}</p>
+        <Button variant="secondary" onClick={() => navigate(backPath)}>Back</Button>
       </div>
     );
   }
 
   return (
     <div className="wh-page">
-      <FormPageLayout>
-        <PageHeader
-          title="Transfer details"
-          description={`${transfer.item_name} · ${formatDateTime(transfer.created_at)}`}
-          actions={
-            <Button variant="secondary" onClick={() => navigate(backPath)}>Back to transfers</Button>
-          }
-        />
-
-        <FormBlock title="Item" description="Item being transferred.">
-          <div className="wh-inv-line-item">
-            <div className="wh-inv-line-item__head">
-              <strong>{transfer.item_name}</strong>
-              <span className="wh-muted">{transfer.unit || "—"}</span>
-            </div>
+      <PageHeader
+        title="Transfer details"
+        description={`${transfer.item_name} · ${formatDateTime(transfer.created_at)}`}
+        actions={
+          <div className="wh-action-btns">
+            <Button variant="secondary" onClick={() => navigate(backPath)}>Back</Button>
+            {transfer.item_id && (
+              <Button variant="secondary" onClick={() => navigate(`${MODULE_BASE}/items/view/${transfer.item_id}`)}>
+                View item
+              </Button>
+            )}
           </div>
-        </FormBlock>
+        }
+      />
 
-        <FormBlock title="Branches" description="Source and destination branches.">
-          <div className="wh-form-grid">
+      <div className="wh-stat-grid">
+        <StatCard
+          label="Quantity moved"
+          value={`${Number(transfer.qty || 0).toLocaleString()} ${transfer.unit || ""}`.trim()}
+        />
+        <StatCard label="From" value={transfer.from_branch_name || "—"} />
+        <StatCard label="To" value={transfer.to_branch_name || "—"} />
+        <StatCard label="Status" value={transfer.transfer_status || "—"} />
+      </div>
+
+      <div className="wh-entity-view-grid">
+        <Card>
+          <h3 className="wh-card__title">What transferred</h3>
+          <div className="wh-detail-grid">
+            <DetailValue label="Item">{transfer.item_name}</DetailValue>
+            <DetailValue label="Unit">{transfer.unit || "—"}</DetailValue>
+            <DetailValue label="Quantity">{Number(transfer.qty || 0).toLocaleString()}</DetailValue>
+            <DetailValue label="Status"><StatusBadge status={transfer.transfer_status} /></DetailValue>
+          </div>
+        </Card>
+
+        <Card>
+          <h3 className="wh-card__title">Route & timing</h3>
+          <div className="wh-detail-grid">
             <DetailValue label="From branch">{transfer.from_branch_name}</DetailValue>
             <DetailValue label="To branch">{transfer.to_branch_name}</DetailValue>
-          </div>
-        </FormBlock>
-
-        <FormBlock title="Transfer details">
-          <div className="wh-form-grid">
-            <DetailValue label="Quantity">{transfer.qty}</DetailValue>
-            <DetailValue label="Status"><StatusBadge status={transfer.transfer_status} /></DetailValue>
             <DetailValue label="Created">{formatDateTime(transfer.created_at)}</DetailValue>
             <DetailValue label="Updated">{formatDateTime(transfer.updated_at)}</DetailValue>
-            <DetailValue label="Notes" fullWidth>{transfer.notes || "—"}</DetailValue>
+            <DetailValue label="Notes" fullWidth multiline>{transfer.notes || "—"}</DetailValue>
           </div>
-        </FormBlock>
-      </FormPageLayout>
+        </Card>
+      </div>
     </div>
   );
 }

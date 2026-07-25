@@ -4,6 +4,7 @@ import { useAuth } from "../../../../../../context/AuthContext";
 import { apiFetch } from "../../../../../../api/client";
 import { PageHeader } from "../../../../../../components/PageHeader";
 import { FormField } from "../../../../../../components/FormField";
+import { DiscountField } from "../../../../../../components/DiscountField";
 import { Button } from "../../../../../../components/Button";
 import { SearchableSelect } from "../../../../../../components/SearchableSelect";
 import { usePosReference } from "../../hooks/usePosReference";
@@ -320,7 +321,13 @@ export default function CreateProduct() {
           <div className="wh-form-grid">
             <FormField id="cost_price" label="Cost price (PKR)" type="number" min="0" step="0.01" value={form.cost_price} onChange={(e) => set("cost_price", e.target.value)} />
             <FormField id="selling_price" label="Selling price (PKR)" type="number" min="0" step="0.01" value={form.selling_price} onChange={(e) => set("selling_price", e.target.value)} required />
-            <FormField id="discount" label="Discount (PKR)" type="number" min="0" step="0.01" value={form.discount} onChange={(e) => set("discount", e.target.value)} />
+            <DiscountField
+              id="discount"
+              label="Discount"
+              value={form.discount}
+              baseAmount={form.selling_price}
+              onChange={(v) => set("discount", v)}
+            />
             <FormField id="tax" label="Tax (PKR)" type="number" min="0" step="0.01" value={form.tax} onChange={(e) => set("tax", e.target.value)} />
             <FormField
               id="total_price"

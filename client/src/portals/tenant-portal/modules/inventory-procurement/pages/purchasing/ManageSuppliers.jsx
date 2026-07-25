@@ -89,7 +89,7 @@ export default function ManageSuppliers() {
             page={page}
             pageSize={TABLE_PAGE_SIZE}
             onPageChange={setPage}
-            onRowClick={(row) => navigate(`${MODULE_BASE}/purchasing/suppliers/edit/${row.id}`)}
+            onRowClick={(row) => navigate(`${MODULE_BASE}/purchasing/suppliers/view/${row.id}`)}
           />
         )}
       </Card>

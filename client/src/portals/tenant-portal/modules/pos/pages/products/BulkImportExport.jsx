@@ -4,6 +4,7 @@ import { apiFetch } from "../../../../../../api/client";
 import { PageHeader } from "../../../../../../components/PageHeader";
 import { Card } from "../../../../../../components/Card";
 import { Button } from "../../../../../../components/Button";
+import { parseCsv, downloadCsv } from "../../../../../../utils/csv";
 
 const CSV_HEADERS = [
   "product_name",
@@ -22,29 +23,6 @@ const CSV_HEADERS = [
   "stock_notes",
 ];
 
-function parseCsv(text) {
-  const lines = text.trim().split(/\r?\n/).filter(Boolean);
-  if (lines.length < 2) return [];
-  const headers = lines[0].split(",").map((h) => h.trim().replace(/^"|"$/g, ""));
-  return lines.slice(1).map((line) => {
-    const values = line.match(/("([^"]|"")*"|[^,]*)/g)?.map((v) => v.trim().replace(/^"|"$/g, "").replace(/""/g, '"')) || [];
-    const row = {};
-    headers.forEach((h, i) => { row[h] = values[i] ?? ""; });
-    return row;
-  });
-}
-
-function toCsv(rows) {
-  const header = CSV_HEADERS.join(",");
-  const body = rows.map((r) =>
-    CSV_HEADERS.map((h) => {
-      const v = r[h] ?? "";
-      return String(v).includes(",") ? `"${String(v).replace(/"/g, '""')}"` : v;
-    }).join(",")
-  );
-  return [header, ...body].join("\n");
-}
-
 export default function BulkImportExport() {
   const { authFetch } = useAuth();
   const [importing, setImporting] = useState(false);
@@ -57,14 +35,7 @@ export default function BulkImportExport() {
     setError("");
     try {
       const res = await apiFetch("/pos/inventory/products/export", {}, authFetch);
-      const csv = toCsv(res.data || []);
-      const blob = new Blob([csv], { type: "text/csv" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `pos-products-${new Date().toISOString().slice(0, 10)}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
+      downloadCsv(`pos-products-${new Date().toISOString().slice(0, 10)}.csv`, CSV_HEADERS, res.data || []);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -80,7 +51,11 @@ export default function BulkImportExport() {
     setResult(null);
     try {
       const text = await file.text();
-      const rows = parseCsv(text);
+      const rows = parseCsv(text).filter((r) => Object.values(r).some((v) => String(v).trim()));
+      if (!rows.length) {
+        setError("No data rows found. The file needs a header row plus at least one product.");
+        return;
+      }
       const res = await apiFetch("/pos/inventory/products/import", { method: "POST", body: JSON.stringify({ rows }) }, authFetch);
       setResult(res);
     } catch (err) {
@@ -108,13 +83,7 @@ export default function BulkImportExport() {
       damaged_qty: "0",
       stock_notes: "Initial import",
     }];
-    const blob = new Blob([toCsv(sample)], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "pos-import-template.csv";
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadCsv("pos-import-template.csv", CSV_HEADERS, sample);
   };
 
   return (

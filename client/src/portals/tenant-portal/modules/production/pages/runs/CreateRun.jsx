@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../../../../../context/AuthContext";
 import { useModulePermission } from "../../../../../../hooks/useModulePermission";
@@ -7,10 +7,19 @@ import { PageHeader } from "../../../../../../components/PageHeader";
 import { FormField } from "../../../../../../components/FormField";
 import { Button } from "../../../../../../components/Button";
 import { SearchableSelect } from "../../../../../../components/SearchableSelect";
-import ProductCatalogPicker from "../../../../../../components/ProductCatalogPicker";
+import { ProductSelectField } from "../../../../../../components/ProductSelectField";
 import { FormBlock } from "../../../../../../components/FormBlock";
 import { FormPageLayout, FormActions } from "../../../../../../components/FormPageLayout";
 import { DataTable } from "../../../../../../components/DataTable";
+import { UnsavedChangesDialog } from "../../../../../../components/UnsavedChangesDialog";
+import { useFormUnsavedGuard } from "../../../../../../hooks/useFormUnsavedGuard";
+import {
+  saveFormDraft,
+  loadFormDraft,
+  clearFormDraft,
+  buildCreateItemReturnUrl,
+  currentReturnPath,
+} from "../../../../../../utils/formDraft";
 import { MODULE_BASE } from "../../constants";
 import { useProductionReference } from "../../hooks/useProductionReference";
 
@@ -28,21 +37,45 @@ const EMPTY = {
   notes: "",
 };
 
+const DRAFT_KEY = "wh_prod_run_draft";
+
+function shouldResumeFromUrl() {
+  const sp = new URLSearchParams(window.location.search);
+  return sp.get("resumed") === "1" || Boolean(sp.get("createdItemId"));
+}
+
+function peekRunDraft() {
+  if (!shouldResumeFromUrl()) return null;
+  return loadFormDraft(DRAFT_KEY);
+}
+
 export default function CreateRun() {
   const { authFetch } = useAuth();
   const { canCreate, readOnly } = useModulePermission("production");
-  const { finished_items, branches, recipes } = useProductionReference();
+  const { finished_items, branches, recipes, loading: refLoading, reload: reloadRef } =
+    useProductionReference();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const [form, setForm] = useState(EMPTY);
-  const [plan, setPlan] = useState(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [initialDraft] = useState(() => peekRunDraft());
+  const [form, setForm] = useState(() => initialDraft?.form || EMPTY);
+  const [baseline, setBaseline] = useState(
+    () => initialDraft?.baseline ?? JSON.stringify(EMPTY)
+  );
+  const [plan, setPlan] = useState(() => initialDraft?.plan || null);
   const [planning, setPlanning] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [prefilled, setPrefilled] = useState(false);
+  const prefillAppliedRef = useRef(Boolean(initialDraft?.form));
+  const createdAppliedRef = useRef(false);
 
   const disabled = readOnly || !canCreate;
   const backPath = `${MODULE_BASE}/runs/manage`;
+  const { dialogOpen, stayOnPage, leavePage, reloadPending, navigateSafely } =
+    useFormUnsavedGuard(form, { baseline, enabled: !refLoading });
+
+  useEffect(() => {
+    clearFormDraft(DRAFT_KEY);
+  }, []);
 
   const branchOptions = useMemo(
     () => branches.map((b) => ({ value: String(b.id), label: b.branch_name })),
@@ -60,24 +93,68 @@ export default function CreateRun() {
     }));
   }, [recipes, form.item_id]);
 
-  // Prefill from ?recipe_id=
+  // Prefill from ?recipe_id= when not resuming a draft
   useEffect(() => {
-    if (prefilled || !recipes.length) return;
+    if (prefillAppliedRef.current || refLoading) return;
+    prefillAppliedRef.current = true;
     const rid = searchParams.get("recipe_id");
     if (!rid) return;
     const recipe = recipes.find((r) => String(r.id) === String(rid));
     if (!recipe) return;
-    setForm((f) => ({
-      ...f,
+    const prefilledValues = {
       recipe_id: String(recipe.id),
-      item_id: recipe.item_id ? String(recipe.item_id) : f.item_id,
-    }));
-    setPrefilled(true);
-  }, [recipes, searchParams, prefilled]);
+      item_id: recipe.item_id ? String(recipe.item_id) : "",
+    };
+    queueMicrotask(() => {
+      setForm((f) => ({
+        ...f,
+        ...prefilledValues,
+      }));
+      setBaseline(JSON.stringify({ ...EMPTY, ...prefilledValues }));
+    });
+  }, [recipes, searchParams, refLoading]);
+
+  useEffect(() => {
+    const createdId = searchParams.get("createdItemId");
+    if (!createdId || refLoading || createdAppliedRef.current) return;
+
+    const apply = async () => {
+      createdAppliedRef.current = true;
+      await reloadRef().catch(() => {});
+      setPlan(null);
+      setForm((f) => ({
+        ...f,
+        item_id: String(createdId),
+      }));
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete("createdItemId");
+          next.delete("selectFor");
+          next.delete("resumed");
+          return next;
+        },
+        { replace: true }
+      );
+    };
+
+    apply();
+  }, [searchParams, refLoading, reloadRef, setSearchParams]);
+
+  const goCreateFinished = () => {
+    saveFormDraft(DRAFT_KEY, { form, baseline, plan });
+    navigateSafely(
+      buildCreateItemReturnUrl({
+        returnTo: currentReturnPath(),
+        itemType: "finished",
+        selectFor: "finished",
+      })
+    );
+  };
 
   const onItemSelect = (product) => {
     if (disabled) return;
-    const value = String(product.id);
+    const value = String(product.id || "");
     setPlan(null);
     setForm((f) => {
       const match = recipes.find(
@@ -130,6 +207,11 @@ export default function CreateRun() {
     }
   };
 
+  const leaveForm = () => {
+    clearFormDraft(DRAFT_KEY);
+    navigate(backPath);
+  };
+
   const submit = async (e) => {
     e.preventDefault();
     if (disabled) return;
@@ -158,7 +240,8 @@ export default function CreateRun() {
         notes: form.notes || null,
       };
       const created = await apiFetch("/production/runs", { method: "POST", body: JSON.stringify(body) }, authFetch);
-      navigate(`${MODULE_BASE}/runs/view/${created.id}`);
+      clearFormDraft(DRAFT_KEY);
+      navigateSafely(`${MODULE_BASE}/runs/view/${created.id}`);
     } catch (err) {
       setError(err.message || "Bake failed");
     } finally {
@@ -192,23 +275,24 @@ export default function CreateRun() {
           title="Bake Now"
           description="Complete a production run — consumes ingredients (kacha maal) and adds finished stock."
           actions={
-            <Button variant="secondary" onClick={() => navigate(backPath)}>
+            <Button variant="secondary" onClick={leaveForm}>
               Back to runs
             </Button>
           }
         />
         <form onSubmit={submit} className="wh-form-stack">
-          <FormBlock title="Finished bakery item" description="Tap the product you are baking.">
-            <ProductCatalogPicker
+          <FormBlock title="Finished bakery item" description="Choose the product you are baking.">
+            <ProductSelectField
               items={finished_items}
-              title="Finished products"
               mode="single"
+              entityLabel="products"
               value={form.item_id}
               onSelect={onItemSelect}
-              showPrice
-              showStock={false}
-              priceField="selling_price"
-              maxHeight={240}
+              onChange={(id) => {
+                if (!id) onItemSelect?.({ id: "" });
+              }}
+              onAddNew={goCreateFinished}
+              addNewLabel="Add new finished product"
               disabled={disabled}
               emptyMessage="No finished bakery items yet."
             />
@@ -309,7 +393,7 @@ export default function CreateRun() {
 
           {error && <p className="wh-field__error">{error}</p>}
           <FormActions>
-            <Button type="button" variant="secondary" onClick={() => navigate(backPath)}>
+            <Button type="button" variant="secondary" onClick={leaveForm}>
               Cancel
             </Button>
             <Button type="submit" disabled={saving || disabled || !plan || !plan.can_produce}>
@@ -318,6 +402,12 @@ export default function CreateRun() {
           </FormActions>
         </form>
       </FormPageLayout>
+      <UnsavedChangesDialog
+        open={dialogOpen}
+        onStay={stayOnPage}
+        onDiscard={leavePage}
+        reloadPending={reloadPending}
+      />
     </div>
   );
 }

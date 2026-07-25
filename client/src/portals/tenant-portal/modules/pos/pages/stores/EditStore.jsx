@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../../../../../../context/AuthContext";
 import { useModulePermission } from "../../../../../../hooks/useModulePermission";
@@ -8,6 +8,8 @@ import { FormField } from "../../../../../../components/FormField";
 import { Button } from "../../../../../../components/Button";
 import { FormBlock } from "../../../../../../components/FormBlock";
 import { FormPageLayout, FormActions } from "../../../../../../components/FormPageLayout";
+import { UnsavedChangesDialog } from "../../../../../../components/UnsavedChangesDialog";
+import { useFormUnsavedGuard } from "../../../../../../hooks/useFormUnsavedGuard";
 import { MODULE_BASE, OUTLET_STATUSES, OUTLET_STATUS_LABELS, TERMINAL_STATUSES, TERMINAL_STATUS_LABELS } from "../../constants";
 
 const EMPTY = {
@@ -48,6 +50,7 @@ export default function EditStore() {
   const [form, setForm] = useState(EMPTY);
   const [terminals, setTerminals] = useState([]);
   const [removedTerminalIds, setRemovedTerminalIds] = useState([]);
+  const [baseline, setBaseline] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -63,7 +66,7 @@ export default function EditStore() {
       .then(([outletRes, terminalRes]) => {
         const row = (outletRes.data || []).find((o) => String(o.id) === String(storeId));
         if (!row) throw new Error("Store not found");
-        setForm({
+        const loadedForm = {
           outlet_name: row.outlet_name || "",
           location: row.location || "",
           city: row.city || "",
@@ -71,15 +74,29 @@ export default function EditStore() {
           store_open_time: timeForInput(row.store_open_time) || "09:00",
           store_close_time: timeForInput(row.store_close_time) || "21:00",
           opening_balance: String(row.opening_balance ?? 0),
-        });
+        };
         const storeTerminals = (terminalRes.data || []).filter(
           (t) => String(t.outlet_id) === String(storeId)
         );
-        setTerminals(storeTerminals.length ? storeTerminals.map((t) => newTerminalRow(t)) : [newTerminalRow()]);
+        const loadedTerminals = storeTerminals.length
+          ? storeTerminals.map((t) => newTerminalRow(t))
+          : [newTerminalRow()];
+        setForm(loadedForm);
+        setTerminals(loadedTerminals);
+        setBaseline(JSON.stringify({ form: loadedForm, terminals: loadedTerminals, removedTerminalIds: [] }));
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [storeId, authFetch]);
+
+  const formValue = useMemo(
+    () => ({ form, terminals, removedTerminalIds }),
+    [form, terminals, removedTerminalIds]
+  );
+  const { dialogOpen, stayOnPage, leavePage, reloadPending, navigateSafely } = useFormUnsavedGuard(
+    formValue,
+    { baseline, enabled: !loading && !disabled }
+  );
 
   const submit = async (e) => {
     e.preventDefault();
@@ -120,7 +137,7 @@ export default function EditStore() {
         }
       }
 
-      navigate(`${MODULE_BASE}/stores/${storeId}`);
+      navigateSafely(`${MODULE_BASE}/stores/${storeId}`);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -212,6 +229,12 @@ export default function EditStore() {
           </FormActions>
         </form>
       </FormPageLayout>
+      <UnsavedChangesDialog
+        open={dialogOpen}
+        onStay={stayOnPage}
+        onDiscard={leavePage}
+        reloadPending={reloadPending}
+      />
     </div>
   );
 }

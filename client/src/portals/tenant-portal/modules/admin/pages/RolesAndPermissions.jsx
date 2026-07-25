@@ -3,8 +3,10 @@ import { PageHeader } from "../../../../../components/PageHeader";
 import { Card } from "../../../../../components/Card";
 import { FormField } from "../../../../../components/FormField";
 import { Button } from "../../../../../components/Button";
+import { UnsavedChangesDialog } from "../../../../../components/UnsavedChangesDialog";
 import { useAuth } from "../../../../../context/AuthContext";
 import { useModulePermission } from "../../../../../hooks/useModulePermission";
+import { useFormUnsavedGuard } from "../../../../../hooks/useFormUnsavedGuard";
 import { apiFetch } from "../../../../../api/client";
 
 const ACTIONS = ["view", "create", "edit", "delete", "export"];
@@ -26,12 +28,32 @@ function moduleHasAll(perms) {
   return ACTIONS.every((a) => perms.has(a));
 }
 
+// Key order and empty module entries vary between server payloads and local
+// edits, so compare a normalized view of the editable fields only.
+function serializeRoleDraft(role) {
+  if (!role) return "";
+  const permissions = {};
+  for (const key of Object.keys(role.permissions || {}).sort()) {
+    const set = new Set(role.permissions[key] || []);
+    const actions = ACTIONS.filter((a) => set.has(a));
+    if (actions.length) permissions[key] = actions;
+  }
+  return JSON.stringify({
+    id: role.id,
+    role_name: role.role_name || "",
+    description: role.description || "",
+    status: role.status || "active",
+    permissions,
+  });
+}
+
 export default function RolesAndPermissions() {
   const { authFetch } = useAuth();
   const { canCreate, canEdit } = useModulePermission("admin");
   const [roles, setRoles] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [detail, setDetail] = useState(null);
+  const [baseline, setBaseline] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -56,6 +78,7 @@ export default function RolesAndPermissions() {
       try {
         const res = await apiFetch(`/tenant/roles/${id}`, {}, authFetch);
         setDetail(res.data);
+        setBaseline(serializeRoleDraft(res.data));
         setSelectedId(id);
       } catch (err) {
         setError(err.message || "Failed to load role");
@@ -73,6 +96,12 @@ export default function RolesAndPermissions() {
       loadRole(roles[0].id);
     }
   }, [roles, selectedId, loadRole]);
+
+  const { dialogOpen, stayOnPage, leavePage, reloadPending } = useFormUnsavedGuard(detail, {
+    baseline,
+    enabled: canEdit,
+    serialize: serializeRoleDraft,
+  });
 
   const togglePermission = (moduleId, action) => {
     if (!detail || isSuperAdminRole || !canEdit) return;
@@ -109,23 +138,25 @@ export default function RolesAndPermissions() {
 
   const saveRole = async () => {
     if (!detail) return;
+    const saved = detail;
     setSaving(true);
     setError("");
     setMessage("");
     try {
       await apiFetch(
-        `/tenant/roles/${detail.id}`,
+        `/tenant/roles/${saved.id}`,
         {
           method: "PUT",
           body: JSON.stringify({
-            role_name: detail.role_name,
-            description: detail.description,
-            status: detail.status,
-            permissions: detail.permissions,
+            role_name: saved.role_name,
+            description: saved.description,
+            status: saved.status,
+            permissions: saved.permissions,
           }),
         },
         authFetch
       );
+      setBaseline(serializeRoleDraft(saved));
       setMessage("Role saved.");
       await loadRoles();
     } catch (err) {
@@ -314,6 +345,12 @@ export default function RolesAndPermissions() {
           )}
         </Card>
       </div>
+      <UnsavedChangesDialog
+        open={dialogOpen}
+        onStay={stayOnPage}
+        onDiscard={leavePage}
+        reloadPending={reloadPending}
+      />
     </div>
   );
 }

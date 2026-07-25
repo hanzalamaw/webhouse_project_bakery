@@ -4,6 +4,7 @@ import { apiFetch } from "../../../../../../api/client";
 import { PageHeader } from "../../../../../../components/PageHeader";
 import { Card } from "../../../../../../components/Card";
 import { Button } from "../../../../../../components/Button";
+import { parseCsv, downloadCsv } from "../../../../../../utils/csv";
 
 const CSV_HEADERS = [
   "item_name",
@@ -23,29 +24,6 @@ const CSV_HEADERS = [
   "low_stock_threshold",
 ];
 
-function parseCsv(text) {
-  const lines = text.trim().split(/\r?\n/).filter(Boolean);
-  if (lines.length < 2) return [];
-  const headers = lines[0].split(",").map((h) => h.trim().replace(/^"|"$/g, ""));
-  return lines.slice(1).map((line) => {
-    const values = line.match(/("([^"]|"")*"|[^,]*)/g)?.map((v) => v.trim().replace(/^"|"$/g, "").replace(/""/g, '"')) || [];
-    const row = {};
-    headers.forEach((h, i) => { row[h] = values[i] ?? ""; });
-    return row;
-  });
-}
-
-function toCsv(rows) {
-  const header = CSV_HEADERS.join(",");
-  const body = rows.map((r) =>
-    CSV_HEADERS.map((h) => {
-      const v = r[h] ?? "";
-      return String(v).includes(",") ? `"${String(v).replace(/"/g, '""')}"` : v;
-    }).join(",")
-  );
-  return [header, ...body].join("\n");
-}
-
 export default function BulkImportExport() {
   const { authFetch } = useAuth();
   const [importing, setImporting] = useState(false);
@@ -58,14 +36,7 @@ export default function BulkImportExport() {
     setError("");
     try {
       const res = await apiFetch("/inventory/items/export", {}, authFetch);
-      const csv = toCsv(res.data || []);
-      const blob = new Blob([csv], { type: "text/csv" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `bakery-items-${new Date().toISOString().slice(0, 10)}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
+      downloadCsv(`bakery-items-${new Date().toISOString().slice(0, 10)}.csv`, CSV_HEADERS, res.data || []);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -81,12 +52,18 @@ export default function BulkImportExport() {
     setResult(null);
     try {
       const text = await file.text();
-      const rows = parseCsv(text).map((r) => ({
-        ...r,
-        is_purchased: r.is_purchased === "1" || r.is_purchased === "true" || r.is_purchased === true,
-        is_produced: r.is_produced === "1" || r.is_produced === "true" || r.is_produced === true,
-        is_sold: r.is_sold === "1" || r.is_sold === "true" || r.is_sold === true,
-      }));
+      const rows = parseCsv(text)
+        .filter((r) => Object.values(r).some((v) => String(v).trim()))
+        .map((r) => ({
+          ...r,
+          is_purchased: r.is_purchased === "1" || r.is_purchased === "true",
+          is_produced: r.is_produced === "1" || r.is_produced === "true",
+          is_sold: r.is_sold === "1" || r.is_sold === "true",
+        }));
+      if (!rows.length) {
+        setError("No data rows found. The file needs a header row plus at least one item.");
+        return;
+      }
       const res = await apiFetch("/inventory/items/import", { method: "POST", body: JSON.stringify({ rows }) }, authFetch);
       setResult(res);
     } catch (err) {
@@ -98,7 +75,7 @@ export default function BulkImportExport() {
   };
 
   const downloadTemplate = () => {
-    const sample = [{
+    downloadCsv("bakery-items-import-template.csv", CSV_HEADERS, [{
       item_name: "Maida",
       item_type: "ingredient",
       sku: "ING-001",
@@ -114,14 +91,7 @@ export default function BulkImportExport() {
       is_sold: "0",
       shelf_life_days: "90",
       low_stock_threshold: "10",
-    }];
-    const blob = new Blob([toCsv(sample)], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "bakery-items-import-template.csv";
-    a.click();
-    URL.revokeObjectURL(url);
+    }]);
   };
 
   return (
@@ -142,7 +112,7 @@ export default function BulkImportExport() {
         <Card>
           <h3 className="wh-card__title">Import items</h3>
           <p className="wh-card__text">
-            Upload a CSV. Required: item_name, category_name. Optional: item_type, sku, unit, prices, flags, shelf_life_days.
+            Upload a CSV. Required: item_name, category_name. Missing categories are created automatically. Optional: item_type, sku, unit, prices, flags, shelf_life_days.
           </p>
           <div className="wh-card__actions">
             <Button variant="secondary" onClick={downloadTemplate}>Download template</Button>

@@ -1,17 +1,21 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { PageHeader } from "../../../../../components/PageHeader";
 import { FormPageAlerts } from "../../../../../components/FormPageLayout";
 import { Card } from "../../../../../components/Card";
 import { DataTable } from "../../../../../components/DataTable";
 import { TableToolbar } from "../../../../../components/TableToolbar";
 import { useAuth } from "../../../../../context/AuthContext";
-import { apiFetch, fetchAllTableRows, TABLE_PAGE_SIZE } from "../../../../../api/client";
+import { fetchAllTableRows, TABLE_PAGE_SIZE } from "../../../../../api/client";
 import { EMPTY_TOOLBAR } from "../../../../../utils/tableFilters";
 import { useToolbarFilteredRows } from "../../../../../hooks/useToolbarFilteredRows";
 import { formatDateTime } from "../../../../../utils/dateTime";
+import { formatSessionIp } from "../../../../../utils/sessionDisplay";
+import { formatTenantAuditAction } from "../../../../../utils/auditActionLabels";
 
 export default function AuditLogs() {
   const { authFetch } = useAuth();
+  const navigate = useNavigate();
   const [rows, setRows] = useState([]);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -43,10 +47,10 @@ export default function AuditLogs() {
   }, [load]);
 
   const columns = [
-    { key: "action", label: "Action" },
+    { key: "action", label: "Action", format: (v) => formatTenantAuditAction(v) },
     { key: "user_name", label: "User" },
     { key: "module_name", label: "Module" },
-    { key: "ip_address", label: "IP", format: (v) => v || "—" },
+    { key: "ip_address", label: "IP", format: (v) => formatSessionIp(v) },
     { key: "created_at", label: "When", format: formatDateTime },
   ];
 
@@ -72,6 +76,7 @@ export default function AuditLogs() {
               page={page}
               pageSize={TABLE_PAGE_SIZE}
               onPageChange={setPage}
+              onRowClick={(row) => navigate(`view/${row.id}`, { state: { row } })}
             />
           </>
         )}

@@ -72,5 +72,6 @@ export function registerInventoryRoutes(app, verifyToken) {
 
   // Wastage
   app.get(`${base}/wastage`, ...auth, view, inventoryController.listWastage);
+  app.get(`${base}/wastage/:id`, ...auth, view, inventoryController.getWastage);
   app.post(`${base}/wastage`, ...auth, create, inventoryController.createWastage);
 }

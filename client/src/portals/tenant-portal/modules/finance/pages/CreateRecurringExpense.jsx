@@ -9,8 +9,21 @@ import { FormPageLayout, FormPageAlerts, FormActions } from "../../../../../comp
 import { FormBlock } from "../../../../../components/FormBlock";
 import { FormField } from "../../../../../components/FormField";
 import { Button } from "../../../../../components/Button";
+import { UnsavedChangesDialog } from "../../../../../components/UnsavedChangesDialog";
+import { useFormUnsavedGuard } from "../../../../../hooks/useFormUnsavedGuard";
 import { MODULE_BASE, RECURRING_FREQUENCIES, RECURRING_STATUSES } from "../constants";
 import { toInputDate } from "../../../../../utils/billing";
+
+const emptyForm = () => ({
+  title: "",
+  amount: "",
+  frequency: "monthly",
+  next_due_date: toInputDate(new Date()),
+  status: "active",
+  category_id: "",
+  sub_category_id: "",
+  bank_account_id: "",
+});
 
 export default function CreateRecurringExpense() {
   const { recurringId } = useParams();
@@ -22,16 +35,8 @@ export default function CreateRecurringExpense() {
   const [categories, setCategories] = useState([]);
   const [subCategories, setSubCategories] = useState([]);
   const [bankAccounts, setBankAccounts] = useState([]);
-  const [form, setForm] = useState({
-    title: "",
-    amount: "",
-    frequency: "monthly",
-    next_due_date: toInputDate(new Date()),
-    status: "active",
-    category_id: "",
-    sub_category_id: "",
-    bank_account_id: "",
-  });
+  const [form, setForm] = useState(emptyForm);
+  const [baseline, setBaseline] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -52,7 +57,7 @@ export default function CreateRecurringExpense() {
         if (isEdit) {
           const row = rows.find((r) => String(r.id) === String(recurringId));
           if (!row) throw new Error("Recurring expense not found");
-          setForm({
+          const next = {
             title: row.title || "",
             amount: String(row.amount ?? ""),
             frequency: row.frequency || "monthly",
@@ -61,9 +66,15 @@ export default function CreateRecurringExpense() {
             category_id: String(row.category_id || ""),
             sub_category_id: row.sub_category_id ? String(row.sub_category_id) : "",
             bank_account_id: row.bank_account_id ? String(row.bank_account_id) : "",
-          });
-        } else if (ref.categories?.length) {
-          setForm((f) => ({ ...f, category_id: String(ref.categories[0].id) }));
+          };
+          setForm(next);
+          setBaseline(JSON.stringify(next));
+        } else {
+          const next = ref.categories?.length
+            ? { ...emptyForm(), category_id: String(ref.categories[0].id) }
+            : emptyForm();
+          setForm(next);
+          setBaseline(JSON.stringify(next));
         }
       })
       .catch((e) => active && setError(e.message))
@@ -77,6 +88,9 @@ export default function CreateRecurringExpense() {
   );
 
   const disabled = isEdit ? !canEdit : !canCreate;
+
+  const { dialogOpen, stayOnPage, leavePage, reloadPending, navigateSafely } =
+    useFormUnsavedGuard(form, { baseline, enabled: !loading });
 
   const submit = async (e) => {
     e.preventDefault();
@@ -93,10 +107,11 @@ export default function CreateRecurringExpense() {
       };
       if (isEdit) {
         await apiFetch(`/finance/recurring-expenses/${recurringId}`, { method: "PUT", body: JSON.stringify(body) }, authFetch);
+        setBaseline(JSON.stringify(form));
         setMessage("Recurring expense updated successfully.");
       } else {
         await apiFetch("/finance/recurring-expenses", { method: "POST", body: JSON.stringify(body) }, authFetch);
-        navigate(`${MODULE_BASE}/recurring-expenses`);
+        navigateSafely(`${MODULE_BASE}/recurring-expenses`);
       }
     } catch (err) {
       setError(err.message);
@@ -156,6 +171,12 @@ export default function CreateRecurringExpense() {
           </FormActions>
         </form>
       </FormPageLayout>
+      <UnsavedChangesDialog
+        open={dialogOpen}
+        onStay={stayOnPage}
+        onDiscard={leavePage}
+        reloadPending={reloadPending}
+      />
     </div>
   );
 }

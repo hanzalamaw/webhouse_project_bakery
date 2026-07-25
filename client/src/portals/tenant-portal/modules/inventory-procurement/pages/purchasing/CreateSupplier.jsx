@@ -7,6 +7,8 @@ import { FormField } from "../../../../../../components/FormField";
 import { Button } from "../../../../../../components/Button";
 import { FormBlock } from "../../../../../../components/FormBlock";
 import { FormPageLayout, FormActions } from "../../../../../../components/FormPageLayout";
+import { UnsavedChangesDialog } from "../../../../../../components/UnsavedChangesDialog";
+import { useFormUnsavedGuard } from "../../../../../../hooks/useFormUnsavedGuard";
 import { MODULE_BASE, ITEM_STATUS } from "../../constants";
 
 const EMPTY = {
@@ -26,6 +28,7 @@ export default function CreateSupplier() {
   const { authFetch } = useAuth();
   const navigate = useNavigate();
   const [form, setForm] = useState(EMPTY);
+  const [baseline, setBaseline] = useState(() => (isEdit ? null : JSON.stringify(EMPTY)));
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -36,7 +39,7 @@ export default function CreateSupplier() {
     setLoading(true);
     apiFetch(`/inventory/suppliers/${supplierId}`, {}, authFetch)
       .then((row) => {
-        setForm({
+        const next = {
           supplier_name: row.supplier_name || "",
           contact_person: row.contact_person || "",
           phone: row.phone || "",
@@ -45,11 +48,16 @@ export default function CreateSupplier() {
           city: row.city || "",
           notes: row.notes || "",
           status: row.status || "active",
-        });
+        };
+        setForm(next);
+        setBaseline(JSON.stringify(next));
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [isEdit, supplierId, authFetch]);
+
+  const { dialogOpen, stayOnPage, leavePage, reloadPending, navigateSafely } =
+    useFormUnsavedGuard(form, { baseline, enabled: !loading });
 
   const submit = async (e) => {
     e.preventDefault();
@@ -65,7 +73,7 @@ export default function CreateSupplier() {
       } else {
         await apiFetch("/inventory/suppliers", { method: "POST", body: JSON.stringify(form) }, authFetch);
       }
-      navigate(backPath);
+      navigateSafely(backPath);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -115,6 +123,12 @@ export default function CreateSupplier() {
           </FormActions>
         </form>
       </FormPageLayout>
+      <UnsavedChangesDialog
+        open={dialogOpen}
+        onStay={stayOnPage}
+        onDiscard={leavePage}
+        reloadPending={reloadPending}
+      />
     </div>
   );
 }

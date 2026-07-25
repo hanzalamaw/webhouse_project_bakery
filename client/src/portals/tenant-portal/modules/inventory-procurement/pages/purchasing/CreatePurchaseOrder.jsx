@@ -4,12 +4,15 @@ import { useAuth } from "../../../../../../context/AuthContext";
 import { apiFetch } from "../../../../../../api/client";
 import { PageHeader } from "../../../../../../components/PageHeader";
 import { FormField } from "../../../../../../components/FormField";
+import { DiscountField } from "../../../../../../components/DiscountField";
 import { Button } from "../../../../../../components/Button";
 import { SearchableSelect } from "../../../../../../components/SearchableSelect";
-import ProductCatalogPicker from "../../../../../../components/ProductCatalogPicker";
+import { ProductSelectField } from "../../../../../../components/ProductSelectField";
 import { useInventoryReference } from "../../hooks/useInventoryReference";
 import { FormBlock } from "../../../../../../components/FormBlock";
 import { FormPageLayout, FormActions } from "../../../../../../components/FormPageLayout";
+import { UnsavedChangesDialog } from "../../../../../../components/UnsavedChangesDialog";
+import { useFormUnsavedGuard } from "../../../../../../hooks/useFormUnsavedGuard";
 import { MODULE_BASE, PO_STATUSES } from "../../constants";
 import { formatPKR } from "../../../../../../utils/currency";
 
@@ -30,6 +33,7 @@ export default function CreatePurchaseOrder() {
   const { authFetch } = useAuth();
   const { suppliers, branches, items } = useInventoryReference();
   const keyRef = useRef(1);
+  const [initialOrderDate] = useState(() => new Date().toISOString().slice(0, 10));
   const makeLine = useCallback((item = null) => {
     keyRef.current += 1;
     return emptyLine(`line-${keyRef.current}`, item);
@@ -37,7 +41,7 @@ export default function CreatePurchaseOrder() {
 
   const [supplierId, setSupplierId] = useState("");
   const [branchId, setBranchId] = useState("");
-  const [orderDate, setOrderDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [orderDate, setOrderDate] = useState(initialOrderDate);
   const [expectedDate, setExpectedDate] = useState("");
   const [status, setStatus] = useState("ordered");
   const [discountAmount, setDiscountAmount] = useState("0");
@@ -65,6 +69,47 @@ export default function CreatePurchaseOrder() {
     [items]
   );
   const selectedIds = useMemo(() => lines.map((l) => String(l.item_id)).filter(Boolean), [lines]);
+  const formState = useMemo(
+    () => ({
+      supplierId,
+      branchId,
+      orderDate,
+      expectedDate,
+      status,
+      discountAmount,
+      taxAmount,
+      notes,
+      lines,
+    }),
+    [
+      supplierId,
+      branchId,
+      orderDate,
+      expectedDate,
+      status,
+      discountAmount,
+      taxAmount,
+      notes,
+      lines,
+    ]
+  );
+  const initialBaseline = useMemo(
+    () =>
+      JSON.stringify({
+        supplierId: "",
+        branchId: "",
+        orderDate: initialOrderDate,
+        expectedDate: "",
+        status: "ordered",
+        discountAmount: "0",
+        taxAmount: "0",
+        notes: "",
+        lines: [],
+      }),
+    [initialOrderDate]
+  );
+  const { dialogOpen, stayOnPage, leavePage, reloadPending, navigateSafely } =
+    useFormUnsavedGuard(formState, { baseline: initialBaseline });
 
   const addOrToggleItem = (product) => {
     const id = String(product.id);
@@ -129,7 +174,7 @@ export default function CreatePurchaseOrder() {
         },
         authFetch
       );
-      navigate(backPath);
+      navigateSafely(backPath);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -161,11 +206,11 @@ export default function CreatePurchaseOrder() {
             </div>
           </FormBlock>
 
-          <FormBlock title="Items to buy" description="Tap items to add them to this purchase order.">
-            <ProductCatalogPicker
+          <FormBlock title="Items to buy" description="Choose one or more purchasable items for this purchase order.">
+            <ProductSelectField
               items={purchasableItems}
-              title="Products"
               mode="multi"
+              entityLabel="items"
               selectedIds={selectedIds}
               onToggle={(_id, product) => {
                 if (product) addOrToggleItem(product);
@@ -174,10 +219,6 @@ export default function CreatePurchaseOrder() {
                   if (match) addOrToggleItem(match);
                 }
               }}
-              showPrice
-              showStock={false}
-              priceField="cost_price"
-              maxHeight={280}
               emptyMessage="No purchasable items yet. Add ingredients or packaging under Items."
             />
           </FormBlock>
@@ -201,7 +242,13 @@ export default function CreatePurchaseOrder() {
                     <div className="wh-form-grid">
                       <FormField id={`qty_${line._key}`} label="Qty" type="number" min="0.01" step="any" value={line.qty} onChange={(e) => updateLine(line._key, "qty", e.target.value)} />
                       <FormField id={`cost_${line._key}`} label="Unit cost" type="number" min="0" step="0.01" value={line.unit_cost} onChange={(e) => updateLine(line._key, "unit_cost", e.target.value)} />
-                      <FormField id={`disc_${line._key}`} label="Line discount" type="number" min="0" step="0.01" value={line.discount} onChange={(e) => updateLine(line._key, "discount", e.target.value)} />
+                      <DiscountField
+                        id={`disc_${line._key}`}
+                        label="Line discount"
+                        value={line.discount}
+                        baseAmount={(Number(line.qty) || 0) * (Number(line.unit_cost) || 0)}
+                        onChange={(v) => updateLine(line._key, "discount", v)}
+                      />
                       <FormField id={`exp_${line._key}`} label="Expiry (optional)" type="date" value={line.expiry_date} onChange={(e) => updateLine(line._key, "expiry_date", e.target.value)} />
                     </div>
                   </div>
@@ -212,7 +259,13 @@ export default function CreatePurchaseOrder() {
 
           <FormBlock title="Totals">
             <div className="wh-form-grid">
-              <FormField id="discount_amount" label="Order discount (PKR)" type="number" min="0" step="0.01" value={discountAmount} onChange={(e) => setDiscountAmount(e.target.value)} />
+              <DiscountField
+                id="discount_amount"
+                label="Order discount"
+                value={discountAmount}
+                baseAmount={subtotal}
+                onChange={setDiscountAmount}
+              />
               <FormField id="tax_amount" label="Tax (PKR)" type="number" min="0" step="0.01" value={taxAmount} onChange={(e) => setTaxAmount(e.target.value)} />
               <FormField id="subtotal" label="Subtotal" value={formatPKR(subtotal)} displayOnly />
               <FormField id="payable" label="Payable" value={formatPKR(payable)} displayOnly />
@@ -226,6 +279,12 @@ export default function CreatePurchaseOrder() {
           </FormActions>
         </form>
       </FormPageLayout>
+      <UnsavedChangesDialog
+        open={dialogOpen}
+        onStay={stayOnPage}
+        onDiscard={leavePage}
+        reloadPending={reloadPending}
+      />
     </div>
   );
 }

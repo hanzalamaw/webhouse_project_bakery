@@ -3,12 +3,13 @@ import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { useAuth } from "../../../../../../context/AuthContext";
 import { fetchAllTableRows } from "../../../../../../api/client";
 import { PageHeader } from "../../../../../../components/PageHeader";
-import { FormBlock } from "../../../../../../components/FormBlock";
-import { FormPageLayout } from "../../../../../../components/FormPageLayout";
+import { Card } from "../../../../../../components/Card";
 import { Button } from "../../../../../../components/Button";
+import { StatCard } from "../../../../../../components/StatCard";
 import { StatusBadge } from "../../../../../../components/Badge";
 import { DetailValue } from "../../../../../../components/DetailValue";
 import { formatDateTime } from "../../../../../../utils/dateTime";
+import { formatPKR } from "../../../../../../utils/currency";
 import { MOVEMENT_LABELS, MODULE_BASE } from "../../constants";
 
 const LIST_API = "/inventory/stock-movements";
@@ -49,71 +50,83 @@ export default function ViewStockMovement() {
   }, [load, location.state?.movement]);
 
   if (loading) {
-    return (
-      <div className="wh-page">
-        <FormPageLayout><p className="wh-muted">Loading…</p></FormPageLayout>
-      </div>
-    );
+    return <div className="wh-page"><p className="wh-muted">Loading…</p></div>;
   }
 
   if (!movement) {
     return (
       <div className="wh-page">
-        <FormPageLayout>
-          <div className="wh-alert wh-alert--error">{error || "Movement not found"}</div>
-          <Button variant="secondary" onClick={() => navigate(backPath)}>Back</Button>
-        </FormPageLayout>
+        <PageHeader title="Stock movement" />
+        <p className="wh-field__error">{error || "Movement not found"}</p>
+        <Button variant="secondary" onClick={() => navigate(backPath)}>Back</Button>
       </div>
     );
   }
 
   const typeLabel = MOVEMENT_LABELS[movement.movement_type] || movement.movement_type;
+  const lineValue = (Number(movement.qty) || 0) * (Number(movement.unit_cost) || 0);
+  const isIn = String(movement.movement_type || "").includes("_in") || movement.movement_type === "purchase_in" || movement.movement_type === "production_in" || movement.movement_type === "transfer_in";
 
   return (
     <div className="wh-page">
-      <FormPageLayout>
-        <PageHeader
-          title={typeLabel}
-          description={`${movement.item_name} · ${formatDateTime(movement.created_at)}`}
-          actions={
-            <Button variant="secondary" onClick={() => navigate(backPath)}>Back to history</Button>
-          }
+      <PageHeader
+        title={typeLabel}
+        description={`${movement.item_name} · ${formatDateTime(movement.created_at)}`}
+        actions={
+          <div className="wh-action-btns">
+            <Button variant="secondary" onClick={() => navigate(backPath)}>Back</Button>
+            {movement.item_id && (
+              <Button variant="secondary" onClick={() => navigate(`${MODULE_BASE}/items/view/${movement.item_id}`)}>
+                View item
+              </Button>
+            )}
+            {movement.branch_id && (
+              <Button variant="secondary" onClick={() => navigate(`${MODULE_BASE}/branches/view/${movement.branch_id}`)}>
+                View branch
+              </Button>
+            )}
+          </div>
+        }
+      />
+
+      <div className="wh-stat-grid">
+        <StatCard
+          label="Quantity"
+          value={`${Number(movement.qty || 0).toLocaleString()} ${movement.unit || ""}`.trim()}
+          tone={isIn ? "success" : "warning"}
+          hint={isIn ? "Stock increased" : "Stock decreased"}
         />
+        <StatCard label="Unit cost" value={formatPKR(movement.unit_cost)} />
+        <StatCard label="Line value" value={formatPKR(lineValue)} hint="Qty × unit cost" />
+        <StatCard label="Movement" value={typeLabel} />
+      </div>
 
-        <FormBlock title="Item" description="Item included in this movement.">
-          <div className="wh-inv-line-item">
-            <div className="wh-inv-line-item__head">
-              <strong>{movement.item_name}</strong>
-              <span className="wh-muted">{movement.unit || "—"}</span>
-            </div>
-          </div>
-        </FormBlock>
-
-        <FormBlock title="Branch" description="Branch where this movement was recorded.">
-          <div className="wh-form-grid">
-            <DetailValue label="Branch">{movement.branch_name}</DetailValue>
-            {movement.batch_no && <DetailValue label="Batch">{movement.batch_no}</DetailValue>}
-          </div>
-        </FormBlock>
-
-        <FormBlock title="Quantities & notes">
-          <div className="wh-form-grid">
-            <DetailValue label="Quantity">{movement.qty}</DetailValue>
-            <DetailValue label="Unit cost">{movement.unit_cost ?? "—"}</DetailValue>
-            <DetailValue label="Notes" fullWidth>{movement.notes || "—"}</DetailValue>
-          </div>
-        </FormBlock>
-
-        <FormBlock title="Record info">
-          <div className="wh-form-grid">
-            <DetailValue label="Movement type">
-              <StatusBadge status={typeLabel} />
+      <div className="wh-entity-view-grid">
+        <Card>
+          <h3 className="wh-card__title">What moved</h3>
+          <div className="wh-detail-grid">
+            <DetailValue label="Item">{movement.item_name}</DetailValue>
+            <DetailValue label="Unit">{movement.unit || "—"}</DetailValue>
+            <DetailValue label="Quantity">{Number(movement.qty || 0).toLocaleString()}</DetailValue>
+            <DetailValue label="Batch">{movement.batch_no || "—"}</DetailValue>
+            <DetailValue label="Type"><StatusBadge status={typeLabel} /></DetailValue>
+            <DetailValue label="Reference">
+              {movement.reference_type ? `${movement.reference_type}${movement.reference_id ? ` #${movement.reference_id}` : ""}` : "—"}
             </DetailValue>
-            <DetailValue label="Recorded by">{movement.created_by_name || "—"}</DetailValue>
-            <DetailValue label="Date">{formatDateTime(movement.created_at)}</DetailValue>
           </div>
-        </FormBlock>
-      </FormPageLayout>
+        </Card>
+
+        <Card>
+          <h3 className="wh-card__title">Where & who</h3>
+          <div className="wh-detail-grid">
+            <DetailValue label="Branch">{movement.branch_name}</DetailValue>
+            <DetailValue label="Recorded by">{movement.created_by_name || "—"}</DetailValue>
+            <DetailValue label="When">{formatDateTime(movement.created_at)}</DetailValue>
+            <DetailValue label="Unit cost">{formatPKR(movement.unit_cost)}</DetailValue>
+            <DetailValue label="Notes" fullWidth multiline>{movement.notes || "—"}</DetailValue>
+          </div>
+        </Card>
+      </div>
     </div>
   );
 }

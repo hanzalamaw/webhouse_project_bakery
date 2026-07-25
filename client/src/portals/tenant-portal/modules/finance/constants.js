@@ -11,7 +11,8 @@ export const PAYMENT_METHOD_LABELS = {
   bank_transfer: "Bank transfer",
   card: "Card",
   online: "Online",
-  qris: "QRIS",
+  qris: "QR",
+  qr: "QR",
   other: "Other",
 };
 

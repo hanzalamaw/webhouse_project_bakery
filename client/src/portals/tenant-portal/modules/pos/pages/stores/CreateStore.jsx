@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../../../../context/AuthContext";
 import { useModulePermission } from "../../../../../../hooks/useModulePermission";
@@ -8,6 +8,8 @@ import { FormField } from "../../../../../../components/FormField";
 import { Button } from "../../../../../../components/Button";
 import { FormBlock } from "../../../../../../components/FormBlock";
 import { FormPageLayout, FormActions } from "../../../../../../components/FormPageLayout";
+import { UnsavedChangesDialog } from "../../../../../../components/UnsavedChangesDialog";
+import { useFormUnsavedGuard } from "../../../../../../hooks/useFormUnsavedGuard";
 import { MODULE_BASE, OUTLET_STATUSES, OUTLET_STATUS_LABELS, TERMINAL_STATUSES, TERMINAL_STATUS_LABELS } from "../../constants";
 
 const EMPTY_STORE = {
@@ -35,8 +37,9 @@ export default function CreateStore() {
   const { authFetch } = useAuth();
   const { canCreate, readOnly } = useModulePermission("pos");
   const navigate = useNavigate();
+  const [initialTerminals] = useState(() => [newTerminalRow()]);
   const [store, setStore] = useState(EMPTY_STORE);
-  const [terminals, setTerminals] = useState([newTerminalRow()]);
+  const [terminals, setTerminals] = useState(initialTerminals);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [limits, setLimits] = useState(null);
@@ -50,6 +53,16 @@ export default function CreateStore() {
       .catch(() => setLimits(null))
       .finally(() => setLoadingLimits(false));
   }, [authFetch]);
+
+  const formValue = useMemo(() => ({ store, terminals }), [store, terminals]);
+  const baseline = useMemo(
+    () => JSON.stringify({ store: EMPTY_STORE, terminals: initialTerminals }),
+    [initialTerminals]
+  );
+  const { dialogOpen, stayOnPage, leavePage, reloadPending, navigateSafely } = useFormUnsavedGuard(
+    formValue,
+    { baseline, enabled: !disabled }
+  );
 
   const submit = async (e) => {
     e.preventDefault();
@@ -84,7 +97,7 @@ export default function CreateStore() {
         }, authFetch);
       }
 
-      navigate(`${MODULE_BASE}/stores/${created.id}`);
+      navigateSafely(`${MODULE_BASE}/stores/${created.id}`);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -171,6 +184,12 @@ export default function CreateStore() {
         </form>
         )}
       </FormPageLayout>
+      <UnsavedChangesDialog
+        open={dialogOpen}
+        onStay={stayOnPage}
+        onDiscard={leavePage}
+        reloadPending={reloadPending}
+      />
     </div>
   );
 }

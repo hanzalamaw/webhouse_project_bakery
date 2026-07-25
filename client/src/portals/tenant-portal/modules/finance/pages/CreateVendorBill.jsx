@@ -9,8 +9,18 @@ import { FormPageLayout, FormPageAlerts, FormActions } from "../../../../../comp
 import { FormBlock } from "../../../../../components/FormBlock";
 import { FormField } from "../../../../../components/FormField";
 import { Button } from "../../../../../components/Button";
+import { UnsavedChangesDialog } from "../../../../../components/UnsavedChangesDialog";
+import { useFormUnsavedGuard } from "../../../../../hooks/useFormUnsavedGuard";
 import { MODULE_BASE, VENDOR_BILL_STATUSES } from "../constants";
 import { toInputDate } from "../../../../../utils/billing";
+
+const emptyForm = () => ({
+  vendor_name: "",
+  bill_no: "",
+  bill_amount: "",
+  due_date: toInputDate(new Date()),
+  status: "unpaid",
+});
 
 export default function CreateVendorBill() {
   const { billId } = useParams();
@@ -19,13 +29,8 @@ export default function CreateVendorBill() {
   const { canCreate, canEdit } = useModulePermission("finance");
   const { amountLabel } = useMoney();
   const navigate = useNavigate();
-  const [form, setForm] = useState({
-    vendor_name: "",
-    bill_no: "",
-    bill_amount: "",
-    due_date: toInputDate(new Date()),
-    status: "unpaid",
-  });
+  const [form, setForm] = useState(emptyForm);
+  const [baseline, setBaseline] = useState(() => (isEdit ? null : JSON.stringify(emptyForm())));
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -39,13 +44,15 @@ export default function CreateVendorBill() {
         if (!active) return;
         const row = rows.find((r) => String(r.id) === String(billId));
         if (!row) throw new Error("Bill not found");
-        setForm({
+        const next = {
           vendor_name: row.vendor_name || "",
           bill_no: row.bill_no || "",
           bill_amount: String(row.bill_amount ?? ""),
           due_date: toInputDate(row.due_date),
           status: row.status || "unpaid",
-        });
+        };
+        setForm(next);
+        setBaseline(JSON.stringify(next));
       })
       .catch((e) => active && setError(e.message))
       .finally(() => active && setLoading(false));
@@ -53,6 +60,9 @@ export default function CreateVendorBill() {
   }, [authFetch, billId, isEdit]);
 
   const disabled = isEdit ? !canEdit : !canCreate;
+
+  const { dialogOpen, stayOnPage, leavePage, reloadPending, navigateSafely } =
+    useFormUnsavedGuard(form, { baseline, enabled: !loading });
 
   const submit = async (e) => {
     e.preventDefault();
@@ -63,10 +73,11 @@ export default function CreateVendorBill() {
       const body = { ...form, bill_amount: Number(form.bill_amount) };
       if (isEdit) {
         await apiFetch(`/finance/vendor-bills/${billId}`, { method: "PUT", body: JSON.stringify(body) }, authFetch);
+        setBaseline(JSON.stringify(form));
         setMessage("Vendor bill updated successfully.");
       } else {
         await apiFetch("/finance/vendor-bills", { method: "POST", body: JSON.stringify(body) }, authFetch);
-        navigate(`${MODULE_BASE}/vendor-bills`);
+        navigateSafely(`${MODULE_BASE}/vendor-bills`);
       }
     } catch (err) {
       setError(err.message);
@@ -106,6 +117,12 @@ export default function CreateVendorBill() {
           </FormActions>
         </form>
       </FormPageLayout>
+      <UnsavedChangesDialog
+        open={dialogOpen}
+        onStay={stayOnPage}
+        onDiscard={leavePage}
+        reloadPending={reloadPending}
+      />
     </div>
   );
 }

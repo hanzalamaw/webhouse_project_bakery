@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../../../../context/AuthContext";
 import { useModulePermission } from "../../../../../../hooks/useModulePermission";
@@ -8,6 +8,8 @@ import { FormField } from "../../../../../../components/FormField";
 import { Button } from "../../../../../../components/Button";
 import { FormBlock } from "../../../../../../components/FormBlock";
 import { FormPageLayout, FormPageAlerts, FormActions } from "../../../../../../components/FormPageLayout";
+import { UnsavedChangesDialog } from "../../../../../../components/UnsavedChangesDialog";
+import { useFormUnsavedGuard } from "../../../../../../hooks/useFormUnsavedGuard";
 import { AfterSalesOrderSection } from "../../components/AfterSalesOrderSection";
 import { useAfterSalesOrders } from "../../hooks/useAfterSalesOrders";
 import { MODULE_BASE } from "../../constants";
@@ -18,17 +20,28 @@ import {
   isOrderPaid,
 } from "../../utils/afterSalesRules";
 
+const EMPTY = { order_id: "", reason: "" };
+
 export default function CreateCancellation() {
   const { authFetch } = useAuth();
   const { canCreate, readOnly } = useModulePermission("order-management");
   const navigate = useNavigate();
   const { orders, loading, error: loadError, prefillOrderId } = useAfterSalesOrders(authFetch);
-  const [form, setForm] = useState({ order_id: "", reason: "" });
+  const [form, setForm] = useState(() => ({
+    ...EMPTY,
+    order_id: prefillOrderId ? String(prefillOrderId) : "",
+  }));
+  const [baseline] = useState(() => JSON.stringify({
+    ...EMPTY,
+    order_id: prefillOrderId ? String(prefillOrderId) : "",
+  }));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   const disabled = readOnly || !canCreate;
   const managePath = `${MODULE_BASE}/cancellations/manage`;
+  const { dialogOpen, stayOnPage, leavePage, reloadPending, navigateSafely } =
+    useFormUnsavedGuard(form, { baseline, enabled: !loading });
 
   const selectedOrder = useMemo(
     () => orders.find((o) => String(o.id) === String(form.order_id)) || null,
@@ -42,12 +55,6 @@ export default function CreateCancellation() {
     && !isOrderEligibleForCancellation(selectedOrder)
     && isOrderEligibleForRefund(selectedOrder)
     && isOrderPaid(selectedOrder);
-
-  useEffect(() => {
-    if (prefillOrderId) {
-      setForm((f) => ({ ...f, order_id: String(prefillOrderId) }));
-    }
-  }, [prefillOrderId]);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -64,7 +71,7 @@ export default function CreateCancellation() {
         method: "POST",
         body: JSON.stringify({ order_id: Number(form.order_id), reason: form.reason.trim() }),
       }, authFetch);
-      navigate(managePath);
+      navigateSafely(managePath);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -138,6 +145,12 @@ export default function CreateCancellation() {
           </FormActions>
         </form>
       </FormPageLayout>
+      <UnsavedChangesDialog
+        open={dialogOpen}
+        onStay={stayOnPage}
+        onDiscard={leavePage}
+        reloadPending={reloadPending}
+      />
     </div>
   );
 }

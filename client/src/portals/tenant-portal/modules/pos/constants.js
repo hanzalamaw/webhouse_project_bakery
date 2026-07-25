@@ -26,7 +26,8 @@ export const PAYMENT_STATUS_LABELS = {
   refunded: "Refunded",
   cash: "Cash",
   card: "Card",
-  qris: "Qris",
+  qris: "QR",
+  qr: "QR",
 };
 
 export const PRODUCT_STATUS = ["active", "inactive"];
@@ -39,4 +40,4 @@ export const MOVEMENT_LABELS = {
   transfer_in: "Transfer In",
   transfer_out: "Transfer Out",
 };
-export const PAYMENT_METHODS = ["cash", "card", "qris"];
+export const PAYMENT_METHODS = ["cash", "card", "qr"];

@@ -142,7 +142,7 @@ export default function ManageProducts() {
               page={page}
               pageSize={TABLE_PAGE_SIZE}
               onPageChange={setPage}
-              onRowClick={(row) => navigate(`${MODULE_BASE}/items/edit/${row.id}`)}
+              onRowClick={(row) => navigate(`${MODULE_BASE}/items/view/${row.id}`)}
             />
           </>
         )}

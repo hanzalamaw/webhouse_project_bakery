@@ -6,14 +6,24 @@ import { apiFetch } from "../../../../../../api/client";
 import { PageHeader } from "../../../../../../components/PageHeader";
 import { FormField } from "../../../../../../components/FormField";
 import { Button } from "../../../../../../components/Button";
-import ProductCatalogPicker from "../../../../../../components/ProductCatalogPicker";
+import { ProductSelectField } from "../../../../../../components/ProductSelectField";
 import { FormBlock } from "../../../../../../components/FormBlock";
 import { FormPageLayout, FormPageAlerts, FormActions } from "../../../../../../components/FormPageLayout";
+import { UnsavedChangesDialog } from "../../../../../../components/UnsavedChangesDialog";
+import { useFormUnsavedGuard } from "../../../../../../hooks/useFormUnsavedGuard";
 import { AfterSalesOrderSection } from "../../components/AfterSalesOrderSection";
 import { useAfterSalesOrders } from "../../hooks/useAfterSalesOrders";
 import { useOrderReference } from "../../hooks/useOrderReference";
 import { MODULE_BASE, EXCHANGE_STATUSES, EXCHANGE_STATUS_LABELS } from "../../constants";
 import { afterSalesIneligibilityMessage, isOrderEligibleForExchange } from "../../utils/afterSalesRules";
+
+const EMPTY = {
+  order_id: "",
+  old_product_id: "",
+  new_product_id: "",
+  exchange_status: "requested",
+  reason: "",
+};
 
 export default function CreateExchange() {
   const { authFetch } = useAuth();
@@ -22,21 +32,24 @@ export default function CreateExchange() {
   const navigate = useNavigate();
   const { orders, error: loadError, prefillOrderId } = useAfterSalesOrders(authFetch);
 
-  const [form, setForm] = useState({
-    order_id: "",
-    old_product_id: "",
-    new_product_id: "",
-    exchange_status: "requested",
-    reason: "",
-  });
+  const [form, setForm] = useState(() => ({
+    ...EMPTY,
+    order_id: prefillOrderId ? String(prefillOrderId) : "",
+  }));
+  const [baseline] = useState(() => JSON.stringify({
+    ...EMPTY,
+    order_id: prefillOrderId ? String(prefillOrderId) : "",
+  }));
   const [orderItems, setOrderItems] = useState([]);
-  const [loadingItems, setLoadingItems] = useState(false);
+  const [loadingItems, setLoadingItems] = useState(Boolean(prefillOrderId));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   const disabled = readOnly || !canCreate;
   const managePath = `${MODULE_BASE}/exchanges/manage`;
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const { dialogOpen, stayOnPage, leavePage, reloadPending, navigateSafely } =
+    useFormUnsavedGuard(form, { baseline });
 
   const selectedOrder = useMemo(
     () => orders.find((o) => String(o.id) === String(form.order_id)) || null,
@@ -65,17 +78,7 @@ export default function CreateExchange() {
   }, [orderItems, products]);
 
   useEffect(() => {
-    if (prefillOrderId) {
-      setForm((f) => ({ ...f, order_id: String(prefillOrderId), old_product_id: "" }));
-    }
-  }, [prefillOrderId]);
-
-  useEffect(() => {
-    if (!form.order_id) {
-      setOrderItems([]);
-      return;
-    }
-    setLoadingItems(true);
+    if (!form.order_id) return;
     apiFetch(`/orders/${form.order_id}`, {}, authFetch)
       .then((data) => setOrderItems(data.items || []))
       .catch(() => setOrderItems([]))
@@ -83,6 +86,8 @@ export default function CreateExchange() {
   }, [form.order_id, authFetch]);
 
   const handleOrderChange = (orderId) => {
+    setOrderItems([]);
+    setLoadingItems(Boolean(orderId));
     setForm((f) => ({ ...f, order_id: orderId, old_product_id: "" }));
   };
 
@@ -118,7 +123,7 @@ export default function CreateExchange() {
         },
         authFetch
       );
-      navigate(managePath);
+      navigateSafely(managePath);
     } catch (err) {
       setError(err.message || "Failed to create exchange");
     } finally {
@@ -165,35 +170,31 @@ export default function CreateExchange() {
             </FormField>
           </FormBlock>
 
-          <FormBlock title="Returning" description="Tap the product from this order that is being returned.">
+          <FormBlock title="Returning" description="Choose the product from this order that is being returned.">
             {loadingItems ? (
               <p className="wh-muted">Loading order items…</p>
             ) : (
-              <ProductCatalogPicker
+              <ProductSelectField
                 products={returningProducts}
-                title="Products from order"
                 mode="single"
+                entityLabel="products"
                 value={form.old_product_id}
                 onSelect={(p) => set("old_product_id", String(p.id ?? p.product_id))}
-                showPrice
-                showStock={false}
-                maxHeight={220}
+                onChange={(id) => set("old_product_id", id)}
                 disabled={disabled || !form.order_id}
                 emptyMessage={form.order_id ? "No products on this order." : "Select an order first."}
               />
             )}
           </FormBlock>
 
-          <FormBlock title="Replacement" description="Tap the replacement product.">
-            <ProductCatalogPicker
+          <FormBlock title="Replacement" description="Choose the replacement product.">
+            <ProductSelectField
               products={products}
-              title="Replacement products"
               mode="single"
+              entityLabel="products"
               value={form.new_product_id}
               onSelect={(p) => set("new_product_id", String(p.id ?? p.product_id))}
-              showPrice
-              showStock={false}
-              maxHeight={220}
+              onChange={(id) => set("new_product_id", id)}
               disabled={disabled || refLoading}
               emptyMessage="No products available."
             />
@@ -221,6 +222,12 @@ export default function CreateExchange() {
           </FormActions>
         </form>
       </FormPageLayout>
+      <UnsavedChangesDialog
+        open={dialogOpen}
+        onStay={stayOnPage}
+        onDiscard={leavePage}
+        reloadPending={reloadPending}
+      />
     </div>
   );
 }

@@ -17,6 +17,8 @@ import { Button } from "../../../../../../components/Button";
 import { FormBlock } from "../../../../../../components/FormBlock";
 
 import { FormPageLayout, FormPageAlerts, FormActions } from "../../../../../../components/FormPageLayout";
+import { UnsavedChangesDialog } from "../../../../../../components/UnsavedChangesDialog";
+import { useFormUnsavedGuard } from "../../../../../../hooks/useFormUnsavedGuard";
 
 import { AfterSalesOrderSection } from "../../components/AfterSalesOrderSection";
 
@@ -43,6 +45,14 @@ import {
   isOrderEligibleForRefund,
 } from "../../utils/afterSalesRules";
 
+const EMPTY = {
+  order_id: "",
+  refund_amount: "",
+  refund_method: "original_payment",
+  refund_status: "pending",
+  reason: "",
+  refunded_at: "",
+};
 
 
 export default function CreateRefund() {
@@ -55,21 +65,11 @@ export default function CreateRefund() {
 
   const { orders, loading, error: loadError, prefillOrderId } = useAfterSalesOrders(authFetch);
 
-  const [form, setForm] = useState({
+  const [form, setForm] = useState(EMPTY);
 
-    order_id: "",
-
-    refund_amount: "",
-
-    refund_method: "original_payment",
-
-    refund_status: "pending",
-
-    reason: "",
-
-    refunded_at: "",
-
-  });
+  const [baseline, setBaseline] = useState(() =>
+    prefillOrderId ? null : JSON.stringify(EMPTY)
+  );
 
   const [saving, setSaving] = useState(false);
 
@@ -82,6 +82,9 @@ export default function CreateRefund() {
   const managePath = `${MODULE_BASE}/refunds/manage`;
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  const { dialogOpen, stayOnPage, leavePage, reloadPending, navigateSafely } =
+    useFormUnsavedGuard(form, { baseline, enabled: !loading });
 
 
 
@@ -110,10 +113,18 @@ export default function CreateRefund() {
 
 
   useEffect(() => {
-    if (!prefillOrderId || !orders.length || prefillAppliedRef.current) return;
-    applyOrderSelection(String(prefillOrderId));
+    if (!prefillOrderId || loading || prefillAppliedRef.current) return;
+    const orderId = String(prefillOrderId);
+    const order = orders.find((o) => String(o.id) === orderId);
+    const next = {
+      ...EMPTY,
+      order_id: orderId,
+      refund_amount: order?.payable_amount != null ? String(order.payable_amount) : "",
+    };
+    setForm(next);
+    setBaseline(JSON.stringify(next));
     prefillAppliedRef.current = true;
-  }, [prefillOrderId, orders]);
+  }, [prefillOrderId, orders, loading]);
 
 
 
@@ -157,7 +168,7 @@ export default function CreateRefund() {
 
       }, authFetch);
 
-      navigate(managePath);
+      navigateSafely(managePath);
 
     } catch (err) {
 
@@ -380,6 +391,13 @@ export default function CreateRefund() {
         </form>
 
       </FormPageLayout>
+
+      <UnsavedChangesDialog
+        open={dialogOpen}
+        onStay={stayOnPage}
+        onDiscard={leavePage}
+        reloadPending={reloadPending}
+      />
 
     </div>
 

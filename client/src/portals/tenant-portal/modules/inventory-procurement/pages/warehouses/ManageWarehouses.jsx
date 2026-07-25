@@ -80,7 +80,7 @@ export default function ManageWarehouses() {
   return (
     <div className="wh-page">
       <PageHeader
-        title="Branches (Shakhein)"
+        title="Branches"
         description={
           limits?.max_branches
             ? `Manage bakery branches (${limits.branch_count ?? rows.length} / ${limits.max_branches} used).`
@@ -112,7 +112,7 @@ export default function ManageWarehouses() {
             page={page}
             pageSize={TABLE_PAGE_SIZE}
             onPageChange={setPage}
-            onRowClick={(row) => navigate(`${MODULE_BASE}/branches/edit/${row.id}`)}
+            onRowClick={(row) => navigate(`${MODULE_BASE}/branches/view/${row.id}`)}
           />
         )}
       </Card>

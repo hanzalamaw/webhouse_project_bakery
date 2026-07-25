@@ -1,17 +1,16 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../../../../../../context/AuthContext";
 import { useModulePermission } from "../../../../../../hooks/useModulePermission";
 import { apiFetch } from "../../../../../../api/client";
 import { PageHeader } from "../../../../../../components/PageHeader";
-import { FormBlock } from "../../../../../../components/FormBlock";
-import { FormPageLayout, FormActions } from "../../../../../../components/FormPageLayout";
 import { Button } from "../../../../../../components/Button";
 import { StatusBadge } from "../../../../../../components/Badge";
-import { RecordViewSummary, DetailGrid, DetailValue } from "../../../../../../components/RecordView";
-import { DataTable } from "../../../../../../components/DataTable";
 import { ConfirmDeleteModal } from "../../../../../../components/ConfirmDeleteModal";
-import { formatDateTime } from "../../../../../../utils/dateTime";
+import { DetailGrid, DetailValue, RecordViewSummary } from "../../../../../../components/RecordView";
+import { ViewKpi, ViewPanel, formatCount } from "../../../../../../components/EntityViewLayout";
+import { ProductIcon, LogsIcon } from "../../../../../../components/icons";
+import { formatDateTime, formatDate } from "../../../../../../utils/dateTime";
 import { formatPKR } from "../../../../../../utils/currency";
 import { MODULE_BASE, RUN_STATUS_LABELS } from "../../constants";
 
@@ -43,6 +42,14 @@ export default function RunView() {
     load().catch(() => {});
   }, [load]);
 
+  const consumption = run?.consumption || [];
+  const unitCost = useMemo(() => {
+    if (!run) return 0;
+    const qty = Number(run.quantity_produced) || 0;
+    if (qty <= 0) return 0;
+    return (Number(run.total_cost) || 0) / qty;
+  }, [run]);
+
   const confirmCancel = async () => {
     setCancelling(true);
     try {
@@ -61,132 +68,138 @@ export default function RunView() {
   };
 
   if (loading) {
-    return (
-      <div className="wh-page">
-        <FormPageLayout>
-          <p className="wh-muted">Loading…</p>
-        </FormPageLayout>
-      </div>
-    );
+    return <div className="wh-page wh-page--wide"><p className="wh-muted">Loading…</p></div>;
   }
 
   if (!run) {
     return (
-      <div className="wh-page">
-        <FormPageLayout>
-          <div className="wh-alert wh-alert--error">{error || "Production run not found"}</div>
-          <Button variant="secondary" onClick={() => navigate(`${MODULE_BASE}/runs/manage`)}>
-            Back to runs
-          </Button>
-        </FormPageLayout>
+      <div className="wh-page wh-page--wide">
+        <div className="wh-alert wh-alert--error">{error || "Production run not found"}</div>
+        <Button variant="secondary" onClick={() => navigate(`${MODULE_BASE}/runs/manage`)}>Back</Button>
       </div>
     );
   }
 
-  const consumptionColumns = [
-    { key: "ingredient_name", label: "Ingredient (Kacha Maal)" },
-    {
-      key: "qty_consumed",
-      label: "Qty used",
-      format: (v, row) => `${Number(v || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })} ${row.ingredient_unit || ""}`.trim(),
-    },
-    {
-      key: "unit_cost",
-      label: "Unit cost",
-      format: (v) => formatPKR(v),
-    },
-    {
-      key: "batch_no",
-      label: "Batch",
-      format: (v) => v || "—",
-    },
-  ];
+  const qtyLabel = `${formatCount(run.quantity_produced)} ${run.finished_unit || ""}`.trim();
 
   return (
-    <div className="wh-page">
-      <FormPageLayout>
-        <PageHeader
-          title="Bake details"
-          description="What was produced and which ingredients were used."
-          actions={
-            <div className="wh-action-btns">
-              <Button variant="secondary" onClick={() => navigate(`${MODULE_BASE}/runs/manage`)}>
-                All runs
+    <div className="wh-page wh-page--wide">
+      <PageHeader
+        title="Bake details"
+        description="Output, cost, and ingredients consumed."
+        actions={
+          <div className="wh-action-btns">
+            <Button variant="secondary" onClick={() => navigate(`${MODULE_BASE}/runs/manage`)}>Back</Button>
+            {run.recipe_id && (
+              <Button variant="secondary" onClick={() => navigate(`${MODULE_BASE}/recipes/view/${run.recipe_id}`)}>
+                View recipe
               </Button>
-              {canEdit && run.status !== "cancelled" && (
-                <Button variant="danger" onClick={() => setCancelOpen(true)}>
-                  Cancel bake
-                </Button>
-              )}
-            </div>
-          }
-        />
-
-        {error && <div className="wh-alert wh-alert--error">{error}</div>}
-
-        <div className="wh-form-stack">
-          <RecordViewSummary
-            title={run.production_no}
-            subtitle={run.finished_item_name || "Finished item"}
-            status={run.status}
-            chips={[
-              {
-                label: "Quantity Made",
-                value: `${Number(run.quantity_produced || 0).toLocaleString()} ${run.finished_unit || ""}`.trim(),
-              },
-              { label: "Branch (Shop)", value: run.branch_name || "—" },
-              { label: "Cost", value: formatPKR(run.total_cost) },
-            ]}
-          />
-
-          <FormBlock title="Production run" description="Bake summary.">
-            <DetailGrid>
-              <DetailValue label="Bake #" highlight>
-                {run.production_no}
-              </DetailValue>
-              <DetailValue label="Finished bakery item">{run.finished_item_name}</DetailValue>
-              <DetailValue label="Quantity Made">
-                {Number(run.quantity_produced || 0).toLocaleString()} {run.finished_unit || ""}
-              </DetailValue>
-              <DetailValue label="Branch (Shop)">{run.branch_name}</DetailValue>
-              <DetailValue label="Produced on">
-                {run.produced_on ? String(run.produced_on).slice(0, 10) : "—"}
-              </DetailValue>
-              <DetailValue label="Expiry Date">
-                {run.expiry_date ? String(run.expiry_date).slice(0, 10) : "—"}
-              </DetailValue>
-              <DetailValue label="Status">
-                <StatusBadge status={run.status} /> {RUN_STATUS_LABELS[run.status] || ""}
-              </DetailValue>
-              <DetailValue label="Total cost">{formatPKR(run.total_cost)}</DetailValue>
-              <DetailValue label="Baked by">{run.created_by_name}</DetailValue>
-              <DetailValue label="Created">{formatDateTime(run.created_at)}</DetailValue>
-              <DetailValue label="Notes" fullWidth multiline>
-                {run.notes}
-              </DetailValue>
-            </DetailGrid>
-          </FormBlock>
-
-          <FormBlock title="Ingredients used (Kacha Maal)" description="FIFO consumption from this bake.">
-            {run.consumption?.length ? (
-              <DataTable columns={consumptionColumns} rows={run.consumption} pageSize={100} />
-            ) : (
-              <p className="wh-muted">No consumption lines recorded.</p>
             )}
-          </FormBlock>
-
-          <FormActions>
-            <Button type="button" variant="secondary" onClick={() => navigate(`${MODULE_BASE}/runs/manage`)}>
-              Back to runs
-            </Button>
             {canEdit && run.status !== "cancelled" && (
-              <Button type="button" variant="danger" onClick={() => setCancelOpen(true)}>
-                Cancel bake
-              </Button>
+              <Button variant="danger" onClick={() => setCancelOpen(true)}>Cancel bake</Button>
             )}
-          </FormActions>
+          </div>
+        }
+      />
+
+      {error && <div className="wh-alert wh-alert--error">{error}</div>}
+
+      <RecordViewSummary
+        title={run.production_no}
+        subtitle={`${run.finished_item_name || "Finished item"} · ${run.branch_name || "Branch"}`}
+        status={run.status}
+        chips={[
+          { label: "Made", value: qtyLabel || "—" },
+          { label: "On", value: run.produced_on ? formatDate(run.produced_on) : "—" },
+        ]}
+      />
+
+      <div className="wh-dash-grid">
+        <div className="wh-dash-col-3">
+          <ViewKpi
+            label="Quantity made"
+            value={qtyLabel || "—"}
+            hint={RUN_STATUS_LABELS[run.status] || run.status}
+            tone="success"
+            icon={<ProductIcon />}
+          />
         </div>
-      </FormPageLayout>
+        <div className="wh-dash-col-3">
+          <ViewKpi
+            label="Total cost"
+            value={formatPKR(run.total_cost)}
+            hint="Ingredient consumption"
+            tone="accent"
+          />
+        </div>
+        <div className="wh-dash-col-3">
+          <ViewKpi
+            label="Cost / unit"
+            value={formatPKR(unitCost)}
+            hint="Total ÷ quantity"
+          />
+        </div>
+        <div className="wh-dash-col-3">
+          <ViewKpi
+            label="Ingredients used"
+            value={formatCount(consumption.length)}
+            hint="FIFO consumption lines"
+            icon={<LogsIcon />}
+          />
+        </div>
+      </div>
+
+      <div className="wh-dash-grid">
+        <div className="wh-dash-col-8">
+          <ViewPanel title="Ingredients used (FIFO)" subtitle="Batches deducted for this bake" flush>
+            {consumption.length ? (
+              <table className="wh-table">
+                <thead>
+                  <tr>
+                    <th>Ingredient</th>
+                    <th>Qty used</th>
+                    <th>Unit cost</th>
+                    <th>Line cost</th>
+                    <th>Batch</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {consumption.map((row) => {
+                    const lineCost = (Number(row.qty_consumed) || 0) * (Number(row.unit_cost) || 0);
+                    return (
+                      <tr key={row.id || `${row.ingredient_item_id}-${row.batch_no}`}>
+                        <td>{row.ingredient_name}</td>
+                        <td>
+                          {`${Number(row.qty_consumed || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })} ${row.ingredient_unit || ""}`.trim()}
+                        </td>
+                        <td>{formatPKR(row.unit_cost)}</td>
+                        <td>{formatPKR(lineCost)}</td>
+                        <td className="wh-muted">{row.batch_no || "—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            ) : (
+              <p className="wh-panel__empty">No consumption lines recorded.</p>
+            )}
+          </ViewPanel>
+        </div>
+        <div className="wh-dash-col-4">
+          <ViewPanel title="Bake summary" subtitle="Where and when">
+            <DetailGrid columns={1}>
+              <DetailValue label="Finished item" highlight>{run.finished_item_name || "—"}</DetailValue>
+              <DetailValue label="Branch">{run.branch_name || "—"}</DetailValue>
+              <DetailValue label="Produced on">{run.produced_on ? formatDate(run.produced_on) : "—"}</DetailValue>
+              <DetailValue label="Expiry">{run.expiry_date ? formatDate(run.expiry_date) : "—"}</DetailValue>
+              <DetailValue label="Status"><StatusBadge status={run.status} /></DetailValue>
+              <DetailValue label="Baked by">{run.created_by_name || "—"}</DetailValue>
+              <DetailValue label="Created">{formatDateTime(run.created_at)}</DetailValue>
+              <DetailValue label="Notes" fullWidth multiline>{run.notes || "—"}</DetailValue>
+            </DetailGrid>
+          </ViewPanel>
+        </div>
+      </div>
 
       <ConfirmDeleteModal
         open={cancelOpen}

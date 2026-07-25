@@ -12,12 +12,13 @@ import { paginatedResponse, parsePagination } from "../utils/pagination.js";
 import { isSuperAdminRole, isSuperAdminRoleName, isSuperAdminUser } from "../utils/tenantRoles.js";
 import { assertUsernameAvailable } from "../utils/usernamePolicy.js";
 import { decrypt } from "../utils/cipher.js";
+import { extractClientIp } from "../utils/clientIp.js";
 
 function auditCtx(req) {
   return {
     tenantId: req.tenantId,
     userId: req.userId,
-    ipAddress: req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.socket?.remoteAddress,
+    ipAddress: extractClientIp(req),
     deviceInfo: req.headers["user-agent"] || null,
     impersonatedBy: req.impersonatedBy,
   };

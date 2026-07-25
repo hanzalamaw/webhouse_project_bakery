@@ -131,7 +131,7 @@ export default function InventoryDashboard() {
         </div>
         <div className="wh-dash-col-3">
           <KpiCard
-            label="Branches (Shakhein)"
+            label="Branches"
             value={dash(stats.branch_count)}
             hint={`${dash(stats.category_count)} categories`}
             icon={<WarehouseIcon />}
@@ -164,7 +164,7 @@ export default function InventoryDashboard() {
           <KpiCard label="Stock value (cost)" value={money(stats.stock_value_cost)} hint="Available × cost price" />
         </div>
         <div className="wh-dash-col-4">
-          <KpiCard label="Wastage (30 days)" value={money(stats.wastage_cost_30d)} hint="Barbaadi cost" tone="warning" />
+          <KpiCard label="Wastage (30 days)" value={money(stats.wastage_cost_30d)} hint="Wastage cost" tone="warning" />
         </div>
       </div>
 

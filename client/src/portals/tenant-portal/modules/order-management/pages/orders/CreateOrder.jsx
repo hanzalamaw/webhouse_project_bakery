@@ -7,6 +7,7 @@ import { UnsavedChangesDialog } from "../../../../../../components/UnsavedChange
 import { apiFetch } from "../../../../../../api/client";
 import { PageHeader } from "../../../../../../components/PageHeader";
 import { FormField } from "../../../../../../components/FormField";
+import { DiscountField } from "../../../../../../components/DiscountField";
 import { Button } from "../../../../../../components/Button";
 import { Card } from "../../../../../../components/Card";
 import { OrderFieldSelect } from "../../../../../../components/OrderFieldSelect";
@@ -14,7 +15,7 @@ import { Modal } from "../../../../../../components/Modal";
 import { ConfirmDeleteModal } from "../../../../../../components/ConfirmDeleteModal";
 import { FormBlock } from "../../../../../../components/FormBlock";
 import { FormPageLayout, FormPageAlerts, FormActions } from "../../../../../../components/FormPageLayout";
-import ProductCatalogPicker from "../../../../../../components/ProductCatalogPicker";
+import { ProductSelectField } from "../../../../../../components/ProductSelectField";
 import { useOrderReference } from "../../hooks/useOrderReference";
 import { MODULE_BASE, ORDER_SOURCE_LABELS, ORDER_STATUS_LABELS } from "../../constants";
 import {
@@ -788,16 +789,10 @@ export default function CreateOrder() {
             )}
 
             {branchId && (
-              <ProductCatalogPicker
+              <ProductSelectField
                 products={sellableProducts}
-                title="Products"
-                storeName={
-                  (() => {
-                    const b = branchOptions.find((x) => String(x.id) === String(branchId));
-                    return b ? branchLabel(b) : undefined;
-                  })()
-                }
                 mode="multi"
+                entityLabel="products"
                 selectedIds={selectedProductIds}
                 onToggle={(_id, product) => {
                   if (product) toggleProduct(product);
@@ -808,13 +803,7 @@ export default function CreateOrder() {
                     if (match) toggleProduct(match);
                   }
                 }}
-                onRefresh={refreshBranchProducts}
-                refreshing={loadingProducts}
-                showRefresh
-                showPrice
-                showStock
-                disabled={disabled}
-                maxHeight={280}
+                disabled={disabled || loadingProducts}
                 emptyMessage={loadingProducts ? "Loading products…" : "No sellable items found for this branch."}
               />
             )}
@@ -892,18 +881,17 @@ export default function CreateOrder() {
                               disabled={disabled}
                             />
                           </label>
-                          <label className="wh-order-line-card__field">
-                            <span className="wh-order-line-card__field-label">Discount</span>
-                            <input
-                              className="wh-field__input"
-                              type="number"
-                              min="0"
-                              step="0.01"
+                          <div className="wh-order-line-card__field">
+                            <DiscountField
+                              id={`discount_${row._key}`}
+                              label="Discount"
+                              compact
                               value={row.discount}
-                              onChange={(e) => updateItem(row._key, "discount", e.target.value)}
+                              baseAmount={(Number(row.quantity) || 0) * (Number(row.unit_price) || 0)}
+                              onChange={(v) => updateItem(row._key, "discount", v)}
                               disabled={disabled}
                             />
-                          </label>
+                          </div>
                           <label className="wh-order-line-card__field">
                             <span className="wh-order-line-card__field-label">Tax / unit</span>
                             <input
@@ -928,14 +916,12 @@ export default function CreateOrder() {
 
                   <div className="wh-order-summary-adjustments">
                     <div className="wh-form-grid wh-order-totals-inputs">
-                      <FormField
+                      <DiscountField
                         id="order-discount"
                         label="Order discount"
-                        type="number"
-                        min="0"
-                        step="0.01"
                         value={form.discount_amount}
-                        onChange={(e) => set("discount_amount", e.target.value)}
+                        baseAmount={totals.itemsGross}
+                        onChange={(v) => set("discount_amount", v)}
                         disabled={disabled}
                       />
                       <FormField

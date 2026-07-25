@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { PageHeader } from "../../../../components/PageHeader";
 import { Card } from "../../../../components/Card";
 import { DataTable } from "../../../../components/DataTable";
 import { TableToolbar } from "../../../../components/TableToolbar";
-import { DiffViewer } from "../../../../components/DiffViewer";
 import { TenantSelect } from "../../../../components/TenantSelect";
 import { useAuth } from "../../../../context/AuthContext";
 import { fetchAllTableRows, TABLE_PAGE_SIZE } from "../../../../api/client";
@@ -16,12 +16,13 @@ const LOG_TOOLBAR_FILTERS = [{ key: "action", label: "Action" }];
 
 export default function Logs() {
   const { authFetch } = useAuth();
-  const [mode, setMode] = useState("wh");
-  const [tenantId, setTenantId] = useState("");
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const [mode, setMode] = useState(() => (searchParams.get("mode") === "tenant" ? "tenant" : "wh"));
+  const [tenantId, setTenantId] = useState(() => searchParams.get("tenant_id") || "");
   const [rows, setRows] = useState([]);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [expanded, setExpanded] = useState(null);
   const [toolbar, setToolbar] = useState({ ...EMPTY_TOOLBAR, action: "" });
 
   const filteredRows = useMemo(
@@ -61,12 +62,11 @@ export default function Logs() {
     load().catch(() => setRows([]));
   }, [load]);
 
-  useEffect(() => {
-    setPage(1);
-    setExpanded(null);
-  }, [mode, tenantId]);
-
-  const expandedRow = rows.find((row) => row.id === expanded);
+  const openDetail = (row) => {
+    const params = new URLSearchParams({ mode });
+    if (mode === "tenant" && tenantId) params.set("tenant_id", tenantId);
+    navigate(`/webhouse-portal/logs/view/${row.id}?${params.toString()}`, { state: { row } });
+  };
 
   const whColumns = [
     { key: "created_at", label: "Time", format: formatDateTime },
@@ -80,20 +80,6 @@ export default function Logs() {
       key: "ip_address",
       label: "IP",
       format: (v) => formatSessionIp(v),
-    },
-    {
-      label: "Details",
-      filter: false,
-      stopRowClick: true,
-      render: (row) => (
-        <button
-          type="button"
-          className="wh-btn wh-btn--secondary wh-btn--sm"
-          onClick={() => setExpanded(expanded === row.id ? null : row.id)}
-        >
-          {expanded === row.id ? "Hide" : "View changes"}
-        </button>
-      ),
     },
   ];
 
@@ -110,20 +96,6 @@ export default function Logs() {
       key: "ip_address",
       label: "IP",
       format: (v) => formatSessionIp(v),
-    },
-    {
-      label: "Details",
-      filter: false,
-      stopRowClick: true,
-      render: (row) => (
-        <button
-          type="button"
-          className="wh-btn wh-btn--secondary wh-btn--sm"
-          onClick={() => setExpanded(expanded === row.id ? null : row.id)}
-        >
-          {expanded === row.id ? "Hide" : "View changes"}
-        </button>
-      ),
     },
   ];
 
@@ -173,13 +145,9 @@ export default function Logs() {
               page={page}
               pageSize={TABLE_PAGE_SIZE}
               onPageChange={setPage}
+              onRowClick={openDetail}
               emptyMessage="No logs for this selection."
             />
-            {expandedRow && (
-              <div className="wh-card wh-log-diff" style={{ margin: "12px 16px 16px" }}>
-                <DiffViewer oldValue={expandedRow.old_value} newValue={expandedRow.new_value} />
-              </div>
-            )}
           </>
         )}
       </Card>

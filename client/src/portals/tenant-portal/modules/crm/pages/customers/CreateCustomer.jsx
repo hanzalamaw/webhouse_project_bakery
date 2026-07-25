@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../../../../../../context/AuthContext";
 import { useModulePermission } from "../../../../../../hooks/useModulePermission";
@@ -10,6 +10,8 @@ import { FormPageLayout, FormActions } from "../../../../../../components/FormPa
 import { Button } from "../../../../../../components/Button";
 import { StatusBadge } from "../../../../../../components/Badge";
 import { ConfirmDeleteModal } from "../../../../../../components/ConfirmDeleteModal";
+import { UnsavedChangesDialog } from "../../../../../../components/UnsavedChangesDialog";
+import { useFormUnsavedGuard } from "../../../../../../hooks/useFormUnsavedGuard";
 import { formatDateTime } from "../../../../../../utils/dateTime";
 import { TypeWithOtherField } from "../../components/TypeWithOtherField";
 import {
@@ -41,6 +43,8 @@ const EMPTY = {
   note: "",
   tags: "",
 };
+
+const EMPTY_NOTE = { note_type: "note", body: "" };
 
 function emptyAddressEntry(key, id = null, typePreset = "office") {
   return {
@@ -78,7 +82,16 @@ export default function CreateCustomer() {
     addressKeyRef.current = 1;
     return [emptyAddressEntry("addr-1", null, "default")];
   });
-  const [initialNote, setInitialNote] = useState({ note_type: "note", body: "" });
+  const [initialNote, setInitialNote] = useState(EMPTY_NOTE);
+  const [baseline, setBaseline] = useState(() =>
+    isEdit
+      ? null
+      : JSON.stringify({
+          form: EMPTY,
+          addresses: [emptyAddressEntry("addr-1", null, "default")],
+          initialNote: EMPTY_NOTE,
+        })
+  );
   const [complaints, setComplaints] = useState([]);
   const [deleteAddr, setDeleteAddr] = useState(null);
   const [deletingAddr, setDeletingAddr] = useState(false);
@@ -95,7 +108,7 @@ export default function CreateCustomer() {
     apiFetch(`/crm/customers/${customerId}`, {}, authFetch)
       .then((row) => {
         const typeParts = splitPresetOrOther(row.customer_type, CUSTOMER_TYPES);
-        setForm({
+        const nextForm = {
           customer_name: row.customer_name || "",
           company_name: row.company_name || "",
           customer_type_preset: typeParts.preset,
@@ -105,7 +118,8 @@ export default function CreateCustomer() {
           status: row.status || "active",
           note: row.note || "",
           tags: (row.tags || []).map((t) => t.tag_name).join(", "),
-        });
+        };
+        setForm(nextForm);
         setComplaints(row.complaints || []);
         let sawDefault = false;
         const loadedAddresses = (row.addresses || []).map((a) => {
@@ -133,10 +147,25 @@ export default function CreateCustomer() {
           if (!sawDefault) loadedAddresses[0].address_type_preset = "default";
           setAddresses(loadedAddresses);
         }
+        const nextAddresses = loadedAddresses.length
+          ? loadedAddresses
+          : [emptyAddressEntry("addr-1", null, "default")];
+        setBaseline(JSON.stringify({
+          form: nextForm,
+          addresses: nextAddresses,
+          initialNote: EMPTY_NOTE,
+        }));
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [isEdit, customerId, authFetch]);
+
+  const guardValue = useMemo(
+    () => ({ form, addresses, initialNote }),
+    [form, addresses, initialNote]
+  );
+  const { dialogOpen, stayOnPage, leavePage, reloadPending, navigateSafely } =
+    useFormUnsavedGuard(guardValue, { baseline, enabled: !loading });
 
   const updateAddress = (key, patch) => {
     setAddresses((rows) => rows.map((r) => (r._key === key ? { ...r, ...patch } : r)));
@@ -246,7 +275,7 @@ export default function CreateCustomer() {
         await saveAddresses(customerId, addresses);
 
         setMessage("Customer updated.");
-        navigate(`${MODULE_BASE}/customers/${customerId}`);
+        navigateSafely(`${MODULE_BASE}/customers/${customerId}`);
         return;
       }
 
@@ -262,7 +291,7 @@ export default function CreateCustomer() {
         }, authFetch);
       }
 
-      navigate(`${MODULE_BASE}/customers/${id}`);
+      navigateSafely(`${MODULE_BASE}/customers/${id}`);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -279,6 +308,14 @@ export default function CreateCustomer() {
         await apiFetch(`/crm/customers/${customerId}/addresses/${deleteAddr.id}`, { method: "DELETE" }, authFetch);
       }
       setAddresses((rows) => rows.filter((r) => r._key !== deleteAddr._key));
+      // The removal is already persisted, so drop the address from the baseline
+      // too instead of flagging the form as dirty.
+      setBaseline((b) => {
+        if (b == null) return b;
+        const parsed = JSON.parse(b);
+        parsed.addresses = (parsed.addresses || []).filter((a) => a._key !== deleteAddr._key);
+        return JSON.stringify(parsed);
+      });
       setDeleteAddr(null);
     } catch (err) {
       setError(err.message);
@@ -471,6 +508,12 @@ export default function CreateCustomer() {
           loading={deletingAddr}
         />
       </FormPageLayout>
+      <UnsavedChangesDialog
+        open={dialogOpen}
+        onStay={stayOnPage}
+        onDiscard={leavePage}
+        reloadPending={reloadPending}
+      />
     </div>
   );
 }
