@@ -175,7 +175,9 @@ export default function CreateProduct() {
   const validate = () => {
     if (!form.item_name.trim()) return "Item name is required";
     if (form.cost_price === "" || Number(form.cost_price) < 0) return "Valid cost price is required";
-    if (form.selling_price === "" || Number(form.selling_price) < 0) return "Valid selling price is required";
+    if (form.is_sold && (form.selling_price === "" || Number(form.selling_price) < 0)) {
+      return "Valid selling price is required when item is sold";
+    }
     if (!form.category_id) return "Category is required";
     if (!isEdit) {
       const filled = openingStock.filter((row) => row.branch_id && Number(row.qty) > 0);
@@ -204,6 +206,7 @@ export default function CreateProduct() {
     setError("");
     setMessage("");
     try {
+      const sold = Boolean(form.is_sold);
       const payload = {
         item_name: form.item_name,
         sku: form.sku || null,
@@ -212,12 +215,12 @@ export default function CreateProduct() {
         status: form.status,
         category_id: Number(form.category_id),
         cost_price: Number(form.cost_price),
-        selling_price: Number(form.selling_price),
-        discount: Number(form.discount) || 0,
-        tax: Number(form.tax) || 0,
+        selling_price: sold ? Number(form.selling_price) : 0,
+        discount: sold ? Number(form.discount) || 0 : 0,
+        tax: sold ? Number(form.tax) || 0 : 0,
         is_purchased: Boolean(form.is_purchased),
         is_produced: Boolean(form.is_produced),
-        is_sold: Boolean(form.is_sold),
+        is_sold: sold,
         shelf_life_days: form.shelf_life_days === "" ? null : Number(form.shelf_life_days),
         shelf_life_unit: form.shelf_life_unit || DEFAULT_SHELF_LIFE_UNIT,
         low_stock_threshold: Number(form.low_stock_threshold) || 0,
@@ -363,19 +366,30 @@ export default function CreateProduct() {
             </div>
           </FormBlock>
 
-          <FormBlock title="Pricing" description="Cost, selling price, discount, and tax.">
+          <FormBlock
+            title="Pricing"
+            description={
+              form.is_sold
+                ? "Cost, selling price, discount, and tax."
+                : "Cost price only. Selling price, discount, and tax apply when the item is marked as sold."
+            }
+          >
             <div className="wh-form-grid">
               <FormField id="cost_price" label="Cost price (PKR)" type="number" min="0" step="0.01" value={form.cost_price} onChange={(e) => set("cost_price", e.target.value)} required />
-              <FormField id="selling_price" label="Selling price (PKR)" type="number" min="0" step="0.01" value={form.selling_price} onChange={(e) => set("selling_price", e.target.value)} required />
-              <DiscountField
-                id="discount"
-                label="Discount"
-                value={form.discount}
-                baseAmount={form.selling_price}
-                onChange={(v) => set("discount", v)}
-              />
-              <FormField id="tax" label="Tax (PKR)" type="number" min="0" step="0.01" value={form.tax} onChange={(e) => set("tax", e.target.value)} />
-              <FormField id="total_price" label="Total price (PKR)" value={formatTotalPrice(form.selling_price, form.discount, form.tax)} displayOnly />
+              {form.is_sold && (
+                <>
+                  <FormField id="selling_price" label="Selling price (PKR)" type="number" min="0" step="0.01" value={form.selling_price} onChange={(e) => set("selling_price", e.target.value)} required />
+                  <DiscountField
+                    id="discount"
+                    label="Discount"
+                    value={form.discount}
+                    baseAmount={form.selling_price}
+                    onChange={(v) => set("discount", v)}
+                  />
+                  <FormField id="tax" label="Tax (PKR)" type="number" min="0" step="0.01" value={form.tax} onChange={(e) => set("tax", e.target.value)} />
+                  <FormField id="total_price" label="Total price (PKR)" value={formatTotalPrice(form.selling_price, form.discount, form.tax)} displayOnly />
+                </>
+              )}
             </div>
           </FormBlock>
 

@@ -7,7 +7,7 @@ import { FormField } from "../../../../../../components/FormField";
 import { DiscountField } from "../../../../../../components/DiscountField";
 import { Button } from "../../../../../../components/Button";
 import { SearchableSelect } from "../../../../../../components/SearchableSelect";
-import { ProductSelectField } from "../../../../../../components/ProductSelectField";
+import ProductCatalogPicker from "../../../../../../components/ProductCatalogPicker";
 import { useInventoryReference } from "../../hooks/useInventoryReference";
 import { FormBlock } from "../../../../../../components/FormBlock";
 import { FormPageLayout, FormActions } from "../../../../../../components/FormPageLayout";
@@ -207,10 +207,10 @@ export default function CreatePurchaseOrder() {
           </FormBlock>
 
           <FormBlock title="Items to buy" description="Choose one or more purchasable items for this purchase order.">
-            <ProductSelectField
+            <ProductCatalogPicker
               items={purchasableItems}
               mode="multi"
-              entityLabel="items"
+              title="Items"
               selectedIds={selectedIds}
               onToggle={(_id, product) => {
                 if (product) addOrToggleItem(product);
@@ -219,6 +219,9 @@ export default function CreatePurchaseOrder() {
                   if (match) addOrToggleItem(match);
                 }
               }}
+              showPrice
+              priceField="cost_price"
+              showStock={false}
               emptyMessage="No purchasable items yet. Add ingredients or packaging under Items."
             />
           </FormBlock>

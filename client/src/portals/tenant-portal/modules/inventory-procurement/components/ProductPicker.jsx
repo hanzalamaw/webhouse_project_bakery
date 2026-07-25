@@ -1,10 +1,10 @@
-import { ProductSelectField } from "../../../../../components/ProductSelectField";
+import ProductCatalogPicker from "../../../../../components/ProductCatalogPicker";
 
-/** Multi-select bakery item picker — opens a searchable checkbox modal. */
+/** Multi-select bakery item picker — card grid with search + category chips. */
 export default function ProductPicker({
   products,
   items,
-  selectedIds,
+  selectedIds = [],
   onToggle,
   onChange,
   search,
@@ -17,10 +17,11 @@ export default function ProductPicker({
   description,
   tall,
   entityLabel = "items",
+  title,
   storeName,
   branchName,
-  showPrice,
-  showStock,
+  showPrice = false,
+  showStock = false,
   priceField,
   onRefresh,
   refreshing,
@@ -32,29 +33,47 @@ export default function ProductPicker({
   void categoryFilter;
   void onCategoryFilterChange;
   void showCategoryFilter;
-  void tall;
-  void storeName;
-  void branchName;
-  void showPrice;
-  void showStock;
-  void priceField;
-  void onRefresh;
-  void refreshing;
+  void showCategoryTag;
+
+  const handleToggle = (id, product) => {
+    if (typeof onToggle === "function") {
+      onToggle(id, product);
+      return;
+    }
+    if (typeof onChange === "function") {
+      const sid = String(id);
+      const prev = (selectedIds || []).map(String);
+      onChange(prev.includes(sid) ? prev.filter((x) => x !== sid) : [...prev, sid]);
+    }
+  };
 
   return (
-    <ProductSelectField
-      mode="multi"
-      products={products}
-      items={items}
-      selectedIds={selectedIds}
-      onToggle={onToggle}
-      onChange={onChange}
-      entityLabel={entityLabel}
-      description={description}
-      showWarning={showWarning}
-      showCategoryTag={showCategoryTag}
-      emptyMessage={emptyMessage}
-      disabled={disabled}
-    />
+    <div className={`wh-inv-product-picker${disabled ? " is-disabled" : ""}`}>
+      {showWarning && (
+        <div className="wh-inv-warning">
+          <strong>Note:</strong> Selecting an item moves it into this category.
+        </div>
+      )}
+      <ProductCatalogPicker
+        className={tall ? "wh-catalog-picker--fill" : ""}
+        products={products}
+        items={items}
+        mode="multi"
+        title={title || `Select ${entityLabel}`}
+        description={description}
+        selectedIds={selectedIds}
+        onToggle={handleToggle}
+        storeName={storeName}
+        branchName={branchName}
+        showPrice={showPrice}
+        showStock={showStock}
+        priceField={priceField}
+        onRefresh={onRefresh}
+        refreshing={refreshing}
+        emptyMessage={emptyMessage || `No ${entityLabel} found.`}
+        disabled={disabled}
+        maxHeight={tall ? 420 : 280}
+      />
+    </div>
   );
 }

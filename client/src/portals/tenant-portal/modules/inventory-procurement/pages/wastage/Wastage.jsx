@@ -8,7 +8,7 @@ import { DataTable } from "../../../../../../components/DataTable";
 import { FormField } from "../../../../../../components/FormField";
 import { Button } from "../../../../../../components/Button";
 import { SearchableSelect } from "../../../../../../components/SearchableSelect";
-import { ProductSelectField } from "../../../../../../components/ProductSelectField";
+import ProductCatalogPicker from "../../../../../../components/ProductCatalogPicker";
 import { Modal } from "../../../../../../components/Modal";
 import { FormBlock } from "../../../../../../components/FormBlock";
 import { useInventoryReference } from "../../hooks/useInventoryReference";
@@ -142,12 +142,14 @@ export default function Wastage() {
       <Modal open={open} title="Record wastage" onClose={() => !saving && setOpen(false)} wide>
         <form onSubmit={submit} className="wh-form">
           <FormBlock title="Select item" description="Choose the item being wasted.">
-            <ProductSelectField
+            <ProductCatalogPicker
               items={items}
               mode="single"
-              entityLabel="items"
+              title="Item"
               value={form.item_id}
-              onChange={(id) => setForm((f) => ({ ...f, item_id: id }))}
+              onSelect={(p) => setForm((f) => ({ ...f, item_id: String(p.id) }))}
+              showPrice={false}
+              showStock={false}
               emptyMessage="No items found."
             />
           </FormBlock>

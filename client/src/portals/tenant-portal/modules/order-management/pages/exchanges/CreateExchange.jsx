@@ -6,7 +6,7 @@ import { apiFetch } from "../../../../../../api/client";
 import { PageHeader } from "../../../../../../components/PageHeader";
 import { FormField } from "../../../../../../components/FormField";
 import { Button } from "../../../../../../components/Button";
-import { ProductSelectField } from "../../../../../../components/ProductSelectField";
+import ProductCatalogPicker from "../../../../../../components/ProductCatalogPicker";
 import { FormBlock } from "../../../../../../components/FormBlock";
 import { FormPageLayout, FormPageAlerts, FormActions } from "../../../../../../components/FormPageLayout";
 import { UnsavedChangesDialog } from "../../../../../../components/UnsavedChangesDialog";
@@ -174,13 +174,14 @@ export default function CreateExchange() {
             {loadingItems ? (
               <p className="wh-muted">Loading order items…</p>
             ) : (
-              <ProductSelectField
+              <ProductCatalogPicker
                 products={returningProducts}
                 mode="single"
-                entityLabel="products"
+                title="Product to return"
                 value={form.old_product_id}
                 onSelect={(p) => set("old_product_id", String(p.id ?? p.product_id))}
-                onChange={(id) => set("old_product_id", id)}
+                showPrice={false}
+                showStock={false}
                 disabled={disabled || !form.order_id}
                 emptyMessage={form.order_id ? "No products on this order." : "Select an order first."}
               />
@@ -188,13 +189,14 @@ export default function CreateExchange() {
           </FormBlock>
 
           <FormBlock title="Replacement" description="Choose the replacement product.">
-            <ProductSelectField
+            <ProductCatalogPicker
               products={products}
               mode="single"
-              entityLabel="products"
+              title="Replacement product"
               value={form.new_product_id}
               onSelect={(p) => set("new_product_id", String(p.id ?? p.product_id))}
-              onChange={(id) => set("new_product_id", id)}
+              showPrice
+              showStock={false}
               disabled={disabled || refLoading}
               emptyMessage="No products available."
             />

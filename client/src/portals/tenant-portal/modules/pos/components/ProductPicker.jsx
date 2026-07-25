@@ -1,9 +1,9 @@
-import { ProductSelectField } from "../../../../../components/ProductSelectField";
+import ProductCatalogPicker from "../../../../../components/ProductCatalogPicker";
 
-/** Multi-select product picker — opens a searchable checkbox modal. */
+/** Multi-select product picker — card grid with search + category chips. */
 export default function ProductPicker({
   products,
-  selectedIds,
+  selectedIds = [],
   onToggle,
   onChange,
   search,
@@ -16,8 +16,8 @@ export default function ProductPicker({
   description,
   tall,
   storeName,
-  showPrice,
-  showStock,
+  showPrice = false,
+  showStock = false,
   onRefresh,
   refreshing,
   emptyMessage,
@@ -28,27 +28,44 @@ export default function ProductPicker({
   void categoryFilter;
   void onCategoryFilterChange;
   void showCategoryFilter;
-  void tall;
-  void storeName;
-  void showPrice;
-  void showStock;
-  void onRefresh;
-  void refreshing;
+  void showCategoryTag;
+
+  const handleToggle = (id, product) => {
+    if (typeof onToggle === "function") {
+      onToggle(id, product);
+      return;
+    }
+    if (typeof onChange === "function") {
+      const sid = String(id);
+      const prev = (selectedIds || []).map(String);
+      onChange(prev.includes(sid) ? prev.filter((x) => x !== sid) : [...prev, sid]);
+    }
+  };
 
   return (
-    <ProductSelectField
-      mode="multi"
-      products={products}
-      selectedIds={selectedIds}
-      onToggle={onToggle}
-      onChange={onChange}
-      entityLabel="products"
-      description={description}
-      showWarning={showWarning}
-      warningText="Selecting a product removes it from its existing category and assigns it here."
-      showCategoryTag={showCategoryTag}
-      emptyMessage={emptyMessage}
-      disabled={disabled}
-    />
+    <div className={`wh-inv-product-picker${disabled ? " is-disabled" : ""}`}>
+      {showWarning && (
+        <div className="wh-inv-warning">
+          <strong>Note:</strong> Selecting a product removes it from its existing category and assigns it here.
+        </div>
+      )}
+      <ProductCatalogPicker
+        className={tall ? "wh-catalog-picker--fill" : ""}
+        products={products}
+        mode="multi"
+        title="Select products"
+        description={description}
+        selectedIds={selectedIds}
+        onToggle={handleToggle}
+        storeName={storeName}
+        showPrice={showPrice}
+        showStock={showStock}
+        onRefresh={onRefresh}
+        refreshing={refreshing}
+        emptyMessage={emptyMessage || "No products found."}
+        disabled={disabled}
+        maxHeight={tall ? 420 : 280}
+      />
+    </div>
   );
 }

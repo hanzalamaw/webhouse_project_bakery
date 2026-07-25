@@ -209,10 +209,14 @@ export default function ItemView() {
           <DetailValue label="Category">{item.category_name || "—"}</DetailValue>
           <DetailValue label="Unit">{item.unit || "—"}</DetailValue>
           <DetailValue label="Cost price" highlight>{formatPKR(item.cost_price)}</DetailValue>
-          <DetailValue label="Selling price">{formatPKR(item.selling_price)}</DetailValue>
-          <DetailValue label="Total price">{formatTotalPrice(item.selling_price, item.discount, item.tax)}</DetailValue>
-          <DetailValue label="Discount">{formatPKR(item.discount)}</DetailValue>
-          <DetailValue label="Tax">{formatPKR(item.tax)}</DetailValue>
+          {item.is_sold ? (
+            <>
+              <DetailValue label="Selling price">{formatPKR(item.selling_price)}</DetailValue>
+              <DetailValue label="Total price">{formatTotalPrice(item.selling_price, item.discount, item.tax)}</DetailValue>
+              <DetailValue label="Discount">{formatPKR(item.discount)}</DetailValue>
+              <DetailValue label="Tax">{formatPKR(item.tax)}</DetailValue>
+            </>
+          ) : null}
           <DetailValue label="Shelf life">
             {item.shelf_life_days != null ? `${item.shelf_life_days} ${item.shelf_life_unit || "days"}` : "—"}
           </DetailValue>

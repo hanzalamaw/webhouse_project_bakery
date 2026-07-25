@@ -9,7 +9,6 @@ import { Button } from "../../../../../../components/Button";
 import { ConfirmDeleteModal } from "../../../../../../components/ConfirmDeleteModal";
 import { StatusBadge } from "../../../../../../components/Badge";
 import { formatDateTime } from "../../../../../../utils/dateTime";
-import { formatPKR } from "../../../../../../utils/currency";
 import { MODULE_BASE } from "../../constants";
 
 export default function ManageWarehouses() {
@@ -61,7 +60,6 @@ export default function ManageWarehouses() {
     { key: "phone", label: "Phone", format: (v) => v || "—" },
     { key: "item_count", label: "Items", filter: false },
     { key: "total_units", label: "Total Units", filter: false },
-    { key: "opening_balance", label: "Opening balance", format: (v) => formatPKR(v) },
     { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} /> },
     { key: "created_at", label: "Created", format: formatDateTime },
     {

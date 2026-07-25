@@ -242,7 +242,7 @@ export default function CreateBulkStock() {
         />
 
         <form onSubmit={handleSubmit} className="wh-form-stack">
-          <FormBlock title="Select items" description="Open the list to choose one or more bakery items for this operation.">
+          <FormBlock title="Select items" description="Tap cards to choose one or more bakery items for this operation.">
             <ProductPicker
               items={items}
               selectedIds={selectedIds}

@@ -208,7 +208,6 @@ export default function BranchView() {
           <DetailValue label="Phone">{branch.phone || "—"}</DetailValue>
           <DetailValue label="Location" fullWidth>{branch.location || "—"}</DetailValue>
           <DetailValue label="Hours">{hours}</DetailValue>
-          <DetailValue label="Opening balance">{formatPKR(branch.opening_balance)}</DetailValue>
           <DetailValue label="Created">{formatDateTime(branch.created_at)}</DetailValue>
           <DetailValue label="Wastage qty">{formatCount(branch.wastage_qty)}</DetailValue>
           <DetailValue label="Wastage cost">{formatPKR(branch.wastage_cost)}</DetailValue>

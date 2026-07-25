@@ -19,7 +19,6 @@ const EMPTY = {
   phone: "",
   open_time: "",
   close_time: "",
-  opening_balance: "0",
   status: "active",
 };
 
@@ -50,7 +49,6 @@ export default function CreateWarehouse() {
           phone: row.phone || "",
           open_time: row.open_time || "",
           close_time: row.close_time || "",
-          opening_balance: row.opening_balance ?? "0",
           status: row.status || "active",
         };
         setForm(next);
@@ -73,7 +71,6 @@ export default function CreateWarehouse() {
     setError("");
     const payload = {
       ...form,
-      opening_balance: Number(form.opening_balance) || 0,
       open_time: form.open_time || null,
       close_time: form.close_time || null,
     };
@@ -116,7 +113,6 @@ export default function CreateWarehouse() {
               <FormField id="phone" label="Phone" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
               <FormField id="open_time" label="Open time" type="time" value={form.open_time} onChange={(e) => setForm((f) => ({ ...f, open_time: e.target.value }))} />
               <FormField id="close_time" label="Close time" type="time" value={form.close_time} onChange={(e) => setForm((f) => ({ ...f, close_time: e.target.value }))} />
-              <FormField id="opening_balance" label="Opening balance (PKR)" type="number" min="0" step="0.01" value={form.opening_balance} onChange={(e) => setForm((f) => ({ ...f, opening_balance: e.target.value }))} />
               <FormField id="status" label="Status" as="select" value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}>
                 {ITEM_STATUS.map((s) => <option key={s} value={s}>{s}</option>)}
               </FormField>

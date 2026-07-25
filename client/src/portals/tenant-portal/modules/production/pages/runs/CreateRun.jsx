@@ -7,7 +7,7 @@ import { PageHeader } from "../../../../../../components/PageHeader";
 import { FormField } from "../../../../../../components/FormField";
 import { Button } from "../../../../../../components/Button";
 import { SearchableSelect } from "../../../../../../components/SearchableSelect";
-import { ProductSelectField } from "../../../../../../components/ProductSelectField";
+import ProductCatalogPicker from "../../../../../../components/ProductCatalogPicker";
 import { FormBlock } from "../../../../../../components/FormBlock";
 import { FormPageLayout, FormActions } from "../../../../../../components/FormPageLayout";
 import { DataTable } from "../../../../../../components/DataTable";
@@ -282,17 +282,16 @@ export default function CreateRun() {
         />
         <form onSubmit={submit} className="wh-form-stack">
           <FormBlock title="Finished bakery item" description="Choose the product you are baking.">
-            <ProductSelectField
+            <ProductCatalogPicker
               items={finished_items}
               mode="single"
-              entityLabel="products"
+              title="Finished product"
               value={form.item_id}
               onSelect={onItemSelect}
-              onChange={(id) => {
-                if (!id) onItemSelect?.({ id: "" });
-              }}
               onAddNew={goCreateFinished}
               addNewLabel="Add new finished product"
+              showPrice={false}
+              showStock={false}
               disabled={disabled}
               emptyMessage="No finished bakery items yet."
             />

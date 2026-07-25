@@ -45,6 +45,8 @@ export default function ProductCatalogPicker({
   disabled = false,
   className = "",
   searchPlaceholder = "Search by name, SKU, or category",
+  onAddNew,
+  addNewLabel = "Add new",
 }) {
   const { format } = useMoney();
   const [search, setSearch] = useState("");
@@ -103,6 +105,7 @@ export default function ProductCatalogPicker({
   };
 
   const isSelected = (product) => activeIds.includes(productId(product));
+  const hasHeadActions = showRefresh || (onAddNew && !disabled);
 
   return (
     <section className={`wh-catalog-picker ${className}`.trim()}>
@@ -111,16 +114,25 @@ export default function ProductCatalogPicker({
           <h2 className="wh-catalog-picker__title">{title}</h2>
           {hint ? <p className="wh-muted wh-catalog-picker__hint">{hint}</p> : null}
         </div>
-        {showRefresh && (
-          <Button
-            type="button"
-            variant="secondary"
-            className="wh-btn--sm"
-            disabled={disabled || refreshing}
-            onClick={() => onRefresh?.()}
-          >
-            {refreshing ? "Refreshing…" : "Refresh products"}
-          </Button>
+        {hasHeadActions && (
+          <div className="wh-action-btns">
+            {onAddNew && !disabled && (
+              <Button type="button" variant="secondary" className="wh-btn--sm" onClick={onAddNew}>
+                {addNewLabel}
+              </Button>
+            )}
+            {showRefresh && (
+              <Button
+                type="button"
+                variant="secondary"
+                className="wh-btn--sm"
+                disabled={disabled || refreshing}
+                onClick={() => onRefresh?.()}
+              >
+                {refreshing ? "Refreshing…" : "Refresh products"}
+              </Button>
+            )}
+          </div>
         )}
       </div>
 

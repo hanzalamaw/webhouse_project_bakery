@@ -195,18 +195,21 @@ export const inventoryService = {
       const dup = await inventoryRepository.findItemBySku(tenantId, sku, existing?.id ?? null);
       if (dup) throw new Error("SKU already exists");
     }
+    const is_sold = Boolean(body.is_sold ?? existing?.is_sold ?? (item_type === "finished"));
     return {
       item_name,
       item_type,
       sku: sku || null,
       unit: String(body.unit ?? existing?.unit ?? "piece").trim(),
       cost_price: assertMoney(body.cost_price ?? existing?.cost_price ?? 0, "Cost price"),
-      selling_price: assertMoney(body.selling_price ?? existing?.selling_price ?? 0, "Selling price"),
-      tax: assertMoney(body.tax ?? existing?.tax ?? 0, "Tax"),
-      discount: assertMoney(body.discount ?? existing?.discount ?? 0, "Discount"),
+      selling_price: is_sold
+        ? assertMoney(body.selling_price ?? existing?.selling_price ?? 0, "Selling price")
+        : 0,
+      tax: is_sold ? assertMoney(body.tax ?? existing?.tax ?? 0, "Tax") : 0,
+      discount: is_sold ? assertMoney(body.discount ?? existing?.discount ?? 0, "Discount") : 0,
       is_purchased: body.is_purchased ?? existing?.is_purchased ?? (item_type !== "finished"),
       is_produced: body.is_produced ?? existing?.is_produced ?? (item_type === "finished"),
-      is_sold: body.is_sold ?? existing?.is_sold ?? (item_type === "finished"),
+      is_sold,
       shelf_life_days: body.shelf_life_days != null && body.shelf_life_days !== ""
         ? Number(body.shelf_life_days) : (existing?.shelf_life_days ?? null),
       shelf_life_unit: normalizeShelfLifeUnit(

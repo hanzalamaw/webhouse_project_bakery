@@ -6,7 +6,7 @@ import { apiFetch } from "../../../../../../api/client";
 import { PageHeader } from "../../../../../../components/PageHeader";
 import { FormField } from "../../../../../../components/FormField";
 import { Button } from "../../../../../../components/Button";
-import { ProductSelectField } from "../../../../../../components/ProductSelectField";
+import ProductCatalogPicker from "../../../../../../components/ProductCatalogPicker";
 import { FormBlock } from "../../../../../../components/FormBlock";
 import { FormPageLayout, FormActions } from "../../../../../../components/FormPageLayout";
 import { UnsavedChangesDialog } from "../../../../../../components/UnsavedChangesDialog";
@@ -521,31 +521,32 @@ export default function CreateRecipe() {
           </FormBlock>
 
           <FormBlock title="Finished bakery item" description="Choose the product this recipe produces.">
-            <ProductSelectField
+            <ProductCatalogPicker
               items={finished_items}
               mode="single"
-              entityLabel="products"
+              title="Finished product"
               value={form.item_id}
               onSelect={onFinishedSelect}
-              onChange={(id) => {
-                if (!id) onFinishedSelect?.({ id: "" });
-              }}
               onAddNew={() => goCreateItem("finished", "finished")}
               addNewLabel="Add new finished product"
+              showPrice={false}
+              showStock={false}
               disabled={disabled}
               emptyMessage="No finished bakery items yet."
             />
           </FormBlock>
 
           <FormBlock title="Ingredients (Kacha Maal)" description="Choose ingredients to add to this recipe.">
-            <ProductSelectField
+            <ProductCatalogPicker
               items={ingredients}
               mode="multi"
-              entityLabel="ingredients"
+              title="Ingredients"
               selectedIds={selectedIngredientIds}
               onToggle={toggleIngredient}
               onAddNew={() => goCreateItem("ingredient", "ingredient")}
               addNewLabel="Add new raw item"
+              showPrice={false}
+              showStock={false}
               disabled={disabled}
               emptyMessage="No ingredients found. Add purchasable items under Stock."
             />

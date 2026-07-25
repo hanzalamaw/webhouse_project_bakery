@@ -15,7 +15,7 @@ import { Modal } from "../../../../../../components/Modal";
 import { ConfirmDeleteModal } from "../../../../../../components/ConfirmDeleteModal";
 import { FormBlock } from "../../../../../../components/FormBlock";
 import { FormPageLayout, FormPageAlerts, FormActions } from "../../../../../../components/FormPageLayout";
-import { ProductSelectField } from "../../../../../../components/ProductSelectField";
+import ProductCatalogPicker from "../../../../../../components/ProductCatalogPicker";
 import { useOrderReference } from "../../hooks/useOrderReference";
 import { MODULE_BASE, ORDER_SOURCE_LABELS, ORDER_STATUS_LABELS } from "../../constants";
 import {
@@ -789,10 +789,10 @@ export default function CreateOrder() {
             )}
 
             {branchId && (
-              <ProductSelectField
+              <ProductCatalogPicker
                 products={sellableProducts}
                 mode="multi"
-                entityLabel="products"
+                title="Products"
                 selectedIds={selectedProductIds}
                 onToggle={(_id, product) => {
                   if (product) toggleProduct(product);
@@ -803,6 +803,8 @@ export default function CreateOrder() {
                     if (match) toggleProduct(match);
                   }
                 }}
+                showPrice
+                showStock
                 disabled={disabled || loadingProducts}
                 emptyMessage={loadingProducts ? "Loading products…" : "No sellable items found for this branch."}
               />
