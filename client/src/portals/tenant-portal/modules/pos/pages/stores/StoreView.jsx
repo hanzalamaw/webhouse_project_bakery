@@ -16,7 +16,7 @@ import { ProductIcon, LogsIcon, SubscriptionIcon, TenantsIcon } from "../../../.
 
 
 
-const EMPTY_TERMINAL = { terminal_name: "", device_code: "", status: "active" };
+const EMPTY_TERMINAL = { terminal_name: "", device_code: "", status: "active", opening_balance: "0" };
 
 export default function StoreView() {
   const { storeId } = useParams();
@@ -131,13 +131,18 @@ export default function StoreView() {
           <KpiCard label="Lifetime revenue" value={money(stats.total_revenue)} tone="success" />
         </div>
         <div className="wh-dash-col-3">
-          <KpiCard label="Opening balance" value={money(outlet.opening_balance)} hint="First shift default" icon={<TenantsIcon />} />
-        </div>
-        <div className="wh-dash-col-3">
           <KpiCard
             label="Status"
             value={<StatusBadge status={outlet.status} />}
             hint={outlet.store_open_time ? `Opens ${String(outlet.store_open_time).slice(0, 5)}` : undefined}
+            icon={<TenantsIcon />}
+          />
+        </div>
+        <div className="wh-dash-col-3">
+          <KpiCard
+            label="Hours"
+            value={outlet.store_open_time ? String(outlet.store_open_time).slice(0, 5) : "—"}
+            hint={outlet.store_close_time ? `Closes ${String(outlet.store_close_time).slice(0, 5)}` : undefined}
           />
         </div>
       </div>
@@ -149,6 +154,7 @@ export default function StoreView() {
             <div className="wh-form-grid wh-form-grid--3">
               <FormField id="terminal_name" label="Terminal name" value={terminalForm.terminal_name} onChange={(e) => setTerminalForm((f) => ({ ...f, terminal_name: e.target.value }))} required />
               <FormField id="device_code" label="Terminal code" value={terminalForm.device_code} onChange={(e) => setTerminalForm((f) => ({ ...f, device_code: e.target.value }))} required />
+              <FormField id="opening_balance" label="Opening balance (PKR)" type="number" min="0" step="0.01" value={terminalForm.opening_balance} onChange={(e) => setTerminalForm((f) => ({ ...f, opening_balance: e.target.value }))} required />
               <FormField id="status" label="Status" as="select" value={terminalForm.status} onChange={(e) => setTerminalForm((f) => ({ ...f, status: e.target.value }))}>
                 {TERMINAL_STATUSES.map((s) => <option key={s} value={s}>{TERMINAL_STATUS_LABELS[s] || s}</option>)}
               </FormField>
@@ -170,7 +176,9 @@ export default function StoreView() {
                   <div className="wh-mini-row" key={t.id}>
                     <div className="wh-mini-row__main">
                       <div className="wh-mini-row__title">{t.terminal_name}</div>
-                      <div className="wh-mini-row__sub">Code: {t.device_code}</div>
+                      <div className="wh-mini-row__sub">
+                        Code: {t.device_code} · Opening {money(t.opening_balance)}
+                      </div>
                     </div>
                     <StatusBadge status={t.status} />
                   </div>

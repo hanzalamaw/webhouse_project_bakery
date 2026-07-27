@@ -66,7 +66,7 @@ async function ensureActiveRegister(tenantId, userId, terminal) {
       now,
       storeOpenTime,
       lastClosedRegister: lastClosed,
-      defaultOpeningBalance: terminal.store_opening_balance ?? terminal.opening_balance ?? 0,
+      defaultOpeningBalance: terminal.opening_balance ?? terminal.store_opening_balance ?? 0,
     });
     register = await posRepository.openRegister(tenantId, userId, terminal, resolved.openingBalance);
     drawerMeta = {
@@ -211,6 +211,7 @@ export const posService = {
       device_code: deviceCode,
       status: normalizeStatus(body.status, TERMINAL_STATUSES, "active"),
       outlet_id: outletId,
+      opening_balance: Number(body.opening_balance) || 0,
     });
   },
 
@@ -228,6 +229,10 @@ export const posService = {
       device_code: deviceCode,
       status: normalizeStatus(body.status ?? existing.status, TERMINAL_STATUSES, existing.status),
       outlet_id: outletId,
+      opening_balance:
+        body.opening_balance !== undefined
+          ? Number(body.opening_balance) || 0
+          : Number(existing.opening_balance) || 0,
     });
   },
 

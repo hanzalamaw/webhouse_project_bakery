@@ -10,6 +10,7 @@ import { Button } from "../../../../../../components/Button";
 import { ConfirmDeleteModal } from "../../../../../../components/ConfirmDeleteModal";
 import { StatusBadge } from "../../../../../../components/Badge";
 import { formatDateTime } from "../../../../../../utils/dateTime";
+import { formatPKR } from "../../../../../../utils/currency";
 import { MODULE_BASE } from "../../constants";
 
 export default function ManageTerminals() {
@@ -63,6 +64,7 @@ export default function ManageTerminals() {
     { key: "terminal_name", label: "Terminal" },
     { key: "device_code", label: "Terminal code" },
     { key: "outlet_name", label: "Outlet" },
+    { key: "opening_balance", label: "Opening balance", format: (v) => formatPKR(v) },
     { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} /> },
     { key: "created_at", label: "Created", format: formatDateTime },
     {

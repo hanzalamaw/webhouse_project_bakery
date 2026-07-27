@@ -10,7 +10,7 @@ import { FormBlock } from "../../../../../../components/FormBlock";
 import { FormPageLayout, FormActions } from "../../../../../../components/FormPageLayout";
 import { MODULE_BASE, TERMINAL_STATUSES } from "../../constants";
 
-const EMPTY = { terminal_name: "", device_code: "", outlet_id: "", status: "active" };
+const EMPTY = { terminal_name: "", device_code: "", outlet_id: "", status: "active", opening_balance: "0" };
 
 export default function CreateTerminal() {
   const { terminalId } = useParams();
@@ -43,6 +43,7 @@ export default function CreateTerminal() {
             device_code: row.device_code || "",
             outlet_id: String(row.outlet_id),
             status: row.status || "active",
+            opening_balance: String(row.opening_balance ?? 0),
           });
         } else if (outletRows.length === 1) {
           setForm((f) => ({ ...f, outlet_id: String(outletRows[0].id) }));
@@ -61,7 +62,11 @@ export default function CreateTerminal() {
     setSaving(true);
     setError("");
     try {
-      const body = { ...form, outlet_id: Number(form.outlet_id) };
+      const body = {
+        ...form,
+        outlet_id: Number(form.outlet_id),
+        opening_balance: Number(form.opening_balance) || 0,
+      };
       if (isEdit) {
         await apiFetch(`/pos/terminals/${terminalId}`, { method: "PUT", body: JSON.stringify(body) }, authFetch);
       } else {
@@ -97,10 +102,11 @@ export default function CreateTerminal() {
         )}
 
         <form onSubmit={submit} className="wh-form-stack">
-          <FormBlock title="Terminal details" description="Device name, terminal code, outlet, and status.">
+          <FormBlock title="Terminal details" description="Device name, terminal code, opening cash, outlet, and status.">
             <div className="wh-form-grid wh-form-grid--3">
               <FormField id="terminal_name" label="Terminal name" value={form.terminal_name} onChange={(e) => setForm((f) => ({ ...f, terminal_name: e.target.value }))} disabled={disabled} required />
               <FormField id="device_code" label="Terminal code" value={form.device_code} onChange={(e) => setForm((f) => ({ ...f, device_code: e.target.value }))} disabled={disabled} required />
+              <FormField id="opening_balance" label="Opening balance (PKR)" type="number" min="0" step="0.01" value={form.opening_balance} onChange={(e) => setForm((f) => ({ ...f, opening_balance: e.target.value }))} disabled={disabled} required />
               <FormField id="outlet_id" label="Outlet" as="select" value={form.outlet_id} onChange={(e) => setForm((f) => ({ ...f, outlet_id: e.target.value }))} disabled={disabled || !outlets.length} required>
                 <option value="">Select outlet</option>
                 {outlets.map((o) => <option key={o.id} value={o.id}>{o.outlet_name}</option>)}

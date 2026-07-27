@@ -88,7 +88,6 @@ export default function InventoryDashboard() {
       { label: "Stock Out", path: `${MODULE_BASE}/stock/stock-out/create` },
       { label: "Transfers", path: `${MODULE_BASE}/stock/transfers/create` },
       { label: "Purchase Order", path: `${MODULE_BASE}/purchasing/purchase-orders/create` },
-      { label: "Branches", path: `${MODULE_BASE}/branches` },
       { label: "Batches / Expiry", path: `${MODULE_BASE}/stock/batches` },
       { label: "Wastage", path: `${MODULE_BASE}/wastage` },
     ],
@@ -107,7 +106,7 @@ export default function InventoryDashboard() {
     <div className="wh-page wh-page--wide">
       <PageHeader
         title="Stock & Purchasing"
-        description="Bakery stock overview — items, branches, purchases, expiry, and wastage."
+        description="Bakery stock overview — items, purchases, expiry, and wastage."
       />
 
       {loadError && <p className="wh-field__error">{loadError}</p>}

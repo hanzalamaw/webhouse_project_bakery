@@ -10,7 +10,6 @@ import { Button } from "../../../../../../components/Button";
 import { ConfirmDeleteModal } from "../../../../../../components/ConfirmDeleteModal";
 import { StatusBadge } from "../../../../../../components/Badge";
 import { formatDateTime } from "../../../../../../utils/dateTime";
-import { formatPKR } from "../../../../../../utils/currency";
 import { MODULE_BASE } from "../../constants";
 
 export default function ManageStores() {
@@ -60,7 +59,6 @@ export default function ManageStores() {
     { key: "city", label: "City", format: (v) => v || "—" },
     { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} /> },
     { key: "terminal_count", label: "Terminals", filter: false },
-    { key: "opening_balance", label: "Opening balance", filter: false, format: (v) => formatPKR(v) },
     {
       key: "store_open_time",
       label: "Opens",

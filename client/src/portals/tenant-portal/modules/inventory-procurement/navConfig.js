@@ -1,7 +1,6 @@
 import {
   DashboardIcon,
   ProductIcon,
-  WarehouseIcon,
   ProcurementIcon,
   LogsIcon,
   TransferIcon,
@@ -26,12 +25,6 @@ export function getNavItems() {
         { id: "categories", labelKey: "nav.categories", path: `${MODULE_BASE}/items/categories` },
         { id: "import-export", labelKey: "nav.bulkImportExport", path: `${MODULE_BASE}/items/import-export` },
       ],
-    },
-    {
-      id: "branches",
-      labelKey: "nav.branches",
-      path: `${MODULE_BASE}/branches`,
-      icon: WarehouseIcon,
     },
     {
       id: "stock",

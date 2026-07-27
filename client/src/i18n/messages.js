@@ -56,7 +56,7 @@ export const messages = {
     "module.orders.desc": "Take and manage custom and bulk cake orders.",
     "module.crm": "CRM",
     "module.crm.desc": "Customers and complaints.",
-    "module.finance": "Hisaab",
+    "module.finance": "Finance and Accounting",
     "module.finance.desc": "Expenses, bills, transactions and reporting.",
 
     // Shared nav
@@ -334,8 +334,8 @@ export const messages = {
     "Production": "Production",
     "Baking": "Baking",
     "Bake #": "Bake #",
-    "Hisaab": "Hisaab",
-    "Finance & Accounting": "Finance & Accounting",
+    "Hisaab": "Finance and Accounting",
+    "Finance & Accounting": "Finance and Accounting",
     "Status": "Status",
     "Type": "Type",
     "Customer": "Customer",

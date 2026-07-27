@@ -144,7 +144,7 @@ export const posRepository = {
   // ── Terminals ──
   async listTerminals(tenantId) {
     const [rows] = await readDb.query(
-      `SELECT t.id, t.terminal_name, t.device_code, t.status, t.created_at,
+      `SELECT t.id, t.terminal_name, t.device_code, t.status, t.opening_balance, t.created_at,
               t.branch_id AS outlet_id, b.branch_name AS outlet_name
        FROM pos_terminals t
        INNER JOIN branches b ON b.id = t.branch_id AND b.deleted_at IS NULL
@@ -156,7 +156,7 @@ export const posRepository = {
 
   async getTerminal(tenantId, id) {
     const [rows] = await readDb.query(
-      `SELECT t.id, t.terminal_name, t.device_code, t.status, t.created_at,
+      `SELECT t.id, t.terminal_name, t.device_code, t.status, t.opening_balance, t.created_at,
               t.branch_id AS outlet_id, b.branch_name AS outlet_name,
               b.open_time AS store_open_time, b.close_time AS store_close_time,
               b.opening_balance AS store_opening_balance, b.city AS outlet_city
@@ -172,7 +172,7 @@ export const posRepository = {
     const code = String(deviceCode || "").trim();
     if (!code) return null;
     const params = [tenantId, code];
-    let sql = `SELECT t.id, t.terminal_name, t.device_code, t.status,
+    let sql = `SELECT t.id, t.terminal_name, t.device_code, t.status, t.opening_balance,
                  t.branch_id AS outlet_id, b.branch_name AS outlet_name,
                  b.open_time AS store_open_time, b.close_time AS store_close_time,
                  b.opening_balance AS store_opening_balance
@@ -186,17 +186,34 @@ export const posRepository = {
 
   async createTerminal(tenantId, data) {
     const [result] = await writeDb.query(
-      `INSERT INTO pos_terminals (terminal_name, device_code, status, branch_id, tenant_id) VALUES (?, ?, ?, ?, ?)`,
-      [data.terminal_name, data.device_code, data.status || "active", data.outlet_id, tenantId]
+      `INSERT INTO pos_terminals (terminal_name, device_code, status, opening_balance, branch_id, tenant_id)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        data.terminal_name,
+        data.device_code,
+        data.status || "active",
+        Number(data.opening_balance) || 0,
+        data.outlet_id,
+        tenantId,
+      ]
     );
     return this.getTerminal(tenantId, result.insertId);
   },
 
   async updateTerminal(tenantId, id, data) {
     const [result] = await writeDb.query(
-      `UPDATE pos_terminals SET terminal_name = ?, device_code = ?, status = ?, branch_id = ?
+      `UPDATE pos_terminals
+       SET terminal_name = ?, device_code = ?, status = ?, opening_balance = ?, branch_id = ?
        WHERE id = ? AND ${tw("pos_terminals")}`,
-      [data.terminal_name, data.device_code, data.status || "active", data.outlet_id, id, tenantId]
+      [
+        data.terminal_name,
+        data.device_code,
+        data.status || "active",
+        Number(data.opening_balance) || 0,
+        data.outlet_id,
+        id,
+        tenantId,
+      ]
     );
     return result.affectedRows === 1 ? this.getTerminal(tenantId, id) : null;
   },
@@ -453,7 +470,7 @@ export const posRepository = {
       Array(6).fill([outletId, tenantId]).flat()
     );
     const [terminals] = await readDb.query(
-      `SELECT t.id, t.terminal_name, t.device_code, t.status, t.created_at
+      `SELECT t.id, t.terminal_name, t.device_code, t.status, t.opening_balance, t.created_at
        FROM pos_terminals t WHERE t.branch_id = ? AND ${tw("t")} ORDER BY t.terminal_name ASC`,
       [outletId, tenantId]
     );

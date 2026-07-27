@@ -19,7 +19,6 @@ const EMPTY = {
   status: "active",
   store_open_time: "09:00",
   store_close_time: "21:00",
-  opening_balance: "0",
 };
 
 function timeForInput(value) {
@@ -39,6 +38,7 @@ function newTerminalRow(existing = null) {
     terminal_name: existing?.terminal_name || "",
     device_code: existing?.device_code || "",
     status: existing?.status || "active",
+    opening_balance: String(existing?.opening_balance ?? 0),
   };
 }
 
@@ -73,7 +73,6 @@ export default function EditStore() {
           status: row.status || "active",
           store_open_time: timeForInput(row.store_open_time) || "09:00",
           store_close_time: timeForInput(row.store_close_time) || "21:00",
-          opening_balance: String(row.opening_balance ?? 0),
         };
         const storeTerminals = (terminalRes.data || []).filter(
           (t) => String(t.outlet_id) === String(storeId)
@@ -108,7 +107,7 @@ export default function EditStore() {
         method: "PUT",
         body: JSON.stringify({
           ...form,
-          opening_balance: Number(form.opening_balance) || 0,
+          opening_balance: 0,
           store_open_time: timeForApi(form.store_open_time),
           store_close_time: timeForApi(form.store_close_time),
         }),
@@ -128,6 +127,7 @@ export default function EditStore() {
           terminal_name: t.terminal_name.trim(),
           device_code: t.device_code.trim(),
           status: t.status,
+          opening_balance: Number(t.opening_balance) || 0,
           outlet_id: Number(storeId),
         };
         if (t.id) {
@@ -164,18 +164,17 @@ export default function EditStore() {
       <FormPageLayout>
         <PageHeader
           title="Edit Store"
-          description="Update store details, hours, and terminals."
+          description="Update store details, hours, and terminals. Opening cash is set per terminal."
           actions={<Button variant="secondary" onClick={() => navigate(`${MODULE_BASE}/stores/${storeId}`)}>Back to store</Button>}
         />
         <form onSubmit={submit} className="wh-form-stack">
-          <FormBlock title="Store details" description="Name, city, status, address, and opening cash.">
+          <FormBlock title="Store details" description="Name, city, status, and address.">
             <div className="wh-form-grid wh-form-grid--3">
               <FormField id="outlet_name" label="Store name" value={form.outlet_name} onChange={(e) => setForm((f) => ({ ...f, outlet_name: e.target.value }))} disabled={disabled} required />
               <FormField id="city" label="City" value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} disabled={disabled} />
               <FormField id="status" label="Status" as="select" value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))} disabled={disabled}>
                 {OUTLET_STATUSES.map((s) => <option key={s} value={s}>{OUTLET_STATUS_LABELS[s] || s}</option>)}
               </FormField>
-              <FormField id="opening_balance" label="Opening balance (PKR)" type="number" min="0" step="0.01" value={form.opening_balance} onChange={(e) => setForm((f) => ({ ...f, opening_balance: e.target.value }))} disabled={disabled} />
               <div className="wh-form-grid__full">
                 <FormField id="location" label="Location" as="textarea" rows={3} value={form.location} onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))} disabled={disabled} />
               </div>
@@ -189,7 +188,7 @@ export default function EditStore() {
             </div>
           </FormBlock>
 
-          <FormBlock title="Terminals" description="Terminal codes must be unique across your stores. Other tenants may reuse the same codes.">
+          <FormBlock title="Terminals" description="Each terminal has its own opening cash. Terminal codes must be unique across your stores.">
             <div className="wh-inv-line-items">
               {terminals.map((t, idx) => (
                 <div key={t._key} className="wh-inv-line-item">
@@ -204,6 +203,7 @@ export default function EditStore() {
                   <div className="wh-form-grid wh-form-grid--3">
                     <FormField id={`terminal_name_${t._key}`} label="Terminal name" value={t.terminal_name} onChange={(e) => setTerminals((rows) => rows.map((r) => r._key === t._key ? { ...r, terminal_name: e.target.value } : r))} disabled={disabled} required />
                     <FormField id={`device_code_${t._key}`} label="Terminal code" value={t.device_code} onChange={(e) => setTerminals((rows) => rows.map((r) => r._key === t._key ? { ...r, device_code: e.target.value } : r))} disabled={disabled} required />
+                    <FormField id={`opening_balance_${t._key}`} label="Opening balance (PKR)" type="number" min="0" step="0.01" value={t.opening_balance} onChange={(e) => setTerminals((rows) => rows.map((r) => r._key === t._key ? { ...r, opening_balance: e.target.value } : r))} disabled={disabled} required />
                     <FormField id={`terminal_status_${t._key}`} label="Status" as="select" value={t.status} onChange={(e) => setTerminals((rows) => rows.map((r) => r._key === t._key ? { ...r, status: e.target.value } : r))} disabled={disabled}>
                       {TERMINAL_STATUSES.map((s) => <option key={s} value={s}>{TERMINAL_STATUS_LABELS[s] || s}</option>)}
                     </FormField>

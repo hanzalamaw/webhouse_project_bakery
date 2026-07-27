@@ -1713,6 +1713,7 @@ CREATE TABLE IF NOT EXISTS `pos_terminals` (
   `terminal_name` VARCHAR(100) NOT NULL,
   `device_code` VARCHAR(100) NOT NULL,
   `status` VARCHAR(45) NOT NULL,
+  `opening_balance` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
   `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
   `branch_id` INT NOT NULL,
   `tenant_id` INT NOT NULL,

@@ -9,9 +9,11 @@ const MODULE_NAME_KEYS = {
   "POS Terminal": "module.posTerminal",
   "Order Management": "module.orders",
   CRM: "module.crm",
+  "Finance and Accounting": "module.finance",
   "Finance & Accounting": "module.finance",
   Finance: "module.finance",
   Hisaab: "module.finance",
+  Hisab: "module.finance",
 };
 
 export function translateModuleName(t, name) {
