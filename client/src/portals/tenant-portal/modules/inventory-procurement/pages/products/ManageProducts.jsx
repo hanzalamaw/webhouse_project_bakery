@@ -14,6 +14,7 @@ import { useToolbarFilteredRows } from "../../../../../../hooks/useToolbarFilter
 import { formatDateTime } from "../../../../../../utils/dateTime";
 import { formatPKR } from "../../../../../../utils/currency";
 import { formatTotalPrice } from "../../utils/pricing";
+import { useT } from "../../../../../../context/LanguageContext";
 import { ITEM_TYPE_LABELS, MODULE_BASE } from "../../constants";
 
 const TOOLBAR_FILTERS = [
@@ -26,6 +27,7 @@ const TOOLBAR_FILTERS = [
 export default function ManageProducts() {
   const { authFetch } = useAuth();
   const navigate = useNavigate();
+  const t = useT();
   const [rows, setRows] = useState([]);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -78,7 +80,7 @@ export default function ManageProducts() {
     {
       key: "item_type",
       label: "Type",
-      format: (v) => ITEM_TYPE_LABELS[v] || v,
+      format: (v) => t(ITEM_TYPE_LABELS[v] || v),
     },
     { key: "category_name", label: "Category", format: (v) => v || "—" },
     { key: "unit", label: "Unit" },

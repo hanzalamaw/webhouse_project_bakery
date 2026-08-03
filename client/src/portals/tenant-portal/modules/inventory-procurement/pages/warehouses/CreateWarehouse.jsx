@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../../../../../../context/AuthContext";
 import { apiFetch } from "../../../../../../api/client";
@@ -10,6 +10,7 @@ import { FormPageLayout, FormActions } from "../../../../../../components/FormPa
 import { UnsavedChangesDialog } from "../../../../../../components/UnsavedChangesDialog";
 import { useFormUnsavedGuard } from "../../../../../../hooks/useFormUnsavedGuard";
 import { MODULE_BASE, ITEM_STATUS } from "../../constants";
+import { hasAnyError, requiredText, visibleError } from "../../utils/validation";
 
 const EMPTY = {
   branch_name: "",
@@ -33,8 +34,10 @@ export default function CreateWarehouse() {
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [attempted, setAttempted] = useState(false);
 
   const backPath = `${MODULE_BASE}/branches`;
+  const set = (key, value) => setForm((f) => ({ ...f, [key]: value }));
 
   useEffect(() => {
     if (!isEdit) return;
@@ -61,10 +64,25 @@ export default function CreateWarehouse() {
   const { dialogOpen, stayOnPage, leavePage, reloadPending, navigateSafely } =
     useFormUnsavedGuard(form, { baseline, enabled: !loading });
 
+  const fieldErrors = useMemo(
+    () => ({
+      branch_name: requiredText(form.branch_name, "Branch name"),
+      code: requiredText(form.code, "Code"),
+      city: requiredText(form.city, "City"),
+      phone: requiredText(form.phone, "Phone"),
+      open_time: requiredText(form.open_time, "Open time"),
+      close_time: requiredText(form.close_time, "Close time"),
+      location: requiredText(form.location, "Location / address"),
+    }),
+    [form]
+  );
+  const show = (err) => visibleError(attempted, err);
+
   const submit = async (e) => {
     e.preventDefault();
-    if (!form.branch_name.trim()) {
-      setError("Branch name is required");
+    setAttempted(true);
+    if (hasAnyError(fieldErrors)) {
+      setError("Please fix the highlighted fields");
       return;
     }
     setSaving(true);
@@ -107,21 +125,23 @@ export default function CreateWarehouse() {
         <form onSubmit={submit} className="wh-form-stack">
           <FormBlock title="Branch details" description="Name, code, location, timings, and status.">
             <div className="wh-form-grid">
-              <FormField id="branch_name" label="Branch name" value={form.branch_name} onChange={(e) => setForm((f) => ({ ...f, branch_name: e.target.value }))} required />
-              <FormField id="code" label="Code" value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} placeholder="e.g. DHA-01" />
-              <FormField id="city" label="City" value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} />
-              <FormField id="phone" label="Phone" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
-              <FormField id="open_time" label="Open time" type="time" value={form.open_time} onChange={(e) => setForm((f) => ({ ...f, open_time: e.target.value }))} />
-              <FormField id="close_time" label="Close time" type="time" value={form.close_time} onChange={(e) => setForm((f) => ({ ...f, close_time: e.target.value }))} />
-              <FormField id="status" label="Status" as="select" value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}>
-                {ITEM_STATUS.map((s) => <option key={s} value={s}>{s}</option>)}
+              <FormField id="branch_name" label="Branch name" value={form.branch_name} onChange={(e) => set("branch_name", e.target.value)} required error={show(fieldErrors.branch_name)} />
+              <FormField id="code" label="Code" value={form.code} onChange={(e) => set("code", e.target.value)} placeholder="e.g. DHA-01" required error={show(fieldErrors.code)} />
+              <FormField id="city" label="City" value={form.city} onChange={(e) => set("city", e.target.value)} required error={show(fieldErrors.city)} />
+              <FormField id="phone" label="Phone" value={form.phone} onChange={(e) => set("phone", e.target.value)} required error={show(fieldErrors.phone)} />
+              <FormField id="open_time" label="Open time" type="time" value={form.open_time} onChange={(e) => set("open_time", e.target.value)} required error={show(fieldErrors.open_time)} />
+              <FormField id="close_time" label="Close time" type="time" value={form.close_time} onChange={(e) => set("close_time", e.target.value)} required error={show(fieldErrors.close_time)} />
+              <FormField id="status" label="Status" as="select" value={form.status} onChange={(e) => set("status", e.target.value)}>
+                {ITEM_STATUS.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
               </FormField>
               <div className="wh-form-grid__full">
-                <FormField id="location" label="Location / address" as="textarea" rows={3} value={form.location} onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))} />
+                <FormField id="location" label="Location / address" as="textarea" rows={3} value={form.location} onChange={(e) => set("location", e.target.value)} required error={show(fieldErrors.location)} />
               </div>
             </div>
           </FormBlock>
-          {error && <p className="wh-field__error">{error}</p>}
+          {error && attempted && <p className="wh-field__error">{error}</p>}
           <FormActions>
             <Button type="button" variant="secondary" onClick={() => navigate(backPath)}>Cancel</Button>
             <Button type="submit" disabled={saving}>{saving ? "Saving…" : isEdit ? "Save Branch" : "Create Branch"}</Button>

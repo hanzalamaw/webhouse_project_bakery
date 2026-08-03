@@ -11,6 +11,7 @@ import { ViewKpi, ViewPanel, formatCount } from "../../../../../../components/En
 import { ProductIcon, WarehouseIcon, LogsIcon } from "../../../../../../components/icons";
 import { formatDateTime } from "../../../../../../utils/dateTime";
 import { formatPKR } from "../../../../../../utils/currency";
+import { useT } from "../../../../../../context/LanguageContext";
 import { ITEM_TYPE_LABELS, MODULE_BASE, MOVEMENT_LABELS } from "../../constants";
 
 export default function BranchView() {
@@ -18,6 +19,7 @@ export default function BranchView() {
   const { authFetch } = useAuth();
   const { canEdit } = useModulePermission("stock-purchasing");
   const navigate = useNavigate();
+  const t = useT();
   const [branch, setBranch] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -149,7 +151,7 @@ export default function BranchView() {
                       onClick={() => row.item_id && navigate(`${MODULE_BASE}/items/view/${row.item_id}`)}
                     >
                       <td>{row.item_name}</td>
-                      <td className="wh-muted">{ITEM_TYPE_LABELS[row.item_type] || row.item_type || "—"}</td>
+                      <td className="wh-muted">{row.item_type ? t(ITEM_TYPE_LABELS[row.item_type] || row.item_type) : "—"}</td>
                       <td>{`${formatCount(row.available_qty)} ${row.unit || ""}`.trim()}</td>
                       <td>{formatCount(row.reserved_qty)}</td>
                       <td>{formatPKR((Number(row.available_qty) || 0) * (Number(row.cost_price) || 0))}</td>

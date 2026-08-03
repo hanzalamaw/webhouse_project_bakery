@@ -35,6 +35,39 @@ function nonNegInt(value, label) {
   return n;
 }
 
+const NOTES_MAX = 255;
+
+function assertNotes(value, label = "Notes") {
+  if (value == null || value === "") return null;
+  const s = String(value);
+  if (s.length > NOTES_MAX) throw new Error(`${label} cannot exceed ${NOTES_MAX} characters`);
+  return s;
+}
+
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function assertExpiryOptional(value, label = "Expiry date") {
+  if (value == null || value === "") return null;
+  const s = String(value).slice(0, 10);
+  if (s < todayISO()) throw new Error(`${label} cannot be in the past`);
+  return s;
+}
+
+function assertRequiredText(value, label) {
+  const s = String(value || "").trim();
+  if (!s) throw new Error(`${label} is required`);
+  return s;
+}
+
+function assertEmailOrDash(value) {
+  const s = assertRequiredText(value, "Email");
+  if (s === "-") return s;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)) throw new Error("Enter a valid email or -");
+  return s;
+}
+
 async function withTransaction(fn) {
   const conn = await getPool().getConnection();
   try {
@@ -110,30 +143,32 @@ export const inventoryService = {
     return { ...category, items };
   },
   async createCategory(tenantId, body) {
-    const category_name = String(body.category_name || "").trim();
-    if (!category_name) throw new Error("Category name is required");
+    const category_name = assertRequiredText(body.category_name, "Category name");
+    const item_type = assertRequiredText(body.item_type, "Item type");
+    assertItemType(item_type);
     const status = body.status || "active";
     assertStatus(status);
     if (await inventoryRepository.findCategoryByName(tenantId, category_name)) {
       throw new Error("A category with this name already exists");
     }
     const id = await inventoryRepository.createCategory(tenantId, {
-      category_name, item_type: body.item_type || null, status,
+      category_name, item_type, status,
     });
     return this.getCategory(tenantId, id);
   },
   async updateCategory(tenantId, id, body) {
     const existing = await inventoryRepository.getCategoryById(tenantId, id);
     if (!existing) return null;
-    const category_name = String(body.category_name ?? existing.category_name).trim();
-    if (!category_name) throw new Error("Category name is required");
+    const category_name = assertRequiredText(body.category_name ?? existing.category_name, "Category name");
+    const item_type = assertRequiredText(body.item_type ?? existing.item_type, "Item type");
+    assertItemType(item_type);
     const status = body.status ?? existing.status;
     assertStatus(status);
     if (await inventoryRepository.findCategoryByName(tenantId, category_name, id)) {
       throw new Error("A category with this name already exists");
     }
     await inventoryRepository.updateCategory(tenantId, id, {
-      category_name, item_type: body.item_type ?? existing.item_type, status,
+      category_name, item_type, status,
     });
     return this.getCategory(tenantId, id);
   },
@@ -196,17 +231,30 @@ export const inventoryService = {
       if (dup) throw new Error("SKU already exists");
     }
     const is_sold = Boolean(body.is_sold ?? existing?.is_sold ?? (item_type === "finished"));
+    const cost_price = assertMoney(body.cost_price ?? existing?.cost_price ?? 0, "Cost price");
+    const selling_price = is_sold
+      ? assertMoney(body.selling_price ?? existing?.selling_price ?? 0, "Selling price")
+      : 0;
+    if (is_sold && selling_price < cost_price) {
+      throw new Error("Selling price must be greater than or equal to cost price");
+    }
+    const tax = is_sold ? assertMoney(body.tax ?? existing?.tax ?? 0, "Tax") : 0;
+    const discount = is_sold ? assertMoney(body.discount ?? existing?.discount ?? 0, "Discount") : 0;
+    if (is_sold && tax > selling_price) {
+      throw new Error("Tax cannot exceed selling price");
+    }
+    if (is_sold && discount > selling_price) {
+      throw new Error("Discount cannot exceed selling price");
+    }
     return {
       item_name,
       item_type,
       sku: sku || null,
       unit: String(body.unit ?? existing?.unit ?? "piece").trim(),
-      cost_price: assertMoney(body.cost_price ?? existing?.cost_price ?? 0, "Cost price"),
-      selling_price: is_sold
-        ? assertMoney(body.selling_price ?? existing?.selling_price ?? 0, "Selling price")
-        : 0,
-      tax: is_sold ? assertMoney(body.tax ?? existing?.tax ?? 0, "Tax") : 0,
-      discount: is_sold ? assertMoney(body.discount ?? existing?.discount ?? 0, "Discount") : 0,
+      cost_price,
+      selling_price,
+      tax,
+      discount,
       is_purchased: body.is_purchased ?? existing?.is_purchased ?? (item_type !== "finished"),
       is_produced: body.is_produced ?? existing?.is_produced ?? (item_type === "finished"),
       is_sold,
@@ -216,7 +264,7 @@ export const inventoryService = {
         body.shelf_life_unit ?? existing?.shelf_life_unit ?? "days"
       ),
       low_stock_threshold: nonNegInt(body.low_stock_threshold ?? existing?.low_stock_threshold ?? 0, "Low stock alert level"),
-      parent_item_id: body.parent_item_id ? Number(body.parent_item_id) : (existing?.parent_item_id ?? null),
+      parent_item_id: null,
       variant_label: body.variant_label ? String(body.variant_label).trim() : (existing?.variant_label ?? null),
       status,
       category_id,
@@ -230,9 +278,11 @@ export const inventoryService = {
       for (const line of openings) {
         const branch_id = Number(line.branch_id);
         const qty = Number(line.qty);
-        if (!branch_id || !qty || qty <= 0) continue;
+        if (!branch_id) continue;
+        if (!Number.isFinite(qty) || qty < 0) throw new Error("Opening stock quantity must be zero or more");
+        if (qty === 0) continue;
         await ensureBranch(tenantId, branch_id);
-        const expiry = line.expiry_date || computeExpiry(new Date(), data.shelf_life_days, data.shelf_life_unit);
+        const expiry = assertExpiryOptional(line.expiry_date) || computeExpiry(new Date(), data.shelf_life_days, data.shelf_life_unit);
         await addStock(conn, tenantId, {
           itemId, branchId: branch_id, qty, unitCost: data.cost_price,
           sourceType: "opening", movementType: "opening", expiryDate: expiry,
@@ -309,13 +359,17 @@ export const inventoryService = {
     if (!limits.can_create) {
       throw new Error(`Branch limit reached (${limits.branch_count}/${limits.max_branches}). Contact your administrator.`);
     }
-    const branch_name = String(body.branch_name || "").trim();
-    if (!branch_name) throw new Error("Branch name is required");
+    const branch_name = assertRequiredText(body.branch_name, "Branch name");
+    const code = assertRequiredText(body.code, "Code");
+    const location = assertRequiredText(body.location, "Location / address");
+    const city = assertRequiredText(body.city, "City");
+    const phone = assertRequiredText(body.phone, "Phone");
+    const open_time = assertRequiredText(body.open_time, "Open time");
+    const close_time = assertRequiredText(body.close_time, "Close time");
     const status = body.status || "active";
     assertStatus(status);
     const id = await inventoryRepository.createBranch(tenantId, {
-      branch_name, code: body.code, location: body.location, city: body.city, phone: body.phone,
-      open_time: body.open_time, close_time: body.close_time,
+      branch_name, code, location, city, phone, open_time, close_time,
       opening_balance: assertMoney(body.opening_balance ?? 0, "Opening balance"), status,
     });
     return inventoryRepository.getBranchById(tenantId, id);
@@ -323,14 +377,17 @@ export const inventoryService = {
   async updateBranch(tenantId, id, body) {
     const existing = await inventoryRepository.getBranchById(tenantId, id);
     if (!existing) return null;
-    const branch_name = String(body.branch_name ?? existing.branch_name).trim();
-    if (!branch_name) throw new Error("Branch name is required");
+    const branch_name = assertRequiredText(body.branch_name ?? existing.branch_name, "Branch name");
+    const code = assertRequiredText(body.code ?? existing.code, "Code");
+    const location = assertRequiredText(body.location ?? existing.location, "Location / address");
+    const city = assertRequiredText(body.city ?? existing.city, "City");
+    const phone = assertRequiredText(body.phone ?? existing.phone, "Phone");
+    const open_time = assertRequiredText(body.open_time ?? existing.open_time, "Open time");
+    const close_time = assertRequiredText(body.close_time ?? existing.close_time, "Close time");
     const status = body.status ?? existing.status;
     assertStatus(status);
     await inventoryRepository.updateBranch(tenantId, id, {
-      branch_name, code: body.code ?? existing.code, location: body.location ?? existing.location,
-      city: body.city ?? existing.city, phone: body.phone ?? existing.phone,
-      open_time: body.open_time ?? existing.open_time, close_time: body.close_time ?? existing.close_time,
+      branch_name, code, location, city, phone, open_time, close_time,
       opening_balance: assertMoney(body.opening_balance ?? existing.opening_balance ?? 0, "Opening balance"), status,
     });
     return inventoryRepository.getBranchById(tenantId, id);
@@ -355,13 +412,15 @@ export const inventoryService = {
     await ensureBranch(tenantId, Number(body.branch_id));
     const qty = assertQty(body.qty);
     const unitCost = assertMoney(body.unit_cost ?? item.cost_price ?? 0, "Unit cost");
+    const notes = assertNotes(body.notes);
     const madeOn = body.made_on || null;
-    const expiry = body.expiry_date || computeExpiry(madeOn || new Date(), item.shelf_life_days, item.shelf_life_unit);
+    const expiry = assertExpiryOptional(body.expiry_date)
+      || computeExpiry(madeOn || new Date(), item.shelf_life_days, item.shelf_life_unit);
     return withTransaction(async (conn) => {
       const batchId = await addStock(conn, tenantId, {
         itemId: item.id, branchId: Number(body.branch_id), qty, unitCost,
         sourceType: "purchase", movementType: "purchase_in",
-        madeOn, expiryDate: expiry, notes: body.notes || null, createdBy: userId,
+        madeOn, expiryDate: expiry, notes, createdBy: userId,
       });
       return { id: batchId };
     });
@@ -370,10 +429,11 @@ export const inventoryService = {
     const item = await ensureItem(tenantId, Number(body.item_id));
     await ensureBranch(tenantId, Number(body.branch_id));
     const qty = assertQty(body.qty);
+    const notes = assertNotes(body.notes) || "Manual stock out";
     return withTransaction(async (conn) => {
       await consumeStock(conn, tenantId, {
         itemId: item.id, branchId: Number(body.branch_id), qty,
-        movementType: "adjustment", notes: body.notes || "Manual stock out", createdBy: userId,
+        movementType: "adjustment", notes, createdBy: userId,
       });
       return { success: true };
     });
@@ -389,11 +449,13 @@ export const inventoryService = {
         const item = await ensureItem(tenantId, Number(line.item_id));
         const qty = assertQty(line.qty, `Quantity for ${item.item_name}`);
         const unitCost = assertMoney(line.unit_cost ?? item.cost_price ?? 0, "Unit cost");
-        const expiry = line.expiry_date || computeExpiry(line.made_on || new Date(), item.shelf_life_days, item.shelf_life_unit);
+        const notes = assertNotes(line.notes);
+        const expiry = assertExpiryOptional(line.expiry_date, `Expiry for ${item.item_name}`)
+          || computeExpiry(line.made_on || new Date(), item.shelf_life_days, item.shelf_life_unit);
         const batchId = await addStock(conn, tenantId, {
           itemId: item.id, branchId: branch_id, qty, unitCost,
           sourceType: "purchase", movementType: "purchase_in",
-          madeOn: line.made_on || null, expiryDate: expiry, notes: line.notes || null, createdBy: userId,
+          madeOn: line.made_on || null, expiryDate: expiry, notes, createdBy: userId,
         });
         created.push({ id: batchId, item_id: item.id });
       }
@@ -416,19 +478,21 @@ export const inventoryService = {
     await ensureBranch(tenantId, to_branch_id);
     const qty = assertQty(body.qty);
     const completeNow = body.complete !== false;
+    const notes = assertNotes(body.notes);
+    const expiry_date = assertExpiryOptional(body.expiry_date);
 
     return withTransaction(async (conn) => {
       const consumption = await consumeStock(conn, tenantId, {
         itemId: item.id, branchId: from_branch_id, qty,
         movementType: "transfer_out", referenceType: "transfer",
-        notes: body.notes || `Transfer to branch #${to_branch_id}`, createdBy: userId,
+        notes: notes || `Transfer to branch #${to_branch_id}`, createdBy: userId,
       });
       const avgCost = consumption.length
         ? consumption.reduce((s, c) => s + c.unitCost * c.qty, 0) / qty : item.cost_price;
 
       const transferId = await inventoryRepository.createTransfer(tenantId, userId, {
         qty, transfer_status: completeNow ? "received" : "in_transit",
-        expiry_date: body.expiry_date || null, notes: body.notes,
+        expiry_date, notes,
         item_id: item.id, from_branch_id, to_branch_id,
       });
 
@@ -436,7 +500,7 @@ export const inventoryService = {
         await addStock(conn, tenantId, {
           itemId: item.id, branchId: to_branch_id, qty, unitCost: avgCost,
           sourceType: "transfer", sourceRefId: transferId, movementType: "transfer_in",
-          expiryDate: body.expiry_date || null, referenceType: "transfer", referenceId: transferId,
+          expiryDate: expiry_date, referenceType: "transfer", referenceId: transferId,
           notes: `Transfer from branch #${from_branch_id}`, createdBy: userId,
         });
       }
@@ -490,29 +554,34 @@ export const inventoryService = {
     return { ...supplier, purchase_orders };
   },
   async createSupplier(tenantId, body) {
-    const supplier_name = String(body.supplier_name || "").trim();
-    if (!supplier_name) throw new Error("Supplier name is required");
+    const supplier_name = assertRequiredText(body.supplier_name, "Supplier name");
+    const contact_person = assertRequiredText(body.contact_person, "Contact person");
+    const phone = assertRequiredText(body.phone, "Phone");
+    const email = assertEmailOrDash(body.email);
+    const address = assertRequiredText(body.address, "Address");
+    const city = assertRequiredText(body.city, "City");
+    const notes = assertNotes(body.notes);
     const status = body.status || "active";
     assertStatus(status);
-    const id = await inventoryRepository.createSupplier(tenantId, { ...body, supplier_name, status });
+    const id = await inventoryRepository.createSupplier(tenantId, {
+      supplier_name, contact_person, phone, email, address, city, status, notes,
+    });
     return inventoryRepository.getSupplierById(tenantId, id);
   },
   async updateSupplier(tenantId, id, body) {
     const existing = await inventoryRepository.getSupplierById(tenantId, id);
     if (!existing) return null;
-    const supplier_name = String(body.supplier_name ?? existing.supplier_name).trim();
-    if (!supplier_name) throw new Error("Supplier name is required");
+    const supplier_name = assertRequiredText(body.supplier_name ?? existing.supplier_name, "Supplier name");
+    const contact_person = assertRequiredText(body.contact_person ?? existing.contact_person, "Contact person");
+    const phone = assertRequiredText(body.phone ?? existing.phone, "Phone");
+    const email = assertEmailOrDash(body.email ?? existing.email);
+    const address = assertRequiredText(body.address ?? existing.address, "Address");
+    const city = assertRequiredText(body.city ?? existing.city, "City");
+    const notes = assertNotes(body.notes ?? existing.notes);
     const status = body.status ?? existing.status;
     assertStatus(status);
     await inventoryRepository.updateSupplier(tenantId, id, {
-      supplier_name,
-      contact_person: body.contact_person ?? existing.contact_person,
-      phone: body.phone ?? existing.phone,
-      email: body.email ?? existing.email,
-      address: body.address ?? existing.address,
-      city: body.city ?? existing.city,
-      status,
-      notes: body.notes ?? existing.notes,
+      supplier_name, contact_person, phone, email, address, city, status, notes,
     });
     return inventoryRepository.getSupplierById(tenantId, id);
   },
@@ -539,11 +608,15 @@ export const inventoryService = {
       const qty = assertQty(l.qty, `Quantity for line ${i + 1}`);
       const unit_cost = assertMoney(l.unit_cost ?? 0, `Unit cost for line ${i + 1}`);
       const discount = assertMoney(l.discount ?? 0, `Discount for line ${i + 1}`);
-      const total_price = Math.max(0, qty * unit_cost - discount);
+      const lineBase = qty * unit_cost;
+      if (discount > lineBase) throw new Error(`Discount for line ${i + 1} cannot exceed line total`);
+      const expiry_date = assertExpiryOptional(l.expiry_date, `Expiry for line ${i + 1}`);
+      const total_price = Math.max(0, lineBase - discount);
       subtotal += total_price;
-      return { item_id, qty, unit_cost, discount, total_price, expiry_date: l.expiry_date || null };
+      return { item_id, qty, unit_cost, discount, total_price, expiry_date };
     });
     const discount_amount = assertMoney(discountAmount ?? 0, "Discount");
+    if (discount_amount > subtotal) throw new Error("Order discount cannot exceed subtotal");
     const tax_amount = assertMoney(taxAmount ?? 0, "Tax");
     const payable = Math.max(0, subtotal - discount_amount + tax_amount);
     return { parsed, total_amount: subtotal, discount_amount, tax_amount, payable_amount: payable };
@@ -555,21 +628,27 @@ export const inventoryService = {
     const lines = Array.isArray(body.items) ? body.items : [];
     if (!lines.length) throw new Error("Add at least one item to the purchase order");
     const status = body.status && PO_STATUSES.includes(body.status) ? body.status : "ordered";
+    const order_date = body.order_date || todayISO();
+    const expected_date = body.expected_date || null;
+    if (expected_date && String(expected_date).slice(0, 10) < String(order_date).slice(0, 10)) {
+      throw new Error("Expected date cannot be before order date");
+    }
+    const notes = assertNotes(body.notes);
     const totals = this._computePoTotals(lines, body.discount_amount, body.tax_amount);
 
     const poId = await withTransaction(async (conn) => {
       const po_no = body.po_no || (await inventoryRepository.nextPoNo(tenantId));
       const id = await inventoryRepository.createPurchaseOrder(conn, tenantId, userId, {
         po_no,
-        order_date: body.order_date || new Date().toISOString().slice(0, 10),
-        expected_date: body.expected_date || null,
+        order_date,
+        expected_date,
         status,
         total_amount: totals.total_amount,
         discount_amount: totals.discount_amount,
         tax_amount: totals.tax_amount,
         payable_amount: totals.payable_amount,
-        notes: body.notes || null,
-        supplier_id: supplier.id,
+        notes,
+        supplier_id: Number(body.supplier_id),
         branch_id: Number(body.branch_id),
       });
       for (const line of totals.parsed) {
@@ -642,18 +721,19 @@ export const inventoryService = {
     await ensureBranch(tenantId, Number(body.branch_id));
     const qty = assertQty(body.qty);
     const reason = WASTAGE_REASONS.includes(body.reason) ? body.reason : "other";
-    const wastage_date = body.wastage_date || new Date().toISOString().slice(0, 10);
-    const estimated_cost = body.estimated_cost != null
+    const wastage_date = body.wastage_date || todayISO();
+    const notes = assertNotes(body.notes);
+    const estimated_cost = body.estimated_cost != null && body.estimated_cost !== ""
       ? assertMoney(body.estimated_cost, "Estimated cost")
       : qty * Number(item.cost_price || 0);
     return withTransaction(async (conn) => {
       await consumeStock(conn, tenantId, {
         itemId: item.id, branchId: Number(body.branch_id), qty,
         movementType: "wastage", referenceType: "wastage",
-        notes: body.notes || `Wastage: ${reason}`, createdBy: userId, allowNegative: true,
+        notes: notes || `Wastage: ${reason}`, createdBy: userId, allowNegative: false,
       });
       const wastageId = await inventoryRepository.createWastage(conn, tenantId, userId, {
-        qty, reason, wastage_date, estimated_cost, notes: body.notes,
+        qty, reason, wastage_date, estimated_cost, notes,
         item_id: item.id, batch_id: body.batch_id || null, branch_id: Number(body.branch_id),
       });
       return { id: wastageId };

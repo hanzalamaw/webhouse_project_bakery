@@ -10,6 +10,7 @@ import { useFiscalYear } from "../../../../../context/FiscalYearContext";
 import { HBars, DonutChart, CHART_COLORS } from "../../../../../components/charts";
 import { formatPKR, formatCompactPKR } from "../../../../../utils/currency";
 import { formatDateTime, formatDate } from "../../../../../utils/dateTime";
+import { useT } from "../../../../../context/LanguageContext";
 import { MOVEMENT_LABELS, ITEM_TYPE_LABELS, MODULE_BASE } from "../constants";
 import { ProductIcon, WarehouseIcon, ProcurementIcon, LogsIcon } from "../../../../../components/icons";
 
@@ -17,6 +18,7 @@ import { ProductIcon, WarehouseIcon, ProcurementIcon, LogsIcon } from "../../../
 
 export default function InventoryDashboard() {
   const { authFetch } = useAuth();
+  const t = useT();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -54,11 +56,11 @@ export default function InventoryDashboard() {
   const itemTypeSegments = useMemo(
     () =>
       [
-        { label: ITEM_TYPE_LABELS.ingredient, value: Number(stats.ingredient_count) || 0, color: CHART_COLORS[0] },
-        { label: ITEM_TYPE_LABELS.finished, value: Number(stats.finished_count) || 0, color: CHART_COLORS[1] },
-        { label: ITEM_TYPE_LABELS.packaging, value: Number(stats.packaging_count) || 0, color: CHART_COLORS[2] },
+        { label: t(ITEM_TYPE_LABELS.ingredient), value: Number(stats.ingredient_count) || 0, color: CHART_COLORS[0] },
+        { label: t(ITEM_TYPE_LABELS.finished), value: Number(stats.finished_count) || 0, color: CHART_COLORS[1] },
+        { label: t(ITEM_TYPE_LABELS.packaging), value: Number(stats.packaging_count) || 0, color: CHART_COLORS[2] },
       ].filter((s) => s.value > 0),
-    [stats]
+    [stats, t]
   );
 
   const branchBars = useMemo(

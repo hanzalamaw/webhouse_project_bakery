@@ -10,6 +10,7 @@ import { ViewKpi, ViewPanel, formatCount } from "../../../../../../components/En
 import { ProductIcon, WarehouseIcon, LogsIcon } from "../../../../../../components/icons";
 import { formatDateTime, formatDate } from "../../../../../../utils/dateTime";
 import { formatPKR } from "../../../../../../utils/currency";
+import { useT } from "../../../../../../context/LanguageContext";
 import { MODULE_BASE, WASTAGE_REASON_LABELS } from "../../constants";
 
 export default function WastageView() {
@@ -17,6 +18,7 @@ export default function WastageView() {
   const location = useLocation();
   const { authFetch } = useAuth();
   const navigate = useNavigate();
+  const t = useT();
   const [row, setRow] = useState(location.state?.row || null);
   const [loading, setLoading] = useState(!location.state?.row);
   const [error, setError] = useState("");
@@ -52,7 +54,7 @@ export default function WastageView() {
     );
   }
 
-  const reasonLabel = WASTAGE_REASON_LABELS[row.reason] || row.reason;
+  const reasonLabel = t(WASTAGE_REASON_LABELS[row.reason] || row.reason);
   const unitCost = Number(row.qty) > 0 ? Number(row.estimated_cost || 0) / Number(row.qty) : 0;
   const qtyLabel = `${formatCount(row.qty)} ${row.unit || ""}`.trim();
 

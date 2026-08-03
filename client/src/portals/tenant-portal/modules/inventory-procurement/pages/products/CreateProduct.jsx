@@ -14,8 +14,15 @@ import CreateCategoryModal from "../../components/CreateCategoryModal";
 import { UnsavedChangesDialog } from "../../../../../../components/UnsavedChangesDialog";
 import { useUnsavedChangesGuard } from "../../../../../../hooks/useUnsavedChangesGuard";
 import { appendCreatedItemReturn } from "../../../../../../utils/formDraft";
+import { useT } from "../../../../../../context/LanguageContext";
 import { ITEM_STATUS, ITEM_TYPES, ITEM_TYPE_LABELS, ITEM_UNITS, SHELF_LIFE_UNITS, DEFAULT_SHELF_LIFE_UNIT, MODULE_BASE } from "../../constants";
 import { formatTotalPrice } from "../../utils/pricing";
+import {
+  hasAnyError,
+  nonNegNumberError,
+  requiredText,
+  visibleError,
+} from "../../utils/validation";
 
 function defaultsForType(item_type) {
   if (item_type === "ingredient" || item_type === "packaging") {
@@ -42,7 +49,6 @@ function buildInitial(itemType) {
     shelf_life_unit: DEFAULT_SHELF_LIFE_UNIT,
     low_stock_threshold: "0",
     variant_label: "",
-    parent_item_id: "",
   };
 }
 
@@ -71,7 +77,6 @@ function mapItemToForm(item) {
     shelf_life_unit: item.shelf_life_unit || DEFAULT_SHELF_LIFE_UNIT,
     low_stock_threshold: item.low_stock_threshold ?? "0",
     variant_label: item.variant_label || "",
-    parent_item_id: item.parent_item_id ? String(item.parent_item_id) : "",
   };
 }
 
@@ -94,7 +99,8 @@ export default function CreateProduct() {
   const selectFor = searchParams.get("selectFor");
   const prefType = searchParams.get("item_type");
   const { authFetch } = useAuth();
-  const { categories, branches, items, loading: refLoading, reload } = useInventoryReference();
+  const t = useT();
+  const { categories, branches, loading: refLoading, reload } = useInventoryReference();
   const [form, setForm] = useState(() => (isEdit ? INITIAL : buildInitial(prefType)));
   const [baseline, setBaseline] = useState(null);
   const [stockLevels, setStockLevels] = useState([]);
@@ -109,6 +115,7 @@ export default function CreateProduct() {
   });
   const [loadingItem, setLoadingItem] = useState(isEdit);
   const [error, setError] = useState("");
+  const [attempted, setAttempted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
   const [createCategoryOpen, setCreateCategoryOpen] = useState(false);
@@ -127,13 +134,70 @@ export default function CreateProduct() {
     () => branches.map((b) => ({ value: String(b.id), label: b.branch_name })),
     [branches]
   );
-  const parentOptions = useMemo(
-    () =>
-      items
-        .filter((i) => String(i.id) !== String(resolvedId))
-        .map((i) => ({ value: String(i.id), label: `${i.item_name}${i.sku ? ` (${i.sku})` : ""}` })),
-    [items, resolvedId]
-  );
+
+  const fieldErrors = useMemo(() => {
+    const errs = {};
+    errs.item_name = requiredText(form.item_name, "Item name");
+    errs.cost_price = nonNegNumberError(form.cost_price, "Cost price");
+    errs.category_id = requiredText(form.category_id, "Category");
+    errs.low_stock_threshold = nonNegNumberError(form.low_stock_threshold, "Low stock alert", { required: false });
+    if (form.shelf_life_days !== "" && form.shelf_life_days != null) {
+      errs.shelf_life_days = nonNegNumberError(form.shelf_life_days, "Shelf life", { required: false });
+    }
+    if (form.is_sold) {
+      errs.selling_price = nonNegNumberError(form.selling_price, "Selling price");
+      const cost = Number(form.cost_price);
+      const sell = Number(form.selling_price);
+      if (!errs.selling_price && Number.isFinite(cost) && Number.isFinite(sell) && sell < cost) {
+        errs.selling_price = "Selling price must be greater than or equal to cost price";
+      }
+      errs.tax = nonNegNumberError(form.tax, "Tax", { required: false });
+      if (!errs.tax && form.tax !== "" && Number(form.tax) > sell) {
+        errs.tax = "Tax cannot exceed selling price";
+      }
+    }
+    if (!isEdit) {
+      const opening = {};
+      const branchIds = [];
+      openingStock.forEach((row) => {
+        const rowErr = {};
+        if (row.branch_id || Number(row.qty) > 0) {
+          if (!row.branch_id) rowErr.branch_id = "Branch is required";
+          rowErr.qty = nonNegNumberError(row.qty, "Quantity");
+        } else if (row.qty !== "" && row.qty != null) {
+          rowErr.qty = nonNegNumberError(row.qty, "Quantity", { required: false });
+        }
+        if (row.branch_id) branchIds.push(row.branch_id);
+        if (rowErr.branch_id || rowErr.qty) opening[row._key] = rowErr;
+      });
+      if (new Set(branchIds).size !== branchIds.length) {
+        errs.opening_stock = "Each branch can only be selected once";
+      }
+      errs.opening = opening;
+    }
+    return errs;
+  }, [form, openingStock, isEdit]);
+
+  const formInvalid = hasAnyError(fieldErrors);
+  const show = (err) => visibleError(attempted, err);
+
+  // Realtime only when values are filled and break a rule
+  const sellingRealtime =
+    form.is_sold && form.selling_price !== "" && form.cost_price !== "" && Number(form.selling_price) < Number(form.cost_price)
+      ? "Selling price must be greater than or equal to cost price"
+      : "";
+  const taxRealtime =
+    form.is_sold && form.tax !== "" && form.selling_price !== "" && Number(form.tax) > Number(form.selling_price)
+      ? "Tax cannot exceed selling price"
+      : "";
+  const shelfRealtime =
+    form.shelf_life_days !== "" && form.shelf_life_days != null
+      ? nonNegNumberError(form.shelf_life_days, "Shelf life", { required: false })
+      : "";
+  const lowStockRealtime =
+    form.low_stock_threshold !== ""
+      ? nonNegNumberError(form.low_stock_threshold, "Low stock alert", { required: false })
+      : "";
 
   useEffect(() => {
     if (!isEdit) return;
@@ -173,17 +237,7 @@ export default function CreateProduct() {
   };
 
   const validate = () => {
-    if (!form.item_name.trim()) return "Item name is required";
-    if (form.cost_price === "" || Number(form.cost_price) < 0) return "Valid cost price is required";
-    if (form.is_sold && (form.selling_price === "" || Number(form.selling_price) < 0)) {
-      return "Valid selling price is required when item is sold";
-    }
-    if (!form.category_id) return "Category is required";
-    if (!isEdit) {
-      const filled = openingStock.filter((row) => row.branch_id && Number(row.qty) > 0);
-      const ids = filled.map((row) => row.branch_id);
-      if (new Set(ids).size !== ids.length) return "Each branch can only be selected once";
-    }
+    if (formInvalid) return "Please fix the highlighted fields";
     return "";
   };
 
@@ -197,6 +251,7 @@ export default function CreateProduct() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setAttempted(true);
     const err = validate();
     if (err) {
       setError(err);
@@ -225,7 +280,7 @@ export default function CreateProduct() {
         shelf_life_unit: form.shelf_life_unit || DEFAULT_SHELF_LIFE_UNIT,
         low_stock_threshold: Number(form.low_stock_threshold) || 0,
         variant_label: form.variant_label || null,
-        parent_item_id: form.parent_item_id ? Number(form.parent_item_id) : null,
+        parent_item_id: null,
       };
 
       if (isEdit) {
@@ -296,11 +351,11 @@ export default function CreateProduct() {
         <form onSubmit={handleSubmit} className="wh-form-stack">
           <FormBlock title="Basic information" description="Name, type, unit, and status.">
             <div className="wh-form-grid">
-              <FormField id="item_name" label="Item name" value={form.item_name} onChange={(e) => set("item_name", e.target.value)} required />
+              <FormField id="item_name" label="Item name" value={form.item_name} onChange={(e) => set("item_name", e.target.value)} required error={show(fieldErrors.item_name)} />
               <FormField id="sku" label="SKU (optional)" value={form.sku} onChange={(e) => set("sku", e.target.value)} />
               <FormField id="item_type" label="Item type" as="select" value={form.item_type} onChange={(e) => setItemType(e.target.value)}>
-                {ITEM_TYPES.map((t) => (
-                  <option key={t} value={t}>{ITEM_TYPE_LABELS[t] || t}</option>
+                {ITEM_TYPES.map((type) => (
+                  <option key={type} value={type}>{t(ITEM_TYPE_LABELS[type] || type)}</option>
                 ))}
               </FormField>
               <FormField id="unit" label="Unit" as="select" value={form.unit} onChange={(e) => set("unit", e.target.value)}>
@@ -324,6 +379,7 @@ export default function CreateProduct() {
                     onChange={(e) => set("shelf_life_days", e.target.value)}
                     placeholder="e.g. 3"
                     aria-label="Shelf life value"
+                    error={shelfRealtime || show(fieldErrors.shelf_life_days)}
                   />
                   <FormField
                     id="shelf_life_unit"
@@ -347,21 +403,22 @@ export default function CreateProduct() {
                 min="0"
                 value={form.low_stock_threshold}
                 onChange={(e) => set("low_stock_threshold", e.target.value)}
+                error={lowStockRealtime || show(fieldErrors.low_stock_threshold)}
               />
               <FormField id="variant_label" label="Variant label" value={form.variant_label} onChange={(e) => set("variant_label", e.target.value)} placeholder="e.g. 1kg / Slice" />
             </div>
             <div className="wh-form-grid" style={{ marginTop: 12 }}>
               <label className="wh-checkbox-item">
                 <input type="checkbox" checked={form.is_purchased} onChange={(e) => set("is_purchased", e.target.checked)} />
-                <span>Purchased (Khareeda jata hai)</span>
+                <span>{t("Purchased")}</span>
               </label>
               <label className="wh-checkbox-item">
                 <input type="checkbox" checked={form.is_produced} onChange={(e) => set("is_produced", e.target.checked)} />
-                <span>Produced (Banaya jata hai)</span>
+                <span>{t("Produced")}</span>
               </label>
               <label className="wh-checkbox-item">
                 <input type="checkbox" checked={form.is_sold} onChange={(e) => set("is_sold", e.target.checked)} />
-                <span>Sold (Becha jata hai)</span>
+                <span>{t("Sold")}</span>
               </label>
             </div>
           </FormBlock>
@@ -375,10 +432,10 @@ export default function CreateProduct() {
             }
           >
             <div className="wh-form-grid">
-              <FormField id="cost_price" label="Cost price (PKR)" type="number" min="0" step="0.01" value={form.cost_price} onChange={(e) => set("cost_price", e.target.value)} required />
+              <FormField id="cost_price" label="Cost price (PKR)" type="number" min="0" step="0.01" value={form.cost_price} onChange={(e) => set("cost_price", e.target.value)} required error={show(fieldErrors.cost_price)} />
               {form.is_sold && (
                 <>
-                  <FormField id="selling_price" label="Selling price (PKR)" type="number" min="0" step="0.01" value={form.selling_price} onChange={(e) => set("selling_price", e.target.value)} required />
+                  <FormField id="selling_price" label="Selling price (PKR)" type="number" min="0" step="0.01" value={form.selling_price} onChange={(e) => set("selling_price", e.target.value)} required error={sellingRealtime || show(fieldErrors.selling_price)} />
                   <DiscountField
                     id="discount"
                     label="Discount"
@@ -386,14 +443,14 @@ export default function CreateProduct() {
                     baseAmount={form.selling_price}
                     onChange={(v) => set("discount", v)}
                   />
-                  <FormField id="tax" label="Tax (PKR)" type="number" min="0" step="0.01" value={form.tax} onChange={(e) => set("tax", e.target.value)} />
+                  <FormField id="tax" label="Tax (PKR)" type="number" min="0" step="0.01" value={form.tax} onChange={(e) => set("tax", e.target.value)} error={taxRealtime || show(fieldErrors.tax)} />
                   <FormField id="total_price" label="Total price (PKR)" value={formatTotalPrice(form.selling_price, form.discount, form.tax)} displayOnly />
                 </>
               )}
             </div>
           </FormBlock>
 
-          <FormBlock title="Category & parent" description="Assign a category. Optional parent for variants.">
+          <FormBlock title="Category" description="Assign a category for this item.">
             {refLoading ? (
               <p className="wh-muted">Loading…</p>
             ) : (
@@ -408,6 +465,7 @@ export default function CreateProduct() {
                     value={form.category_id}
                     onChange={(v) => set("category_id", v)}
                     placeholder="Search categories…"
+                    error={show(fieldErrors.category_id)}
                   />
                 )}
                 <div className={categoryOptions.length === 0 ? "wh-form-grid__actions" : "wh-form-grid--field-action__btn"}>
@@ -415,14 +473,6 @@ export default function CreateProduct() {
                     New category
                   </Button>
                 </div>
-                <SearchableSelect
-                  id="parent_item_id"
-                  label="Parent item (optional)"
-                  options={parentOptions}
-                  value={form.parent_item_id}
-                  onChange={(v) => set("parent_item_id", v)}
-                  placeholder="None"
-                />
               </div>
             )}
           </FormBlock>
@@ -457,15 +507,17 @@ export default function CreateProduct() {
                             value={row.branch_id}
                             onChange={(v) => updateOpening(row._key, "branch_id", v)}
                             placeholder="Select branch…"
+                            error={show(fieldErrors.opening?.[row._key]?.branch_id)}
                           />
                           <FormField
                             id={`qty_${row._key}`}
-                            label="Quantity"
+                            label={form.unit ? `Quantity/${form.unit}` : "Quantity"}
                             type="number"
                             min="0"
                             step="1"
                             value={row.qty}
                             onChange={(e) => updateOpening(row._key, "qty", e.target.value)}
+                            error={show(fieldErrors.opening?.[row._key]?.qty)}
                           />
                         </div>
                       </div>
@@ -502,14 +554,15 @@ export default function CreateProduct() {
             </FormBlock>
           )}
 
-          {error && <p className="wh-field__error">{error}</p>}
+          {show(fieldErrors.opening_stock) && <p className="wh-field__error">{fieldErrors.opening_stock}</p>}
+          {error && attempted && <p className="wh-field__error">{error}</p>}
           {(message || returnHint) && <p className="wh-form-message">{message || returnHint}</p>}
 
           <FormActions>
             <Button type="button" variant="secondary" onClick={goManage}>
               Cancel
             </Button>
-            <Button type="submit" disabled={submitting}>
+            <Button type="submit" disabled={submitting || (categoryOptions.length === 0 && !form.category_id)}>
               {submitting ? "Saving…" : isEdit ? "Save Item" : "Create Item"}
             </Button>
           </FormActions>

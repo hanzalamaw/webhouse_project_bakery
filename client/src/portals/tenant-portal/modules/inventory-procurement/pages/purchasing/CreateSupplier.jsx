@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../../../../../../context/AuthContext";
 import { apiFetch } from "../../../../../../api/client";
@@ -10,6 +10,15 @@ import { FormPageLayout, FormActions } from "../../../../../../components/FormPa
 import { UnsavedChangesDialog } from "../../../../../../components/UnsavedChangesDialog";
 import { useFormUnsavedGuard } from "../../../../../../hooks/useFormUnsavedGuard";
 import { MODULE_BASE, ITEM_STATUS } from "../../constants";
+import {
+  NOTES_MAX,
+  clampNotes,
+  emailOrDashError,
+  hasAnyError,
+  notesError,
+  requiredText,
+  visibleError,
+} from "../../utils/validation";
 
 const EMPTY = {
   supplier_name: "",
@@ -32,7 +41,10 @@ export default function CreateSupplier() {
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [attempted, setAttempted] = useState(false);
   const backPath = `${MODULE_BASE}/purchasing/suppliers`;
+
+  const set = (key, value) => setForm((f) => ({ ...f, [key]: value }));
 
   useEffect(() => {
     if (!isEdit) return;
@@ -59,10 +71,33 @@ export default function CreateSupplier() {
   const { dialogOpen, stayOnPage, leavePage, reloadPending, navigateSafely } =
     useFormUnsavedGuard(form, { baseline, enabled: !loading });
 
+  const fieldErrors = useMemo(
+    () => ({
+      supplier_name: requiredText(form.supplier_name, "Supplier name"),
+      contact_person: requiredText(form.contact_person, "Contact person"),
+      phone: requiredText(form.phone, "Phone"),
+      email: emailOrDashError(form.email),
+      address: requiredText(form.address, "Address"),
+      city: requiredText(form.city, "City"),
+      notes: notesError(form.notes),
+    }),
+    [form]
+  );
+  const show = (err) => visibleError(attempted, err);
+
+  // Realtime only when user typed an invalid email (not empty-required)
+  const emailRealtime = (() => {
+    const v = String(form.email || "").trim();
+    if (!v) return "";
+    const err = emailOrDashError(form.email);
+    return err === "Email is required" ? "" : err;
+  })();
+
   const submit = async (e) => {
     e.preventDefault();
-    if (!form.supplier_name.trim()) {
-      setError("Supplier name is required");
+    setAttempted(true);
+    if (hasAnyError(fieldErrors)) {
+      setError("Please fix the highlighted fields");
       return;
     }
     setSaving(true);
@@ -100,23 +135,32 @@ export default function CreateSupplier() {
         <form onSubmit={submit} className="wh-form-stack">
           <FormBlock title="Supplier details">
             <div className="wh-form-grid">
-              <FormField id="supplier_name" label="Supplier name" value={form.supplier_name} onChange={(e) => setForm((f) => ({ ...f, supplier_name: e.target.value }))} required />
-              <FormField id="contact_person" label="Contact person" value={form.contact_person} onChange={(e) => setForm((f) => ({ ...f, contact_person: e.target.value }))} />
-              <FormField id="phone" label="Phone" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
-              <FormField id="email" label="Email" type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
-              <FormField id="city" label="City" value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} />
-              <FormField id="status" label="Status" as="select" value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}>
+              <FormField id="supplier_name" label="Supplier name" value={form.supplier_name} onChange={(e) => set("supplier_name", e.target.value)} required error={show(fieldErrors.supplier_name)} />
+              <FormField id="contact_person" label="Contact person" value={form.contact_person} onChange={(e) => set("contact_person", e.target.value)} required error={show(fieldErrors.contact_person)} />
+              <FormField id="phone" label="Phone" value={form.phone} onChange={(e) => set("phone", e.target.value)} required error={show(fieldErrors.phone)} />
+              <FormField id="email" label="Email" value={form.email} onChange={(e) => set("email", e.target.value)} required error={emailRealtime || show(fieldErrors.email)} placeholder="email@example.com or -" />
+              <FormField id="city" label="City" value={form.city} onChange={(e) => set("city", e.target.value)} required error={show(fieldErrors.city)} />
+              <FormField id="status" label="Status" as="select" value={form.status} onChange={(e) => set("status", e.target.value)}>
                 {ITEM_STATUS.map((s) => <option key={s} value={s}>{s}</option>)}
               </FormField>
               <div className="wh-form-grid__full">
-                <FormField id="address" label="Address" as="textarea" rows={2} value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} />
+                <FormField id="address" label="Address" as="textarea" rows={2} value={form.address} onChange={(e) => set("address", e.target.value)} required error={show(fieldErrors.address)} />
               </div>
               <div className="wh-form-grid__full">
-                <FormField id="notes" label="Notes" as="textarea" rows={2} value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
+                <FormField
+                  id="notes"
+                  label="Notes"
+                  as="textarea"
+                  rows={2}
+                  value={form.notes}
+                  onChange={(e) => set("notes", clampNotes(e.target.value))}
+                  maxLength={NOTES_MAX}
+                  error={fieldErrors.notes}
+                />
               </div>
             </div>
           </FormBlock>
-          {error && <p className="wh-field__error">{error}</p>}
+          {error && attempted && <p className="wh-field__error">{error}</p>}
           <FormActions>
             <Button type="button" variant="secondary" onClick={() => navigate(backPath)}>Cancel</Button>
             <Button type="submit" disabled={saving}>{saving ? "Saving…" : isEdit ? "Save Supplier" : "Add Supplier"}</Button>

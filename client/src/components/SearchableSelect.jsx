@@ -13,6 +13,7 @@ export function SearchableSelect({
   emptyMessage = "No matches",
   allowEmpty = false,
   emptyOptionLabel = "No one",
+  error,
 }) {
   const t = useT();
   const autoId = useId();
@@ -26,6 +27,7 @@ export function SearchableSelect({
   const emptyMessageText = typeof emptyMessage === "string" ? t(emptyMessage) : emptyMessage;
   const emptyOptionLabelText = typeof emptyOptionLabel === "string" ? t(emptyOptionLabel) : emptyOptionLabel;
   const loadingText = t("Loading…");
+  const errorText = typeof error === "string" ? t(error) : error;
 
   const listOptions = useMemo(() => {
     if (!allowEmpty) return options;
@@ -79,7 +81,7 @@ export function SearchableSelect({
   };
 
   return (
-    <div className="wh-field wh-search-select" ref={rootRef} onBlur={closeIfFocusLeft}>
+    <div className={`wh-field wh-search-select${error ? " wh-field--error" : ""}`} ref={rootRef} onBlur={closeIfFocusLeft}>
       {labelText ? (
         <label className="wh-field__label" htmlFor={id}>
           {labelText}
@@ -201,6 +203,7 @@ export function SearchableSelect({
           )}
         </ul>
       )}
+      {errorText ? <span className="wh-field__error">{errorText}</span> : null}
     </div>
   );
 }

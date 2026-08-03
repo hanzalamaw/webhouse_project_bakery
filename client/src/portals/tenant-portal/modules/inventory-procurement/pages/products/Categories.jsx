@@ -9,11 +9,13 @@ import { Button } from "../../../../../../components/Button";
 import { Modal } from "../../../../../../components/Modal";
 import { ConfirmDeleteModal } from "../../../../../../components/ConfirmDeleteModal";
 import { StatusBadge } from "../../../../../../components/Badge";
+import { useT } from "../../../../../../context/LanguageContext";
 import { ITEM_STATUS, ITEM_TYPES, ITEM_TYPE_LABELS } from "../../constants";
 import CreateCategoryModal from "../../components/CreateCategoryModal";
 
 export default function Categories() {
   const { authFetch } = useAuth();
+  const t = useT();
   const [rows, setRows] = useState([]);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -72,7 +74,16 @@ export default function Categories() {
 
   const saveEdit = async () => {
     if (!editRow) return;
+    if (!String(editRow.category_name || "").trim()) {
+      setError("Category name is required");
+      return;
+    }
+    if (!editRow.item_type) {
+      setError("Item type is required");
+      return;
+    }
     setSaving(true);
+    setError("");
     try {
       await apiFetch(
         `/inventory/categories/${editRow.id}`,
@@ -80,7 +91,7 @@ export default function Categories() {
           method: "PUT",
           body: JSON.stringify({
             category_name: editRow.category_name,
-            item_type: editRow.item_type || null,
+            item_type: editRow.item_type,
             status: editRow.status,
           }),
         },
@@ -123,7 +134,7 @@ export default function Categories() {
     {
       key: "item_type",
       label: "Type",
-      format: (v) => (v ? ITEM_TYPE_LABELS[v] || v : "Any"),
+      format: (v) => (v ? t(ITEM_TYPE_LABELS[v] || v) : "Any"),
     },
     { key: "item_count", label: "Items", filter: false },
     { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} /> },
@@ -193,10 +204,11 @@ export default function Categories() {
             as="select"
             value={editRow.item_type}
             onChange={(e) => setEditRow((r) => ({ ...r, item_type: e.target.value }))}
+            required
           >
-            <option value="">Any</option>
-            {ITEM_TYPES.map((t) => (
-              <option key={t} value={t}>{ITEM_TYPE_LABELS[t] || t}</option>
+            <option value="">Select type…</option>
+            {ITEM_TYPES.map((type) => (
+              <option key={type} value={type}>{t(ITEM_TYPE_LABELS[type] || type)}</option>
             ))}
           </FormField>
           <FormField
@@ -211,7 +223,7 @@ export default function Categories() {
           {error && <p className="wh-field__error">{error}</p>}
           <div className="wh-modal__actions">
             <Button variant="secondary" onClick={() => setEditRow(null)}>Cancel</Button>
-            <Button onClick={saveEdit} disabled={saving}>Save</Button>
+            <Button onClick={saveEdit} disabled={saving || !editRow.category_name?.trim() || !editRow.item_type}>Save</Button>
           </div>
         </Modal>
       )}

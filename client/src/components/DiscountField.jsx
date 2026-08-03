@@ -23,6 +23,7 @@ function toPercentFromAmount(amount, base) {
  * Discount entry with Rs / % toggle.
  * Parent always receives and stores the PKR amount (DB stays amount-only).
  * When % is typed, shows the calculated rupees; when Rs is typed, shows the calculated %.
+ * Real-time caps: % ≤ 100, Rs ≤ baseAmount (selling/line total).
  */
 export function DiscountField({
   id,
@@ -38,11 +39,13 @@ export function DiscountField({
   const t = useT();
   const [mode, setMode] = useState("rs"); // "rs" | "percent"
   const [percentInput, setPercentInput] = useState("");
+  const [error, setError] = useState("");
 
   const amount = Number(value) || 0;
   const base = Math.max(0, Number(baseAmount) || 0);
   const derivedPercent = toPercentFromAmount(amount, base);
-  const derivedAmount = toAmountFromPercent(percentInput, base);
+  const cappedPercent = Math.min(100, Math.max(0, Number(percentInput) || 0));
+  const derivedAmount = toAmountFromPercent(cappedPercent, base);
 
   // Re-sync percent display when the PKR amount or base changes from outside
   // (e.g. quantity change), but not while the user is actively editing percent.
@@ -53,8 +56,18 @@ export function DiscountField({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, amount, base, id]);
 
+  // Cap stored amount when base shrinks (qty/price change) so discount never exceeds base.
+  useEffect(() => {
+    if (base > 0 && amount > base) {
+      onChange?.(String(round2(base)));
+      setError(t("Discount cannot exceed the amount (Rs {{n}})", { n: round2(base) }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [base]);
+
   const switchMode = (next) => {
     if (next === mode) return;
+    setError("");
     if (next === "percent") {
       setPercentInput(base > 0 ? String(toPercentFromAmount(amount, base)) : "");
     }
@@ -62,16 +75,57 @@ export function DiscountField({
   };
 
   const handleAmountChange = (raw) => {
+    if (raw === "" || raw == null) {
+      setError("");
+      onChange?.(raw);
+      return;
+    }
+    const n = Number(raw);
+    if (!Number.isFinite(n)) {
+      onChange?.(raw);
+      return;
+    }
+    if (n < 0) {
+      setError(t("Discount cannot be negative"));
+      onChange?.("0");
+      return;
+    }
+    if (base > 0 && n > base) {
+      setError(t("Discount cannot exceed the amount (Rs {{n}})", { n: round2(base) }));
+      onChange?.(String(round2(base)));
+      return;
+    }
+    setError("");
     onChange?.(raw);
   };
 
   const handlePercentChange = (raw) => {
-    setPercentInput(raw);
     if (raw === "" || raw == null) {
+      setPercentInput(raw);
+      setError("");
       onChange?.("0");
       return;
     }
-    onChange?.(String(toAmountFromPercent(raw, base)));
+    const n = Number(raw);
+    if (!Number.isFinite(n)) {
+      setPercentInput(raw);
+      return;
+    }
+    if (n < 0) {
+      setPercentInput("0");
+      setError(t("Discount cannot be negative"));
+      onChange?.("0");
+      return;
+    }
+    if (n > 100) {
+      setPercentInput("100");
+      setError(t("Discount cannot exceed 100%"));
+      onChange?.(String(toAmountFromPercent(100, base)));
+      return;
+    }
+    setPercentInput(raw);
+    setError("");
+    onChange?.(String(toAmountFromPercent(n, base)));
   };
 
   const inputValue = mode === "percent" ? percentInput : value ?? "";
@@ -87,7 +141,7 @@ export function DiscountField({
   const labelText = typeof label === "string" ? t(label) : label;
 
   return (
-    <div className={`wh-field wh-discount-field${className ? ` ${className}` : ""}${disabled ? " wh-discount-field--disabled" : ""}`}>
+    <div className={`wh-field wh-discount-field${className ? ` ${className}` : ""}${disabled ? " wh-discount-field--disabled" : ""}${error ? " wh-field--error" : ""}`}>
       {labelText ? (
         <label className="wh-field__label" htmlFor={id}>
           {labelText}
@@ -119,7 +173,7 @@ export function DiscountField({
           type="number"
           min="0"
           step="0.01"
-          max={mode === "percent" ? "100" : undefined}
+          max={mode === "percent" ? "100" : base > 0 ? String(round2(base)) : undefined}
           className="wh-field__input"
           value={inputValue}
           onChange={(e) =>
@@ -128,9 +182,10 @@ export function DiscountField({
           disabled={disabled}
           required={required}
           inputMode="decimal"
+          aria-invalid={Boolean(error)}
         />
       </div>
-      {hint ? <span className="wh-discount-field__hint">{hint}</span> : null}
+      {error ? <span className="wh-field__error">{error}</span> : hint ? <span className="wh-discount-field__hint">{hint}</span> : null}
     </div>
   );
 }

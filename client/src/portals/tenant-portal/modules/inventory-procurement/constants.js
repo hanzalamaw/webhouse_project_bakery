@@ -4,9 +4,9 @@ export const MODULE_BASE = `/app/m/${MODULE_SLUG}`;
 export const ITEM_STATUS = ["active", "inactive"];
 export const ITEM_TYPES = ["ingredient", "finished", "packaging"];
 export const ITEM_TYPE_LABELS = {
-  ingredient: "Ingredient (Masala / Raw)",
-  finished: "Finished (Tayyar Cheez)",
-  packaging: "Packaging (Packing)",
+  ingredient: "Ingredient",
+  finished: "Finished",
+  packaging: "Packaging",
 };
 
 export const ITEM_UNITS = [
@@ -61,9 +61,9 @@ export const TRANSFER_STATUSES = ["pending", "in_transit", "received", "cancelle
 export const PO_STATUSES = ["draft", "ordered", "partial", "received", "cancelled"];
 export const WASTAGE_REASONS = ["expired", "damaged", "spoiled", "other"];
 export const WASTAGE_REASON_LABELS = {
-  expired: "Expired (Expire ho gaya)",
-  damaged: "Damaged (Kharab)",
-  spoiled: "Spoiled (Sarr gaya)",
+  expired: "Expired",
+  damaged: "Damaged",
+  spoiled: "Spoiled",
   other: "Other",
 };
 

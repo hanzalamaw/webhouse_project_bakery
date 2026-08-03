@@ -12,6 +12,7 @@ import { ProductIcon, WarehouseIcon, LogsIcon } from "../../../../../../componen
 import { formatDateTime, formatDate } from "../../../../../../utils/dateTime";
 import { formatPKR } from "../../../../../../utils/currency";
 import { formatTotalPrice } from "../../utils/pricing";
+import { useT } from "../../../../../../context/LanguageContext";
 import { ITEM_TYPE_LABELS, MODULE_BASE } from "../../constants";
 
 export default function ItemView() {
@@ -19,6 +20,7 @@ export default function ItemView() {
   const { authFetch } = useAuth();
   const { canEdit } = useModulePermission("stock-purchasing");
   const navigate = useNavigate();
+  const t = useT();
   const [item, setItem] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -88,7 +90,7 @@ export default function ItemView() {
 
       <RecordViewSummary
         title={item.item_name}
-        subtitle={item.category_name || ITEM_TYPE_LABELS[item.item_type] || item.item_type}
+        subtitle={item.category_name || t(ITEM_TYPE_LABELS[item.item_type] || item.item_type)}
         status={item.status}
         chips={[
           { label: "Unit", value: item.unit || "—" },
@@ -205,7 +207,7 @@ export default function ItemView() {
 
       <ViewPanel title="Item details" subtitle="Pricing, type, and metadata">
         <DetailGrid columns={3}>
-          <DetailValue label="Type">{ITEM_TYPE_LABELS[item.item_type] || item.item_type}</DetailValue>
+          <DetailValue label="Type">{t(ITEM_TYPE_LABELS[item.item_type] || item.item_type)}</DetailValue>
           <DetailValue label="Category">{item.category_name || "—"}</DetailValue>
           <DetailValue label="Unit">{item.unit || "—"}</DetailValue>
           <DetailValue label="Cost price" highlight>{formatPKR(item.cost_price)}</DetailValue>

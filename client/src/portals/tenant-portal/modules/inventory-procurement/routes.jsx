@@ -21,6 +21,7 @@ import ManagePurchaseOrders from "./pages/purchasing/ManagePurchaseOrders";
 import CreatePurchaseOrder from "./pages/purchasing/CreatePurchaseOrder";
 import ViewPurchaseOrder from "./pages/purchasing/ViewPurchaseOrder";
 import Wastage from "./pages/wastage/Wastage";
+import CreateWastage from "./pages/wastage/CreateWastage";
 import WastageView from "./pages/wastage/WastageView";
 
 export const INVENTORY_ROUTES = [
@@ -61,5 +62,6 @@ export const INVENTORY_ROUTES = [
 
   // Wastage
   { path: "wastage", element: <Wastage /> },
+  { path: "wastage/create", element: <CreateWastage /> },
   { path: "wastage/view/:wastageId", element: <WastageView /> },
 ];
