@@ -429,33 +429,80 @@ button {
   flex-direction: column;
   gap: 16px;
   min-width: 0;
+  margin: 0;
+  padding: 0;
+  align-self: start;
 }
 
 .wh-inv-split__left {
   position: sticky;
-  top: 12px;
+  top: 0;
   max-height: calc(100vh - 120px);
+  overflow: auto;
 }
 
-.wh-inv-split__left .wh-form-block,
-.wh-inv-split__left .wh-inv-block {
-  display: flex;
-  flex-direction: column;
-  max-height: calc(100vh - 120px);
-  overflow: hidden;
-}
-
-.wh-inv-split__left .wh-form-block__body,
-.wh-inv-split__left .wh-inv-block__body {
+.wh-inv-split__left .wh-inv-product-picker,
+.wh-inv-split__left .wh-catalog-picker {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ProductPicker defaults to margin-top: 12px (for stacked forms) — drop it in split so tops line up */
+.wh-inv-split__left .wh-inv-product-picker {
+  margin-top: 0;
 }
 
 .wh-inv-split__right {
   max-height: calc(100vh - 120px);
   overflow: auto;
   padding-bottom: 8px;
+}
+
+/* Themed scrollbars for Stock In panes + select-items list */
+.wh-inv-split__left,
+.wh-inv-split__right,
+.wh-inv-split__left .wh-catalog-picker__scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+.wh-inv-split__left::-webkit-scrollbar,
+.wh-inv-split__right::-webkit-scrollbar,
+.wh-inv-split__left .wh-catalog-picker__scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.wh-inv-split__left::-webkit-scrollbar-track,
+.wh-inv-split__right::-webkit-scrollbar-track,
+.wh-inv-split__left .wh-catalog-picker__scroll::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 4px 0;
+}
+
+.wh-inv-split__left::-webkit-scrollbar-thumb,
+.wh-inv-split__right::-webkit-scrollbar-thumb,
+.wh-inv-split__left .wh-catalog-picker__scroll::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background-clip: padding-box;
+}
+
+.wh-inv-split__left::-webkit-scrollbar-thumb:hover,
+.wh-inv-split__right::-webkit-scrollbar-thumb:hover,
+.wh-inv-split__left .wh-catalog-picker__scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+  background-clip: padding-box;
+}
+
+.wh-inv-split__left::-webkit-scrollbar-thumb:active,
+.wh-inv-split__right::-webkit-scrollbar-thumb:active,
+.wh-inv-split__left .wh-catalog-picker__scroll::-webkit-scrollbar-thumb:active {
+  background: var(--color-accent);
+  background-clip: padding-box;
 }
 
 @media (max-width: 900px) {
@@ -466,12 +513,6 @@ button {
   .wh-inv-split__left {
     position: static;
     max-height: none;
-  }
-
-  .wh-inv-split__left .wh-form-block,
-  .wh-inv-split__left .wh-inv-block {
-    max-height: none;
-    overflow: visible;
   }
 
   .wh-inv-split__right {

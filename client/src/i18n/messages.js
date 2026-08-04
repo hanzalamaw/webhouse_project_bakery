@@ -25,7 +25,7 @@ export const messages = {
     // Footer / chrome
     "chrome.allModules": "All Modules",
     "chrome.nightMode": "Night Mode",
-    "chrome.helpCenter": "Madad",
+    "chrome.helpCenter": "Help Center",
 
     // Module hub
     "hub.greetingMorning": "Good Morning",
@@ -167,7 +167,7 @@ export const messages = {
     "Plan & Subscription": "Plan & Subscription",
     "Activity Alerts": "Activity Alerts",
     "Help Center": "Help Center",
-    "Madad": "Madad",
+    "Madad": "Help Center",
     "Manage Items": "Manage Items",
     "Manage Items (Cheezen)": "Manage Items (Cheezen)",
     "Create Item": "Create Item",

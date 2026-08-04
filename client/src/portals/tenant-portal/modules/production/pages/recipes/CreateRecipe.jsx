@@ -8,7 +8,7 @@ import { FormField } from "../../../../../../components/FormField";
 import { Button } from "../../../../../../components/Button";
 import ProductCatalogPicker from "../../../../../../components/ProductCatalogPicker";
 import { FormBlock } from "../../../../../../components/FormBlock";
-import { FormPageLayout, FormActions } from "../../../../../../components/FormPageLayout";
+import { FormPageLayout } from "../../../../../../components/FormPageLayout";
 import { UnsavedChangesDialog } from "../../../../../../components/UnsavedChangesDialog";
 import { useFormUnsavedGuard } from "../../../../../../hooks/useFormUnsavedGuard";
 import {
@@ -393,8 +393,8 @@ export default function CreateRecipe() {
   }
 
   return (
-    <div className="wh-page">
-      <FormPageLayout>
+    <div className="wh-page wh-page--wide">
+      <FormPageLayout wide>
         <PageHeader
           title={isEdit ? "Edit Recipe" : "Create Recipe"}
           description={
@@ -403,220 +403,235 @@ export default function CreateRecipe() {
               : "Add a nuskha for a finished bakery item."
           }
           actions={
-            <Button variant="secondary" onClick={leaveForm}>
-              Back to recipes
-            </Button>
+            <>
+              <Button type="button" variant="secondary" onClick={leaveForm}>
+                Back to recipes
+              </Button>
+              <Button type="button" variant="secondary" onClick={leaveForm}>
+                Cancel
+              </Button>
+              <Button type="submit" form="create-recipe-form" disabled={saving || disabled}>
+                {saving ? "Saving…" : isEdit ? "Save Recipe" : "Create Recipe"}
+              </Button>
+            </>
           }
         />
-        <form onSubmit={submit} className="wh-form-stack">
-          <FormBlock title="Recipe details" description="Name, yield, and status.">
-            <div className="wh-form-grid">
-              <FormField
-                id="recipe_name"
-                label="Recipe name"
-                value={form.recipe_name}
-                onChange={(e) => setForm((f) => ({ ...f, recipe_name: e.target.value }))}
-                required
-                disabled={disabled}
-              />
-              <FormField
-                id="yield_qty"
-                label={
-                  form.item_id
-                    ? `Yield quantity (${
-                        finished_items.find((i) => String(i.id) === String(form.item_id))?.unit ||
-                        form.yield_unit ||
-                        "piece"
-                      })`
-                    : "Yield quantity"
-                }
-                type="number"
-                min="0"
-                step="any"
-                value={form.yield_qty}
-                onChange={(e) => setForm((f) => ({ ...f, yield_qty: e.target.value }))}
-                required
-                disabled={disabled}
-              />
-              <FormField
-                id="yield_unit"
-                label="Yield unit (stock)"
-                as="select"
-                value={
-                  finished_items.find((i) => String(i.id) === String(form.item_id))?.unit ||
-                  form.yield_unit ||
-                  "piece"
-                }
-                disabled
-                title="Must match the finished item’s stock unit"
-              >
-                <option
-                  value={
-                    finished_items.find((i) => String(i.id) === String(form.item_id))?.unit ||
-                    form.yield_unit ||
-                    "piece"
-                  }
-                >
-                  {finished_items.find((i) => String(i.id) === String(form.item_id))?.unit ||
-                    form.yield_unit ||
-                    "piece"}
-                </option>
-              </FormField>
-              <div className="wh-field">
-                <span className="wh-field__label">Prep time</span>
-                <div className="wh-month-day-row">
+        <form id="create-recipe-form" onSubmit={submit} className="wh-form-stack wh-inv-split-form">
+          <div className="wh-inv-split">
+            <aside className="wh-inv-split__left">
+              <div className="wh-inv-product-picker">
+                <ProductCatalogPicker
+                  className="wh-catalog-picker--fill"
+                  items={ingredients}
+                  mode="multi"
+                  title="Ingredients"
+                  selectedIds={selectedIngredientIds}
+                  onToggle={toggleIngredient}
+                  onAddNew={() => goCreateItem("ingredient", "ingredient")}
+                  addNewLabel="Add new raw item"
+                  showPrice={false}
+                  showStock={false}
+                  maxHeight={420}
+                  disabled={disabled}
+                  emptyMessage="No ingredients found. Add purchasable items under Stock."
+                />
+              </div>
+            </aside>
+
+            <div className="wh-inv-split__right">
+              <FormBlock title="Recipe details" description="Name, yield, and status.">
+                <div className="wh-form-grid">
                   <FormField
-                    id="prep_time_value"
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={form.prep_time_value}
-                    onChange={(e) => setForm((f) => ({ ...f, prep_time_value: e.target.value }))}
-                    placeholder="e.g. 30"
-                    aria-label="Prep time value"
+                    id="recipe_name"
+                    label="Recipe name"
+                    value={form.recipe_name}
+                    onChange={(e) => setForm((f) => ({ ...f, recipe_name: e.target.value }))}
+                    required
                     disabled={disabled}
                   />
                   <FormField
-                    id="prep_time_unit"
-                    as="select"
-                    value={form.prep_time_unit}
-                    onChange={(e) => setForm((f) => ({ ...f, prep_time_unit: e.target.value }))}
-                    aria-label="Prep time unit"
+                    id="yield_qty"
+                    label={
+                      form.item_id
+                        ? `Yield quantity (${
+                            finished_items.find((i) => String(i.id) === String(form.item_id))?.unit ||
+                            form.yield_unit ||
+                            "piece"
+                          })`
+                        : "Yield quantity"
+                    }
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={form.yield_qty}
+                    onChange={(e) => setForm((f) => ({ ...f, yield_qty: e.target.value }))}
+                    required
                     disabled={disabled}
+                  />
+                  <FormField
+                    id="yield_unit"
+                    label="Yield unit (stock)"
+                    as="select"
+                    value={
+                      finished_items.find((i) => String(i.id) === String(form.item_id))?.unit ||
+                      form.yield_unit ||
+                      "piece"
+                    }
+                    disabled
+                    title="Must match the finished item’s stock unit"
                   >
-                    {PREP_TIME_UNITS.map((u) => (
-                      <option key={u.value} value={u.value}>
-                        {u.label}
-                      </option>
-                    ))}
+                    <option
+                      value={
+                        finished_items.find((i) => String(i.id) === String(form.item_id))?.unit ||
+                        form.yield_unit ||
+                        "piece"
+                      }
+                    >
+                      {finished_items.find((i) => String(i.id) === String(form.item_id))?.unit ||
+                        form.yield_unit ||
+                        "piece"}
+                    </option>
                   </FormField>
-                </div>
-              </div>
-              <FormField
-                id="status"
-                label="Status"
-                as="select"
-                value={form.status}
-                onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
-                disabled={disabled}
-              >
-                {statusList.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </FormField>
-              <div className="wh-form-grid__full">
-                <FormField
-                  id="instructions"
-                  label="Instructions"
-                  as="textarea"
-                  rows={4}
-                  value={form.instructions}
-                  onChange={(e) => setForm((f) => ({ ...f, instructions: e.target.value }))}
-                  disabled={disabled}
-                />
-              </div>
-            </div>
-          </FormBlock>
-
-          <FormBlock title="Finished bakery item" description="Choose the product this recipe produces.">
-            <ProductCatalogPicker
-              items={finished_items}
-              mode="single"
-              title="Finished product"
-              value={form.item_id}
-              onSelect={onFinishedSelect}
-              onAddNew={() => goCreateItem("finished", "finished")}
-              addNewLabel="Add new finished product"
-              showPrice={false}
-              showStock={false}
-              disabled={disabled}
-              emptyMessage="No finished bakery items yet."
-            />
-          </FormBlock>
-
-          <FormBlock title="Ingredients (Kacha Maal)" description="Choose ingredients to add to this recipe.">
-            <ProductCatalogPicker
-              items={ingredients}
-              mode="multi"
-              title="Ingredients"
-              selectedIds={selectedIngredientIds}
-              onToggle={toggleIngredient}
-              onAddNew={() => goCreateItem("ingredient", "ingredient")}
-              addNewLabel="Add new raw item"
-              showPrice={false}
-              showStock={false}
-              disabled={disabled}
-              emptyMessage="No ingredients found. Add purchasable items under Stock."
-            />
-          </FormBlock>
-
-          {form.ingredients.length > 0 && (
-            <FormBlock
-              title="Ingredient quantities"
-              description="Quantities use each item’s stock unit (locked). Enter how much goes into one yield batch."
-            >
-              <div className="wh-inv-line-items">
-                {form.ingredients.map((ing, index) => {
-                  const stockItem = ingredients.find((i) => String(i.id) === String(ing.ingredient_item_id));
-                  const stockUnit = stockItem?.unit || ing.unit || "g";
-                  return (
-                  <div key={ing.ingredient_item_id || index} className="wh-inv-line-item">
-                    <div className="wh-inv-line-item__head">
-                      <strong>{ing.item_name || `Ingredient ${index + 1}`}</strong>
-                      {!disabled && (
-                        <Button type="button" variant="secondary" className="wh-btn--sm" onClick={() => removeIngredient(index)}>
-                          Remove
-                        </Button>
-                      )}
-                    </div>
-                    <div className="wh-form-grid">
+                  <div className="wh-field">
+                    <span className="wh-field__label">Prep time</span>
+                    <div className="wh-month-day-row">
                       <FormField
-                        id={`qty_${index}`}
-                        label={`Quantity (${stockUnit})`}
+                        id="prep_time_value"
                         type="number"
                         min="0"
                         step="any"
-                        value={ing.quantity}
-                        onChange={(e) => setIngredient(index, "quantity", e.target.value)}
-                        required
+                        value={form.prep_time_value}
+                        onChange={(e) => setForm((f) => ({ ...f, prep_time_value: e.target.value }))}
+                        placeholder="e.g. 30"
+                        aria-label="Prep time value"
                         disabled={disabled}
                       />
                       <FormField
-                        id={`unit_${index}`}
-                        label="Unit (stock)"
+                        id="prep_time_unit"
                         as="select"
-                        value={stockUnit}
-                        disabled
-                        title="Must match the item’s stock unit"
-                      >
-                        <option value={stockUnit}>{stockUnit}</option>
-                      </FormField>
-                      <FormField
-                        id={`notes_${index}`}
-                        label="Notes"
-                        value={ing.notes}
-                        onChange={(e) => setIngredient(index, "notes", e.target.value)}
+                        value={form.prep_time_unit}
+                        onChange={(e) => setForm((f) => ({ ...f, prep_time_unit: e.target.value }))}
+                        aria-label="Prep time unit"
                         disabled={disabled}
-                      />
+                      >
+                        {PREP_TIME_UNITS.map((u) => (
+                          <option key={u.value} value={u.value}>
+                            {u.label}
+                          </option>
+                        ))}
+                      </FormField>
                     </div>
                   </div>
-                  );
-                })}
-              </div>
-            </FormBlock>
-          )}
+                  <FormField
+                    id="status"
+                    label="Status"
+                    as="select"
+                    value={form.status}
+                    onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
+                    disabled={disabled}
+                  >
+                    {statusList.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </FormField>
+                  <div className="wh-form-grid__full">
+                    <FormField
+                      id="instructions"
+                      label="Instructions"
+                      as="textarea"
+                      rows={4}
+                      value={form.instructions}
+                      onChange={(e) => setForm((f) => ({ ...f, instructions: e.target.value }))}
+                      disabled={disabled}
+                    />
+                  </div>
+                </div>
+              </FormBlock>
 
-          {error && <p className="wh-field__error">{error}</p>}
-          <FormActions>
-            <Button type="button" variant="secondary" onClick={leaveForm}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={saving || disabled}>
-              {saving ? "Saving…" : isEdit ? "Save Recipe" : "Create Recipe"}
-            </Button>
-          </FormActions>
+              <FormBlock title="Finished bakery item" description="Choose the product this recipe produces.">
+                <ProductCatalogPicker
+                  items={finished_items}
+                  mode="single"
+                  title="Finished product"
+                  value={form.item_id}
+                  onSelect={onFinishedSelect}
+                  onAddNew={() => goCreateItem("finished", "finished")}
+                  addNewLabel="Add new finished product"
+                  showPrice={false}
+                  showStock={false}
+                  disabled={disabled}
+                  emptyMessage="No finished bakery items yet."
+                />
+              </FormBlock>
+
+              <FormBlock
+                title="Ingredient quantities"
+                description="Quantities use each item’s stock unit (locked). Enter how much goes into one yield batch."
+              >
+                <div className="wh-inv-line-items">
+                  {form.ingredients.length === 0 ? (
+                    <p className="wh-muted">Select ingredients on the left to set quantities.</p>
+                  ) : (
+                    form.ingredients.map((ing, index) => {
+                      const stockItem = ingredients.find((i) => String(i.id) === String(ing.ingredient_item_id));
+                      const stockUnit = stockItem?.unit || ing.unit || "g";
+                      return (
+                        <div key={ing.ingredient_item_id || index} className="wh-inv-line-item">
+                          <div className="wh-inv-line-item__head">
+                            <strong>{ing.item_name || `Ingredient ${index + 1}`}</strong>
+                            {!disabled && (
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                className="wh-btn--sm"
+                                onClick={() => removeIngredient(index)}
+                              >
+                                Remove
+                              </Button>
+                            )}
+                          </div>
+                          <div className="wh-form-grid">
+                            <FormField
+                              id={`qty_${index}`}
+                              label={`Quantity (${stockUnit})`}
+                              type="number"
+                              min="0"
+                              step="any"
+                              value={ing.quantity}
+                              onChange={(e) => setIngredient(index, "quantity", e.target.value)}
+                              required
+                              disabled={disabled}
+                            />
+                            <FormField
+                              id={`unit_${index}`}
+                              label="Unit (stock)"
+                              as="select"
+                              value={stockUnit}
+                              disabled
+                              title="Must match the item’s stock unit"
+                            >
+                              <option value={stockUnit}>{stockUnit}</option>
+                            </FormField>
+                            <FormField
+                              id={`notes_${index}`}
+                              label="Notes"
+                              value={ing.notes}
+                              onChange={(e) => setIngredient(index, "notes", e.target.value)}
+                              disabled={disabled}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </FormBlock>
+
+              {error && <p className="wh-field__error">{error}</p>}
+            </div>
+          </div>
         </form>
       </FormPageLayout>
       <UnsavedChangesDialog

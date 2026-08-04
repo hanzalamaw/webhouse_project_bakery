@@ -9,7 +9,7 @@ import { SearchableSelect } from "../../../../../../components/SearchableSelect"
 import { usePosReference } from "../../hooks/usePosReference";
 import { MODULE_BASE } from "../../constants";
 import { FormBlock } from "../../../../../../components/FormBlock";
-import { FormPageLayout, FormActions } from "../../../../../../components/FormPageLayout";
+import { FormPageLayout } from "../../../../../../components/FormPageLayout";
 import ProductPicker from "../../components/ProductPicker";
 
 const CONFIG = {
@@ -169,133 +169,161 @@ export default function CreateBulkStock() {
   };
 
   return (
-    <div className="wh-page">
-      <FormPageLayout>
+    <div className="wh-page wh-page--wide">
+      <FormPageLayout wide>
         <PageHeader
           title={config.title}
           description={config.description}
           actions={
-            <Button variant="secondary" onClick={() => navigate(config.backPath)}>
-              Back to history
-            </Button>
+            <>
+              <Button type="button" variant="secondary" onClick={() => navigate(config.backPath)}>
+                Back to history
+              </Button>
+              <Button type="button" variant="secondary" onClick={() => navigate(config.backPath)}>
+                Cancel
+              </Button>
+              <Button type="submit" form="pos-bulk-stock-form" disabled={submitting}>
+                {submitting ? "Saving…" : config.submitLabel}
+              </Button>
+            </>
           }
         />
 
-        <form onSubmit={handleSubmit} className="wh-form-stack">
-        <FormBlock title="Select products" description="Tap cards to choose one or more products for this operation.">
-          <ProductPicker
-            products={filteredProducts}
-            selectedIds={selectedIds}
-            onToggle={toggleProduct}
-            search={productSearch}
-            onSearchChange={setProductSearch}
-            tall
-          />
-        </FormBlock>
-
-        <FormBlock
-          title="Store"
-          description={operation === "transfer" ? "Select source and destination stores." : "Select the store for this stock movement."}
-        >
-          {operation === "transfer" ? (
-            <div className="wh-form-grid">
-              <SearchableSelect
-                id="from_store"
-                label="From store"
-                options={storeOptions}
-                value={fromStoreId}
-                onChange={(v) => {
-                  setFromStoreId(v);
-                  setSelectedIds([]);
-                }}
-                placeholder="Source store…"
+        <form id="pos-bulk-stock-form" onSubmit={handleSubmit} className="wh-form-stack wh-inv-split-form">
+          <div className="wh-inv-split">
+            <aside className="wh-inv-split__left">
+              <ProductPicker
+                products={filteredProducts}
+                selectedIds={selectedIds}
+                onToggle={toggleProduct}
+                search={productSearch}
+                onSearchChange={setProductSearch}
+                tall
               />
-              <SearchableSelect
-                id="to_store"
-                label="To store"
-                options={storeOptions}
-                value={toStoreId}
-                onChange={setToStoreId}
-                placeholder="Destination store…"
-              />
-            </div>
-          ) : (
-            <SearchableSelect
-              id="store_id"
-              label={config.storeLabel}
-              options={storeOptions}
-              value={storeId}
-              onChange={(v) => {
-                setStoreId(v);
-                setSelectedIds([]);
-              }}
-              placeholder="Select store…"
-            />
-          )}
-          {operation === "transfer" && (
-            <label className="wh-checkbox-item wh-inv-checkbox-inline">
-              <input type="checkbox" checked={completeNow} onChange={(e) => setCompleteNow(e.target.checked)} />
-              <span>Complete immediately (update stock levels and record movements)</span>
-            </label>
-          )}
-        </FormBlock>
+            </aside>
 
-        <FormBlock title="Quantities & notes" description="Set quantities and notes for the selected products.">
-          <label className="wh-checkbox-item wh-inv-checkbox-inline">
-            <input type="checkbox" checked={sameQtyForAll} onChange={(e) => setSameQtyForAll(e.target.checked)} />
-            <span>Same quantity for all</span>
-          </label>
-
-          {sameQtyForAll ? (
-            <div className="wh-form-grid">
-              <FormField id="shared_qty" label="Quantity" type="number" min="1" value={sharedQty} onChange={(e) => setSharedQty(e.target.value)} required />
-              <FormField id="shared_notes" label="Notes" value={sharedNotes} onChange={(e) => setSharedNotes(e.target.value)} />
-            </div>
-          ) : (
-            <div className="wh-inv-line-items">
-              {selectedProducts.length === 0 ? (
-                <p className="wh-muted">Select products above to enter individual quantities.</p>
-              ) : (
-                selectedProducts.map((p) => (
-                  <div key={p.id} className="wh-inv-line-item">
-                    <div className="wh-inv-line-item__head">
-                      <strong>{p.product_name}</strong>
-                      <span className="wh-muted">{p.sku}</span>
-                    </div>
-                    <div className="wh-form-grid">
-                      <FormField
-                        id={`qty_${p.id}`}
-                        label="Quantity"
-                        type="number"
-                        min="1"
-                        value={lineDetails[String(p.id)]?.qty || ""}
-                        onChange={(e) => setLine(p.id, "qty", e.target.value)}
-                        required
-                      />
-                      <FormField
-                        id={`notes_${p.id}`}
-                        label="Notes"
-                        value={lineDetails[String(p.id)]?.notes || ""}
-                        onChange={(e) => setLine(p.id, "notes", e.target.value)}
-                      />
-                    </div>
+            <div className="wh-inv-split__right">
+              <FormBlock
+                title="Store"
+                description={
+                  operation === "transfer"
+                    ? "Select source and destination stores."
+                    : "Select the store for this stock movement."
+                }
+              >
+                {operation === "transfer" ? (
+                  <div className="wh-form-grid">
+                    <SearchableSelect
+                      id="from_store"
+                      label="From store"
+                      options={storeOptions}
+                      value={fromStoreId}
+                      onChange={(v) => {
+                        setFromStoreId(v);
+                        setSelectedIds([]);
+                      }}
+                      placeholder="Source store…"
+                    />
+                    <SearchableSelect
+                      id="to_store"
+                      label="To store"
+                      options={storeOptions}
+                      value={toStoreId}
+                      onChange={setToStoreId}
+                      placeholder="Destination store…"
+                    />
                   </div>
-                ))
-              )}
+                ) : (
+                  <SearchableSelect
+                    id="store_id"
+                    label={config.storeLabel}
+                    options={storeOptions}
+                    value={storeId}
+                    onChange={(v) => {
+                      setStoreId(v);
+                      setSelectedIds([]);
+                    }}
+                    placeholder="Select store…"
+                  />
+                )}
+                {operation === "transfer" && (
+                  <label className="wh-checkbox-item wh-inv-checkbox-inline">
+                    <input
+                      type="checkbox"
+                      checked={completeNow}
+                      onChange={(e) => setCompleteNow(e.target.checked)}
+                    />
+                    <span>Complete immediately (update stock levels and record movements)</span>
+                  </label>
+                )}
+              </FormBlock>
+
+              <FormBlock title="Quantities & notes" description="Set quantities and notes for the selected products.">
+                <label className="wh-checkbox-item wh-inv-checkbox-inline">
+                  <input
+                    type="checkbox"
+                    checked={sameQtyForAll}
+                    onChange={(e) => setSameQtyForAll(e.target.checked)}
+                  />
+                  <span>Same quantity for all</span>
+                </label>
+
+                {sameQtyForAll ? (
+                  <div className="wh-form-grid">
+                    <FormField
+                      id="shared_qty"
+                      label="Quantity"
+                      type="number"
+                      min="1"
+                      value={sharedQty}
+                      onChange={(e) => setSharedQty(e.target.value)}
+                      required
+                    />
+                    <FormField
+                      id="shared_notes"
+                      label="Notes"
+                      value={sharedNotes}
+                      onChange={(e) => setSharedNotes(e.target.value)}
+                    />
+                  </div>
+                ) : (
+                  <div className="wh-inv-line-items">
+                    {selectedProducts.length === 0 ? (
+                      <p className="wh-muted">Select products on the left to enter individual quantities.</p>
+                    ) : (
+                      selectedProducts.map((p) => (
+                        <div key={p.id} className="wh-inv-line-item">
+                          <div className="wh-inv-line-item__head">
+                            <strong>{p.product_name}</strong>
+                            <span className="wh-muted">{p.sku}</span>
+                          </div>
+                          <div className="wh-form-grid">
+                            <FormField
+                              id={`qty_${p.id}`}
+                              label="Quantity"
+                              type="number"
+                              min="1"
+                              value={lineDetails[String(p.id)]?.qty || ""}
+                              onChange={(e) => setLine(p.id, "qty", e.target.value)}
+                              required
+                            />
+                            <FormField
+                              id={`notes_${p.id}`}
+                              label="Notes"
+                              value={lineDetails[String(p.id)]?.notes || ""}
+                              onChange={(e) => setLine(p.id, "notes", e.target.value)}
+                            />
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </FormBlock>
+
+              {error && <p className="wh-field__error">{error}</p>}
             </div>
-          )}
-        </FormBlock>
-
-        {error && <p className="wh-field__error">{error}</p>}
-
-        <FormActions>
-          <Button type="button" variant="secondary" onClick={() => navigate(config.backPath)}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={submitting}>
-            {submitting ? "Saving…" : config.submitLabel}
-          </Button>
-        </FormActions>
+          </div>
         </form>
       </FormPageLayout>
     </div>

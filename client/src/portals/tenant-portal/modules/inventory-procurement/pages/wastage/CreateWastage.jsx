@@ -7,7 +7,7 @@ import { FormField } from "../../../../../../components/FormField";
 import { Button } from "../../../../../../components/Button";
 import { SearchableSelect } from "../../../../../../components/SearchableSelect";
 import { FormBlock } from "../../../../../../components/FormBlock";
-import { FormPageLayout, FormActions } from "../../../../../../components/FormPageLayout";
+import { FormPageLayout } from "../../../../../../components/FormPageLayout";
 import { UnsavedChangesDialog } from "../../../../../../components/UnsavedChangesDialog";
 import { useFormUnsavedGuard } from "../../../../../../hooks/useFormUnsavedGuard";
 import { useT } from "../../../../../../context/LanguageContext";
@@ -100,7 +100,6 @@ export default function CreateWastage() {
     return errs;
   }, [form, availableQty]);
 
-  // Realtime only when quantity already exceeds available stock
   const realtimeQtyError =
     form.qty !== "" && availableQty != null
       ? stockExceedsError(form.qty, availableQty)
@@ -146,111 +145,114 @@ export default function CreateWastage() {
   };
 
   return (
-    <div className="wh-page">
-      <FormPageLayout>
+    <div className="wh-page wh-page--wide">
+      <FormPageLayout wide>
         <PageHeader
           title="Record Wastage"
           description="Record spoiled, expired, or damaged stock removed from a branch."
           actions={
-            <Button variant="secondary" onClick={() => navigate(backPath)}>
-              Back
-            </Button>
+            <>
+              <Button type="button" variant="secondary" onClick={() => navigate(backPath)}>
+                Back
+              </Button>
+              <Button type="button" variant="secondary" onClick={() => navigate(backPath)}>
+                Cancel
+              </Button>
+              <Button type="submit" form="wastage-form" disabled={saving}>
+                {saving ? "Saving…" : "Save Wastage"}
+              </Button>
+            </>
           }
         />
 
-        <form onSubmit={submit} className="wh-form-stack">
-          <FormBlock title="Select item" description="Tap a card to choose the bakery item being wasted.">
-            <ProductPicker
-              items={items}
-              selectedIds={selectedIds}
-              onToggle={toggleItem}
-              search={itemSearch}
-              onSearchChange={setItemSearch}
-              tall
-              entityLabel="items"
-            />
-            {show("item_id") ? <p className="wh-field__error">{show("item_id")}</p> : null}
-          </FormBlock>
+        <form id="wastage-form" onSubmit={submit} className="wh-form-stack wh-inv-split-form">
+          <div className="wh-inv-split">
+            <aside className="wh-inv-split__left">
+              <ProductPicker
+                items={items}
+                selectedIds={selectedIds}
+                onToggle={toggleItem}
+                search={itemSearch}
+                onSearchChange={setItemSearch}
+                tall
+                entityLabel="items"
+              />
+              {show("item_id") ? <p className="wh-field__error">{show("item_id")}</p> : null}
+            </aside>
 
-          <FormBlock title="Details" description="Branch, quantity, reason, and optional cost.">
-            <div className="wh-form-grid">
-              <SearchableSelect
-                id="w_branch"
-                label="Branch"
-                options={branchOptions}
-                value={form.branch_id}
-                onChange={(v) => setForm((f) => ({ ...f, branch_id: v }))}
-                placeholder="Select branch…"
-                error={show("branch_id")}
-              />
-              <FormField
-                id="w_qty"
-                label={qtyFieldLabel}
-                type="number"
-                min="0.01"
-                step="any"
-                value={form.qty}
-                onChange={(e) => setForm((f) => ({ ...f, qty: e.target.value }))}
-                error={realtimeQtyError || show("qty")}
-              />
-              {availableQty != null && form.item_id && form.branch_id ? (
-                <p className="wh-muted wh-form-grid__full">Available at branch: {availableQty}</p>
-              ) : null}
-              <FormField
-                id="w_reason"
-                label="Reason"
-                as="select"
-                value={form.reason}
-                onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))}
-              >
-                {WASTAGE_REASONS.map((r) => (
-                  <option key={r} value={r}>
-                    {t(WASTAGE_REASON_LABELS[r] || r)}
-                  </option>
-                ))}
-              </FormField>
-              <FormField
-                id="w_date"
-                label="Wastage date"
-                type="date"
-                value={form.wastage_date}
-                onChange={(e) => setForm((f) => ({ ...f, wastage_date: e.target.value }))}
-              />
-              <FormField
-                id="w_cost"
-                label="Estimated cost (optional)"
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.estimated_cost}
-                onChange={(e) => setForm((f) => ({ ...f, estimated_cost: e.target.value }))}
-                error={realtimeCostError || show("estimated_cost")}
-              />
-              <div className="wh-form-grid__full">
-                <FormField
-                  id="w_notes"
-                  label="Notes"
-                  as="textarea"
-                  rows={2}
-                  value={form.notes}
-                  onChange={(e) => setForm((f) => ({ ...f, notes: clampNotes(e.target.value) }))}
-                  maxLength={NOTES_MAX}
-                  error={show("notes")}
-                />
-              </div>
+            <div className="wh-inv-split__right">
+              <FormBlock title="Details" description="Branch, quantity, reason, and optional cost.">
+                <div className="wh-form-grid">
+                  <SearchableSelect
+                    id="w_branch"
+                    label="Branch"
+                    options={branchOptions}
+                    value={form.branch_id}
+                    onChange={(v) => setForm((f) => ({ ...f, branch_id: v }))}
+                    placeholder="Select branch…"
+                    error={show("branch_id")}
+                  />
+                  <FormField
+                    id="w_qty"
+                    label={qtyFieldLabel}
+                    type="number"
+                    min="0.01"
+                    step="any"
+                    value={form.qty}
+                    onChange={(e) => setForm((f) => ({ ...f, qty: e.target.value }))}
+                    error={realtimeQtyError || show("qty")}
+                  />
+                  {availableQty != null && form.item_id && form.branch_id ? (
+                    <p className="wh-muted wh-form-grid__full">Available at branch: {availableQty}</p>
+                  ) : null}
+                  <FormField
+                    id="w_reason"
+                    label="Reason"
+                    as="select"
+                    value={form.reason}
+                    onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))}
+                  >
+                    {WASTAGE_REASONS.map((r) => (
+                      <option key={r} value={r}>
+                        {t(WASTAGE_REASON_LABELS[r] || r)}
+                      </option>
+                    ))}
+                  </FormField>
+                  <FormField
+                    id="w_date"
+                    label="Wastage date"
+                    type="date"
+                    value={form.wastage_date}
+                    onChange={(e) => setForm((f) => ({ ...f, wastage_date: e.target.value }))}
+                  />
+                  <FormField
+                    id="w_cost"
+                    label="Estimated cost (optional)"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.estimated_cost}
+                    onChange={(e) => setForm((f) => ({ ...f, estimated_cost: e.target.value }))}
+                    error={realtimeCostError || show("estimated_cost")}
+                  />
+                  <div className="wh-form-grid__full">
+                    <FormField
+                      id="w_notes"
+                      label="Notes"
+                      as="textarea"
+                      rows={2}
+                      value={form.notes}
+                      onChange={(e) => setForm((f) => ({ ...f, notes: clampNotes(e.target.value) }))}
+                      maxLength={NOTES_MAX}
+                      error={show("notes")}
+                    />
+                  </div>
+                </div>
+              </FormBlock>
+
+              {error && attempted ? <p className="wh-field__error">{error}</p> : null}
             </div>
-          </FormBlock>
-
-          {error && attempted ? <p className="wh-field__error">{error}</p> : null}
-
-          <FormActions>
-            <Button type="button" variant="secondary" onClick={() => navigate(backPath)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? "Saving…" : "Save Wastage"}
-            </Button>
-          </FormActions>
+          </div>
         </form>
       </FormPageLayout>
       <UnsavedChangesDialog

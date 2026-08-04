@@ -14,7 +14,7 @@ import { OrderFieldSelect } from "../../../../../../components/OrderFieldSelect"
 import { Modal } from "../../../../../../components/Modal";
 import { ConfirmDeleteModal } from "../../../../../../components/ConfirmDeleteModal";
 import { FormBlock } from "../../../../../../components/FormBlock";
-import { FormPageLayout, FormPageAlerts, FormActions } from "../../../../../../components/FormPageLayout";
+import { FormPageLayout, FormPageAlerts } from "../../../../../../components/FormPageLayout";
 import ProductCatalogPicker from "../../../../../../components/ProductCatalogPicker";
 import { useOrderReference } from "../../hooks/useOrderReference";
 import { MODULE_BASE, ORDER_SOURCE_LABELS, ORDER_STATUS_LABELS } from "../../constants";
@@ -726,15 +726,21 @@ export default function CreateOrder() {
   }
 
   return (
-    <div className="wh-page">
-      <FormPageLayout>
+    <div className="wh-page wh-page--wide">
+      <FormPageLayout wide>
         <PageHeader
           title={isEdit ? "Edit Order" : "Create Order"}
           description="Select a branch (shop) and bakery items, then fill in customer, delivery, and status details."
           actions={
             <div className="wh-action-btns">
-              <Button variant="secondary" onClick={() => navigate(`${MODULE_BASE}/orders/manage`)}>
+              <Button type="button" variant="secondary" onClick={() => navigate(`${MODULE_BASE}/orders/manage`)}>
                 Back to orders
+              </Button>
+              <Button type="button" variant="secondary" onClick={() => navigate(`${MODULE_BASE}/orders/manage`)}>
+                Cancel
+              </Button>
+              <Button type="submit" form="create-order-form" disabled={formBusy || disabled}>
+                {submitting ? "Saving…" : isEdit ? "Update order" : "Create order"}
               </Button>
               {isEdit && canDelete && (
                 <Button type="button" variant="danger" onClick={() => setDeleteOpen(true)} disabled={deleting}>
@@ -745,7 +751,7 @@ export default function CreateOrder() {
           }
         />
 
-        <FormPageAlerts error={loadError} />
+        <FormPageAlerts error={loadError || actionError} message={actionMessage} />
 
         {isEdit && String(form.order_status || "").toLowerCase() === "cancelled" && (
           <p className="wh-field__error">This order is cancelled and cannot be edited.</p>
@@ -754,64 +760,73 @@ export default function CreateOrder() {
           <p className="wh-field__error">This order is returned and cannot be edited.</p>
         )}
 
-        <form className="wh-form-stack" onSubmit={submitOrder}>
-          <FormBlock
-            title="Products"
-            description={
-              isEdit
-                ? "Adjust existing line items or tap bakery items below to add more."
-                : "Choose a branch (shop), then tap bakery items to add them."
-            }
-          >
-            <FormField
-              id="order-branch"
-              label={isEdit ? "Branch (Shop) — to add products" : "Branch (Shop)"}
-              as="select"
-              value={branchId}
-              onChange={(e) => handleBranchChange(e.target.value)}
-              disabled={disabled}
-              error={fieldErrors.branch_id || fieldErrors.items}
-            >
-              <option value="">Select branch…</option>
-              {branchOptions.map((b) => (
-                <option key={b.id} value={String(b.id)}>{branchLabel(b)}</option>
-              ))}
-            </FormField>
-
-            {!branchId && (
-              <div className="wh-order-create-empty">
-                <p className="wh-muted">
-                  {isEdit
-                    ? "Select a branch above to search and add more products to this order."
-                    : "Select a branch above to search and add products."}
-                </p>
+        <form id="create-order-form" className="wh-form-stack wh-inv-split-form" onSubmit={submitOrder}>
+          <div className="wh-inv-split">
+            <aside className="wh-inv-split__left">
+              <div className="wh-inv-product-picker">
+                {!branchId ? (
+                  <div className="wh-catalog-picker">
+                    <div className="wh-catalog-picker__head">
+                      <div>
+                        <h2 className="wh-catalog-picker__title">Products</h2>
+                        <p className="wh-muted wh-catalog-picker__hint">
+                          Select a branch on the right to search and add products.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <ProductCatalogPicker
+                    className="wh-catalog-picker--fill"
+                    products={sellableProducts}
+                    mode="multi"
+                    title="Products"
+                    selectedIds={selectedProductIds}
+                    onToggle={(_id, product) => {
+                      if (product) toggleProduct(product);
+                      else {
+                        const match = sellableProducts.find(
+                          (p) => String(p.product_id || p.item_id || p.id) === String(_id)
+                        );
+                        if (match) toggleProduct(match);
+                      }
+                    }}
+                    showPrice
+                    showStock
+                    maxHeight={420}
+                    disabled={disabled || loadingProducts}
+                    emptyMessage={loadingProducts ? "Loading products…" : "No sellable items found for this branch."}
+                  />
+                )}
               </div>
-            )}
+            </aside>
 
-            {branchId && (
-              <ProductCatalogPicker
-                products={sellableProducts}
-                mode="multi"
-                title="Products"
-                selectedIds={selectedProductIds}
-                onToggle={(_id, product) => {
-                  if (product) toggleProduct(product);
-                  else {
-                    const match = sellableProducts.find(
-                      (p) => String(p.product_id || p.item_id || p.id) === String(_id)
-                    );
-                    if (match) toggleProduct(match);
-                  }
-                }}
-                showPrice
-                showStock
-                disabled={disabled || loadingProducts}
-                emptyMessage={loadingProducts ? "Loading products…" : "No sellable items found for this branch."}
-              />
-            )}
-          </FormBlock>
+            <div className="wh-inv-split__right">
+              <FormBlock
+                title="Branch"
+                description={
+                  isEdit
+                    ? "Choose a branch to search and add more products to this order."
+                    : "Choose the shop branch for this order."
+                }
+              >
+                <FormField
+                  id="order-branch"
+                  label={isEdit ? "Branch (Shop) — to add products" : "Branch (Shop)"}
+                  as="select"
+                  value={branchId}
+                  onChange={(e) => handleBranchChange(e.target.value)}
+                  disabled={disabled}
+                  error={fieldErrors.branch_id || fieldErrors.items}
+                >
+                  <option value="">Select branch…</option>
+                  {branchOptions.map((b) => (
+                    <option key={b.id} value={String(b.id)}>{branchLabel(b)}</option>
+                  ))}
+                </FormField>
+              </FormBlock>
 
-          {(isEdit || items.length > 0) && (
+              {(isEdit || items.length > 0) && (
             <Card className="wh-card--table wh-order-items-card">
               <OrderItemsCardHead
                 itemCount={items.length}
@@ -949,7 +964,13 @@ export default function CreateOrder() {
                 </>
               )}
             </Card>
-          )}
+              )}
+
+              {!(isEdit || items.length > 0) && (
+                <FormBlock title="Line items" description="Selected products appear here with quantities and prices.">
+                  <p className="wh-muted">Select products on the left to build this order.</p>
+                </FormBlock>
+              )}
 
           <FormBlock title="Customer & delivery" description="Enter the customer's phone to match an existing record, or fill in the details to create a new customer.">
             <div className="wh-form-grid">
@@ -1172,14 +1193,9 @@ export default function CreateOrder() {
             </div>
           </FormBlock>
 
-          <FormActions ref={formActionsRef} error={actionError} message={actionMessage}>
-            <Button type="button" variant="secondary" onClick={() => navigate(`${MODULE_BASE}/orders/manage`)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={formBusy || disabled}>
-              {submitting ? "Saving…" : isEdit ? "Update order" : "Create order"}
-            </Button>
-          </FormActions>
+              <div ref={formActionsRef} />
+            </div>
+          </div>
         </form>
       </FormPageLayout>
 

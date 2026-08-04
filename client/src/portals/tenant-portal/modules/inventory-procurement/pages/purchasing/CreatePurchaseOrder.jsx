@@ -10,7 +10,7 @@ import { SearchableSelect } from "../../../../../../components/SearchableSelect"
 import ProductCatalogPicker from "../../../../../../components/ProductCatalogPicker";
 import { useInventoryReference } from "../../hooks/useInventoryReference";
 import { FormBlock } from "../../../../../../components/FormBlock";
-import { FormPageLayout, FormActions } from "../../../../../../components/FormPageLayout";
+import { FormPageLayout } from "../../../../../../components/FormPageLayout";
 import { UnsavedChangesDialog } from "../../../../../../components/UnsavedChangesDialog";
 import { useFormUnsavedGuard } from "../../../../../../hooks/useFormUnsavedGuard";
 import { MODULE_BASE, PO_STATUSES } from "../../constants";
@@ -211,150 +211,210 @@ export default function CreatePurchaseOrder() {
   };
 
   return (
-    <div className="wh-page">
-      <FormPageLayout>
+    <div className="wh-page wh-page--wide">
+      <FormPageLayout wide>
         <PageHeader
           title="Create Purchase Order"
           description="Order items from a supplier into a branch."
-          actions={<Button variant="secondary" onClick={() => navigate(backPath)}>Back</Button>}
+          actions={
+            <>
+              <Button type="button" variant="secondary" onClick={() => navigate(backPath)}>
+                Back
+              </Button>
+              <Button type="button" variant="secondary" onClick={() => navigate(backPath)}>
+                Cancel
+              </Button>
+              <Button type="submit" form="purchase-order-form" disabled={saving}>
+                {saving ? "Saving…" : "Create Purchase Order"}
+              </Button>
+            </>
+          }
         />
-        <form onSubmit={submit} className="wh-form-stack">
-          <FormBlock title="Order details">
-            <div className="wh-form-grid">
-              <SearchableSelect id="supplier_id" label="Supplier" options={supplierOptions} value={supplierId} onChange={setSupplierId} placeholder="Select supplier…" error={show(fieldErrors.supplierId)} />
-              <SearchableSelect id="branch_id" label="Receive at branch" options={branchOptions} value={branchId} onChange={setBranchId} placeholder="Select branch…" error={show(fieldErrors.branchId)} />
-              <FormField id="order_date" label="Order date" type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} required error={show(fieldErrors.orderDate)} />
-              <FormField id="expected_date" label="Expected date" type="date" value={expectedDate} onChange={(e) => setExpectedDate(e.target.value)} error={expectedRealtime || show(fieldErrors.expectedDate)} />
-              <FormField id="status" label="Status" as="select" value={status} onChange={(e) => setStatus(e.target.value)}>
-                {PO_STATUSES.filter((s) => s !== "partial" && s !== "received" && s !== "cancelled").map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </FormField>
-              <FormField
-                id="notes"
-                label="Notes"
-                value={notes}
-                onChange={(e) => setNotes(clampNotes(e.target.value))}
-                maxLength={NOTES_MAX}
-                error={fieldErrors.notes}
-              />
-            </div>
-          </FormBlock>
-
-          <FormBlock title="Items to buy" description="Choose one or more purchasable items for this purchase order.">
-            <ProductCatalogPicker
-              items={purchasableItems}
-              mode="multi"
-              title="Items"
-              selectedIds={selectedIds}
-              onToggle={(_id, product) => {
-                if (product) addOrToggleItem(product);
-                else {
-                  const match = purchasableItems.find((i) => String(i.id) === String(_id));
-                  if (match) addOrToggleItem(match);
-                }
-              }}
-              showPrice
-              priceField="cost_price"
-              showStock={false}
-              emptyMessage="No purchasable items yet. Add ingredients or packaging under Items."
-            />
-            {show(fieldErrors.items) ? <p className="wh-field__error">{show(fieldErrors.items)}</p> : null}
-          </FormBlock>
-
-          {lines.length > 0 && (
-            <FormBlock title="Quantities & costs" description="Set qty and unit cost for each selected item.">
-              <div className="wh-inv-line-items">
-                {lines.map((line, index) => {
-                  const lineErr = fieldErrors.lines?.[line._key] || {};
-                  const qtyRealtime = line.qty !== "" ? positiveQtyError(line.qty) : "";
-                  const costRealtime = line.unit_cost !== "" ? nonNegNumberError(line.unit_cost, "Unit cost") : "";
-                  return (
-                    <div key={line._key} className="wh-inv-line-item">
-                      <div className="wh-inv-line-item__head">
-                        <strong>{line.item_name || `Line ${index + 1}`}</strong>
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          className="wh-btn--sm"
-                          onClick={() => setLines((rows) => rows.filter((r) => r._key !== line._key))}
-                        >
-                          Remove
-                        </Button>
-                      </div>
-                      <div className="wh-form-grid">
-                        <FormField
-                          id={`qty_${line._key}`}
-                          label={line.unit ? `Quantity/${line.unit}` : "Quantity"}
-                          type="number"
-                          min="0.01"
-                          step="any"
-                          value={line.qty}
-                          onChange={(e) => updateLine(line._key, "qty", e.target.value)}
-                          error={qtyRealtime || show(lineErr.qty)}
-                        />
-                        <FormField
-                          id={`cost_${line._key}`}
-                          label="Unit cost"
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={line.unit_cost}
-                          onChange={(e) => updateLine(line._key, "unit_cost", e.target.value)}
-                          error={costRealtime || show(lineErr.unit_cost)}
-                        />
-                        <DiscountField
-                          id={`disc_${line._key}`}
-                          label="Line discount"
-                          value={line.discount}
-                          baseAmount={(Number(line.qty) || 0) * (Number(line.unit_cost) || 0)}
-                          onChange={(v) => updateLine(line._key, "discount", v)}
-                        />
-                        <FormField
-                          id={`exp_${line._key}`}
-                          label="Expiry (optional)"
-                          type="date"
-                          value={line.expiry_date}
-                          onChange={(e) => updateLine(line._key, "expiry_date", e.target.value)}
-                          error={lineErr.expiry_date}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
+        <form id="purchase-order-form" onSubmit={submit} className="wh-form-stack wh-inv-split-form">
+          <div className="wh-inv-split">
+            <aside className="wh-inv-split__left">
+              <div className="wh-inv-product-picker">
+                <ProductCatalogPicker
+                  className="wh-catalog-picker--fill"
+                  items={purchasableItems}
+                  mode="multi"
+                  title="Select items"
+                  selectedIds={selectedIds}
+                  onToggle={(_id, product) => {
+                    if (product) addOrToggleItem(product);
+                    else {
+                      const match = purchasableItems.find((i) => String(i.id) === String(_id));
+                      if (match) addOrToggleItem(match);
+                    }
+                  }}
+                  showPrice
+                  priceField="cost_price"
+                  showStock={false}
+                  maxHeight={420}
+                  emptyMessage="No purchasable items yet. Add ingredients or packaging under Items."
+                />
               </div>
-            </FormBlock>
-          )}
+              {show(fieldErrors.items) ? <p className="wh-field__error">{show(fieldErrors.items)}</p> : null}
+            </aside>
 
-          <FormBlock title="Totals">
-            <div className="wh-form-grid">
-              <DiscountField
-                id="discount_amount"
-                label="Order discount"
-                value={discountAmount}
-                baseAmount={subtotal}
-                onChange={setDiscountAmount}
-              />
-              <FormField
-                id="tax_amount"
-                label="Tax (PKR)"
-                type="number"
-                min="0"
-                step="0.01"
-                value={taxAmount}
-                onChange={(e) => setTaxAmount(e.target.value)}
-                error={taxRealtime || show(fieldErrors.taxAmount)}
-              />
-              <FormField id="subtotal" label="Subtotal" value={formatPKR(subtotal)} displayOnly />
-              <FormField id="payable" label="Payable" value={formatPKR(payable)} displayOnly />
+            <div className="wh-inv-split__right">
+              <FormBlock title="Order details">
+                <div className="wh-form-grid">
+                  <SearchableSelect
+                    id="supplier_id"
+                    label="Supplier"
+                    options={supplierOptions}
+                    value={supplierId}
+                    onChange={setSupplierId}
+                    placeholder="Select supplier…"
+                    error={show(fieldErrors.supplierId)}
+                  />
+                  <SearchableSelect
+                    id="branch_id"
+                    label="Receive at branch"
+                    options={branchOptions}
+                    value={branchId}
+                    onChange={setBranchId}
+                    placeholder="Select branch…"
+                    error={show(fieldErrors.branchId)}
+                  />
+                  <FormField
+                    id="order_date"
+                    label="Order date"
+                    type="date"
+                    value={orderDate}
+                    onChange={(e) => setOrderDate(e.target.value)}
+                    required
+                    error={show(fieldErrors.orderDate)}
+                  />
+                  <FormField
+                    id="expected_date"
+                    label="Expected date"
+                    type="date"
+                    value={expectedDate}
+                    onChange={(e) => setExpectedDate(e.target.value)}
+                    error={expectedRealtime || show(fieldErrors.expectedDate)}
+                  />
+                  <FormField
+                    id="status"
+                    label="Status"
+                    as="select"
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value)}
+                  >
+                    {PO_STATUSES.filter((s) => s !== "partial" && s !== "received" && s !== "cancelled").map(
+                      (s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      )
+                    )}
+                  </FormField>
+                  <FormField
+                    id="notes"
+                    label="Notes"
+                    value={notes}
+                    onChange={(e) => setNotes(clampNotes(e.target.value))}
+                    maxLength={NOTES_MAX}
+                    error={fieldErrors.notes}
+                  />
+                </div>
+              </FormBlock>
+
+              <FormBlock title="Quantities & costs" description="Set qty and unit cost for each selected item.">
+                <div className="wh-inv-line-items">
+                  {lines.length === 0 ? (
+                    <p className="wh-muted">Select items on the left to enter quantities and costs.</p>
+                  ) : (
+                    lines.map((line, index) => {
+                      const lineErr = fieldErrors.lines?.[line._key] || {};
+                      const qtyRealtime = line.qty !== "" ? positiveQtyError(line.qty) : "";
+                      const costRealtime =
+                        line.unit_cost !== "" ? nonNegNumberError(line.unit_cost, "Unit cost") : "";
+                      return (
+                        <div key={line._key} className="wh-inv-line-item">
+                          <div className="wh-inv-line-item__head">
+                            <strong>{line.item_name || `Line ${index + 1}`}</strong>
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              className="wh-btn--sm"
+                              onClick={() => setLines((rows) => rows.filter((r) => r._key !== line._key))}
+                            >
+                              Remove
+                            </Button>
+                          </div>
+                          <div className="wh-form-grid">
+                            <FormField
+                              id={`qty_${line._key}`}
+                              label={line.unit ? `Quantity/${line.unit}` : "Quantity"}
+                              type="number"
+                              min="0.01"
+                              step="any"
+                              value={line.qty}
+                              onChange={(e) => updateLine(line._key, "qty", e.target.value)}
+                              error={qtyRealtime || show(lineErr.qty)}
+                            />
+                            <FormField
+                              id={`cost_${line._key}`}
+                              label="Unit cost"
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={line.unit_cost}
+                              onChange={(e) => updateLine(line._key, "unit_cost", e.target.value)}
+                              error={costRealtime || show(lineErr.unit_cost)}
+                            />
+                            <DiscountField
+                              id={`disc_${line._key}`}
+                              label="Line discount"
+                              value={line.discount}
+                              baseAmount={(Number(line.qty) || 0) * (Number(line.unit_cost) || 0)}
+                              onChange={(v) => updateLine(line._key, "discount", v)}
+                            />
+                            <FormField
+                              id={`exp_${line._key}`}
+                              label="Expiry (optional)"
+                              type="date"
+                              value={line.expiry_date}
+                              onChange={(e) => updateLine(line._key, "expiry_date", e.target.value)}
+                              error={lineErr.expiry_date}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </FormBlock>
+
+              <FormBlock title="Totals">
+                <div className="wh-form-grid">
+                  <DiscountField
+                    id="discount_amount"
+                    label="Order discount"
+                    value={discountAmount}
+                    baseAmount={subtotal}
+                    onChange={setDiscountAmount}
+                  />
+                  <FormField
+                    id="tax_amount"
+                    label="Tax (PKR)"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={taxAmount}
+                    onChange={(e) => setTaxAmount(e.target.value)}
+                    error={taxRealtime || show(fieldErrors.taxAmount)}
+                  />
+                  <FormField id="subtotal" label="Subtotal" value={formatPKR(subtotal)} displayOnly />
+                  <FormField id="payable" label="Payable" value={formatPKR(payable)} displayOnly />
+                </div>
+              </FormBlock>
+
+              {error && attempted && <p className="wh-field__error">{error}</p>}
             </div>
-          </FormBlock>
-
-          {error && attempted && <p className="wh-field__error">{error}</p>}
-          <FormActions>
-            <Button type="button" variant="secondary" onClick={() => navigate(backPath)}>Cancel</Button>
-            <Button type="submit" disabled={saving}>{saving ? "Saving…" : "Create Purchase Order"}</Button>
-          </FormActions>
+          </div>
         </form>
       </FormPageLayout>
       <UnsavedChangesDialog

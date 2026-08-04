@@ -9,7 +9,7 @@ import { SearchableSelect } from "../../../../../../components/SearchableSelect"
 import { useInventoryReference } from "../../hooks/useInventoryReference";
 import { MODULE_BASE } from "../../constants";
 import { FormBlock } from "../../../../../../components/FormBlock";
-import { FormPageLayout, FormActions } from "../../../../../../components/FormPageLayout";
+import { FormPageLayout } from "../../../../../../components/FormPageLayout";
 import { UnsavedChangesDialog } from "../../../../../../components/UnsavedChangesDialog";
 import { useFormUnsavedGuard } from "../../../../../../hooks/useFormUnsavedGuard";
 import ProductPicker from "../../components/ProductPicker";
@@ -376,10 +376,8 @@ export default function CreateBulkStock() {
     }
   };
 
-  const useSplitLayout = operation === "stock-in";
-
   const itemsBlock = (
-    <FormBlock title="Select items" description="Tap cards to choose one or more bakery items for this operation.">
+    <>
       <ProductPicker
         items={items}
         selectedIds={selectedIds}
@@ -390,7 +388,7 @@ export default function CreateBulkStock() {
         entityLabel="items"
       />
       {show(fieldErrors.items) ? <p className="wh-field__error">{show(fieldErrors.items)}</p> : null}
-    </FormBlock>
+    </>
   );
 
   const detailsBlocks = (
@@ -495,14 +493,10 @@ export default function CreateBulkStock() {
           </div>
         )}
 
-        {!useSplitLayout && show(fieldErrors.items) ? (
-          <p className="wh-field__error">{show(fieldErrors.items)}</p>
-        ) : null}
-
         <div className="wh-inv-line-items">
           {selectedItems.length === 0 ? (
             <p className="wh-muted">
-              {useSplitLayout ? "Select items on the left to enter quantities and details." : "Select items above to enter quantities and details."}
+              Select items on the left to enter quantities and details.
             </p>
           ) : (
             selectedItems.map((p) => {
@@ -605,43 +599,41 @@ export default function CreateBulkStock() {
       </FormBlock>
 
       {error && attempted && <p className="wh-field__error">{error}</p>}
+    </>
+  );
 
-      <FormActions>
-        <Button type="button" variant="secondary" onClick={() => navigate(config.backPath)}>
-          Cancel
-        </Button>
-        <Button type="submit" disabled={submitting}>
-          {submitting ? "Saving…" : config.submitLabel}
-        </Button>
-      </FormActions>
+  const headerActions = (
+    <>
+      <Button type="button" variant="secondary" onClick={() => navigate(config.backPath)}>
+        Back to history
+      </Button>
+      <Button type="button" variant="secondary" onClick={() => navigate(config.backPath)}>
+        Cancel
+      </Button>
+      <Button type="submit" form="bulk-stock-form" disabled={submitting}>
+        {submitting ? "Saving…" : config.submitLabel}
+      </Button>
     </>
   );
 
   return (
-    <div className={`wh-page${useSplitLayout ? " wh-page--wide" : ""}`}>
-      <FormPageLayout wide={useSplitLayout}>
+    <div className="wh-page wh-page--wide">
+      <FormPageLayout wide>
         <PageHeader
           title={config.title}
           description={config.description}
-          actions={
-            <Button variant="secondary" onClick={() => navigate(config.backPath)}>
-              Back to history
-            </Button>
-          }
+          actions={headerActions}
         />
 
-        <form onSubmit={handleSubmit} className={`wh-form-stack${useSplitLayout ? " wh-inv-split-form" : ""}`}>
-          {useSplitLayout ? (
-            <div className="wh-inv-split">
-              <aside className="wh-inv-split__left">{itemsBlock}</aside>
-              <div className="wh-inv-split__right">{detailsBlocks}</div>
-            </div>
-          ) : (
-            <>
-              {itemsBlock}
-              {detailsBlocks}
-            </>
-          )}
+        <form
+          id="bulk-stock-form"
+          onSubmit={handleSubmit}
+          className="wh-form-stack wh-inv-split-form"
+        >
+          <div className="wh-inv-split">
+            <aside className="wh-inv-split__left">{itemsBlock}</aside>
+            <div className="wh-inv-split__right">{detailsBlocks}</div>
+          </div>
         </form>
       </FormPageLayout>
       <UnsavedChangesDialog
