@@ -5,9 +5,17 @@ import { Button } from "../../../../../components/Button";
 import { FormField } from "../../../../../components/FormField";
 import { DiscountField } from "../../../../../components/DiscountField";
 import { Modal } from "../../../../../components/Modal";
+import { UnsavedChangesDialog } from "../../../../../components/UnsavedChangesDialog";
 import ProductCatalogPicker from "../../../../../components/ProductCatalogPicker";
 import { useAuth } from "../../../../../context/AuthContext";
+import { useUnsavedChangesGuard } from "../../../../../hooks/useUnsavedChangesGuard";
 import { formatPKR } from "../../../../../utils/currency";
+import {
+  getPosPrinterLabel,
+  openPrinterChooser,
+  printHtml,
+  setPosPrinterLabel,
+} from "../../../../../utils/printHtml";
 import { DEVICE_CODE } from "../constants";
 import { clearTerminalSession, readTerminalSession, writeTerminalSession } from "../terminalSession";
 import "../Terminal.css";
@@ -80,6 +88,23 @@ export default function TerminalCheckout() {
   const [loading, setLoading] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [printerModalOpen, setPrinterModalOpen] = useState(false);
+  const [printerLabel, setPrinterLabelState] = useState(() => getPosPrinterLabel());
+  const [printerBusy, setPrinterBusy] = useState(false);
+  const [companyName, setCompanyName] = useState("");
+  const [companyAddress, setCompanyAddress] = useState("");
+  const [companyPhone, setCompanyPhone] = useState("");
+
+  useEffect(() => {
+    apiFetch("/tenant/organization-settings", {}, authFetch)
+      .then((res) => {
+        const data = res.data || res || {};
+        setCompanyName(data.company_name || user?.tenant_name || "");
+        setCompanyAddress(data.company_address || "");
+        setCompanyPhone(data.company_phone || "");
+      })
+      .catch(() => setCompanyName(user?.tenant_name || ""));
+  }, [authFetch, user?.tenant_name]);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
   const [amountsHidden, setAmountsHidden] = useState(true);
@@ -417,25 +442,160 @@ export default function TerminalCheckout() {
     Number(register?.opening_balance || 0) + Number(register?.cash_collected || 0)
   );
 
+  const isDirty = Boolean(
+    cart.length ||
+      selectedCustomer ||
+      String(customerPhone || "").trim() ||
+      (Number(discountAmount) || 0) > 0
+  );
+  const { dialogOpen, stayOnPage, leavePage, reloadPending } = useUnsavedChangesGuard(
+    isDirty,
+    { enabled: Boolean(session?.terminal_id && terminal) }
+  );
+
+  const savePrinterLabel = () => {
+    setPosPrinterLabel(printerLabel.trim());
+    setPrinterLabelState(printerLabel.trim());
+    setPrinterModalOpen(false);
+    setMessage(
+      printerLabel.trim()
+        ? `Receipt printer set to “${printerLabel.trim()}”. Pick it in the print dialog when prompted.`
+        : "Using system default printer."
+    );
+  };
+
+  const choosePrinterNow = async () => {
+    setPrinterBusy(true);
+    setError("");
+    try {
+      setPosPrinterLabel(printerLabel.trim());
+      setPrinterLabelState(printerLabel.trim());
+      await openPrinterChooser(printerLabel.trim() || "Receipt printer");
+      setPrinterModalOpen(false);
+      setMessage("Choose your thermal printer in the print dialog, then confirm.");
+    } catch (err) {
+      setError(err.message || "Could not open printer chooser.");
+    } finally {
+      setPrinterBusy(false);
+    }
+  };
+
+  const printThermalReceipt = async (receipt) => {
+    if (!receipt) return;
+    const company = String(receipt.company_name || receipt.store_name || "Store").replace(/[<>&]/g, "");
+    const address = String(receipt.company_address || "").replace(/[<>&]/g, "");
+    const phone = String(receipt.company_phone || "").replace(/[<>&]/g, "");
+    const saleNo = String(receipt.sale_no || "—").replace(/[<>&]/g, "");
+    const itemsHtml = (receipt.items || [])
+      .map((line, idx) => {
+        const name = String(line.product_name || "Item").replace(/[<>&]/g, "");
+        const qty = Number(line.quantity) || 0;
+        const price = Number(line.unit_price) || 0;
+        const amt = round2(qty * price);
+        return `<div class="item">
+          <div class="item-meta"><span>#${idx + 1}</span><span>Qty ${qty}</span></div>
+          <div class="item-row"><span>${name}</span><span class="price">${formatPKR(amt)}</span></div>
+        </div>`;
+      })
+      .join("");
+
+    await printHtml(
+      `<!doctype html><html><head><title>Receipt ${saleNo}</title>
+      <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+      <style>
+        @page { size: 80mm auto; margin: 3mm; }
+        * { box-sizing: border-box; }
+        body {
+          font-family: "Roboto Mono", "Courier New", Courier, monospace;
+          width: 72mm; max-width: 72mm; margin: 0 auto;
+          color: #111; font-size: 11px; line-height: 1.4; padding: 4px 0 10px;
+        }
+        .center { text-align: center; }
+        .store { font-size: 16px; font-weight: 700; margin: 0 0 6px; }
+        .muted { color: #666; font-size: 10px; margin: 2px 0; }
+        .order-line { margin: 14px 0 10px; font-size: 11px; font-weight: 500; }
+        .dash { border: none; border-top: 1px dashed #bbb; margin: 0; }
+        .item { padding: 10px 0; }
+        .item-meta { display: flex; justify-content: space-between; gap: 8px; color: #9a9a9a; font-size: 10px; margin-bottom: 4px; }
+        .item-row { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; font-weight: 500; }
+        .item-row .price { white-space: nowrap; }
+        .solid { border: none; border-top: 1.5px solid #111; margin: 4px 0 10px; }
+        .total-row { display: flex; justify-content: space-between; gap: 10px; font-size: 15px; font-weight: 700; margin: 4px 0 12px; }
+        .copy-label { text-align: center; font-size: 11px; margin: 8px 0 6px; }
+        .thanks { text-align: center; font-size: 11px; margin-top: 6px; line-height: 1.45; }
+      </style></head><body>
+        <div class="center">
+          <div class="store">${company}</div>
+          ${address ? `<div class="muted">${address}</div>` : ""}
+          ${phone ? `<div class="muted">Tel: ${phone}</div>` : ""}
+          <div class="order-line">Order: #${saleNo}</div>
+        </div>
+        <hr class="dash" />
+        ${itemsHtml}
+        <hr class="dash" />
+        <hr class="solid" />
+        <div class="total-row"><span>Total</span><span>${formatPKR(receipt.payable_amount)}</span></div>
+        <div class="copy-label">Customer copy</div>
+        <div class="thanks">Thanks for visiting ${company}</div>
+      </body></html>`,
+      { title: `Receipt ${saleNo}`, delayMs: 400 }
+    );
+  };
+
   const completeSale = async () => {
     if (!terminal || !cart.length) return;
     setCheckoutLoading(true);
     setError("");
     setMessage("");
+    const snapshotItems = cart.map((line) => ({ ...line }));
+    const snapshotDiscount = discount;
+    const snapshotSubtotal = subtotal;
+    const snapshotTotal = total;
     try {
-      const sale = await apiFetch("/pos/terminal/sales", {
-        method: "POST",
-        body: JSON.stringify({
-          terminal_id: terminal.id,
-          items: cart,
-          payment_method: paymentMethod,
-          crm_customers_id: selectedCustomer?.id || null,
-          discount_amount: discount,
-        }),
-      }, authFetch);
+      const sale = await apiFetch(
+        "/pos/terminal/sales",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            terminal_id: terminal.id,
+            items: cart,
+            payment_method: paymentMethod,
+            crm_customers_id: selectedCustomer?.id || null,
+            discount_amount: discount,
+          }),
+        },
+        authFetch
+      );
       setCart([]);
       setDiscountAmount("0");
+      const receipt = {
+        sale_no: sale.sale_no,
+        payable_amount: sale.payable_amount ?? snapshotTotal,
+        total_amount: sale.total_amount ?? snapshotSubtotal,
+        discount_amount: sale.discount_amount ?? snapshotDiscount,
+        product_discount_total: cartPricing.productDiscountTotal,
+        product_tax_total: cartPricing.productTaxTotal,
+        payment_method: sale.payment_method || paymentMethod,
+        created_at: sale.created_at || new Date().toISOString(),
+        company_name: companyName || terminal.outlet_name || "Store",
+        company_address: companyAddress,
+        company_phone: companyPhone,
+        store_name: terminal.outlet_name || terminal.store_name || terminal.branch_name || "Store",
+        terminal_name: terminal.terminal_name || terminal.name || "POS",
+        cashier_name: user?.name || user?.email || "",
+        customer_name: selectedCustomer?.customer_name || selectedCustomer?.name || "",
+        customer_phone: selectedCustomer?.phone || customerPhone || "",
+        customer_company: selectedCustomer?.company_name || "",
+        items: snapshotItems,
+      };
+      setCustomerPhone("");
+      setSelectedCustomer(null);
       setMessage(`Sale ${sale.sale_no} completed - ${formatPKR(sale.payable_amount)}`);
+      try {
+        await printThermalReceipt(receipt);
+      } catch (printErr) {
+        setError(printErr.message || "Sale completed, but printing failed.");
+      }
       const sess = await apiFetch(`/pos/terminal/${terminal.id}/session`, {}, authFetch);
       applySessionResponse(sess);
     } catch (err) {
@@ -565,6 +725,9 @@ export default function TerminalCheckout() {
           </div>
         </div>
         <div className="pos-terminal__topbar-actions">
+          <Button variant="secondary" onClick={() => setPrinterModalOpen(true)}>
+            Printer{printerLabel ? `: ${printerLabel}` : ""}
+          </Button>
           <Button variant="secondary" onClick={() => navigate("/app")}>
             Modules
           </Button>
@@ -883,6 +1046,41 @@ export default function TerminalCheckout() {
           </Button>
         </div>
       </Modal>
+
+      <Modal
+        open={printerModalOpen}
+        onClose={() => !printerBusy && setPrinterModalOpen(false)}
+        title="Receipt printer"
+      >
+        <p className="wh-modal__text">
+          Name your thermal printer, then open the print dialog to select it. Receipts print in that dialog after each sale — no new browser tabs.
+        </p>
+        <FormField
+          id="pos_printer_label"
+          label="Printer name (optional label)"
+          value={printerLabel}
+          onChange={(e) => setPrinterLabelState(e.target.value)}
+          placeholder="e.g. Counter thermal"
+        />
+        <div className="wh-modal__actions" style={{ paddingLeft: 0, paddingRight: 0 }}>
+          <Button type="button" variant="secondary" onClick={() => setPrinterModalOpen(false)} disabled={printerBusy}>
+            Cancel
+          </Button>
+          <Button type="button" variant="secondary" onClick={savePrinterLabel} disabled={printerBusy}>
+            Save label
+          </Button>
+          <Button type="button" onClick={choosePrinterNow} disabled={printerBusy}>
+            {printerBusy ? "Opening…" : "Select printer…"}
+          </Button>
+        </div>
+      </Modal>
+
+      <UnsavedChangesDialog
+        open={dialogOpen}
+        onStay={stayOnPage}
+        onDiscard={leavePage}
+        reloadPending={reloadPending}
+      />
 
       <Modal open={logoutOpen} onClose={() => !logoutLoading && setLogoutOpen(false)} title="End session">
         <p style={{ marginBottom: 12 }}>

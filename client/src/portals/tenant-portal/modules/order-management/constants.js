@@ -103,5 +103,4 @@ export const PRINT_DOC_TYPES = [
   { key: "invoice", label: "Invoice" },
   { key: "packing_slip", label: "Packing Slip" },
   { key: "receipt", label: "Order Receipt" },
-  { key: "delivery", label: "Delivery Document" },
 ];

@@ -180,32 +180,91 @@ export default function CreateRun() {
     });
   };
 
-  const previewPlan = async () => {
-    if (!form.item_id || !form.branch_id || !form.quantity_produced) {
-      setError("Select finished item, branch (shop), and quantity made first.");
+  const loadIngredients = async () => {
+    if (!form.item_id || !form.quantity_produced) {
+      setPlan(null);
       return;
     }
+    const recipeId =
+      form.recipe_id ||
+      recipes.find((r) => String(r.item_id) === String(form.item_id) && r.status === "active")?.id;
+    if (!recipeId && !form.branch_id) {
+      setPlan(null);
+      return;
+    }
+
     setPlanning(true);
     setError("");
-    setPlan(null);
     try {
-      const body = {
-        item_id: Number(form.item_id),
-        branch_id: Number(form.branch_id),
-        quantity_produced: Number(form.quantity_produced),
-        recipe_id: form.recipe_id ? Number(form.recipe_id) : null,
-      };
-      const res = await apiFetch("/production/runs/plan", { method: "POST", body: JSON.stringify(body) }, authFetch);
-      setPlan(res);
-      if (res.recipe_id && !form.recipe_id) {
-        setForm((f) => ({ ...f, recipe_id: String(res.recipe_id) }));
+      // Prefer live stock check when branch is chosen
+      if (form.branch_id) {
+        const body = {
+          item_id: Number(form.item_id),
+          branch_id: Number(form.branch_id),
+          quantity_produced: Number(form.quantity_produced),
+          recipe_id: recipeId ? Number(recipeId) : null,
+        };
+        const res = await apiFetch(
+          "/production/runs/plan",
+          { method: "POST", body: JSON.stringify(body) },
+          authFetch
+        );
+        setPlan(res);
+        if (res.recipe_id && !form.recipe_id) {
+          setForm((f) => ({ ...f, recipe_id: String(res.recipe_id) }));
+        }
+        return;
+      }
+
+      // No branch yet — still show recipe ingredients (scaled by qty)
+      const recipe = await apiFetch(`/production/recipes/${recipeId}`, {}, authFetch);
+      const qty = Number(form.quantity_produced) || 1;
+      const yieldQty = Number(recipe.yield_qty) || 1;
+      const factor = qty / yieldQty;
+      setPlan({
+        recipe_id: recipe.id,
+        recipe_name: recipe.recipe_name,
+        can_produce: null,
+        lines: (recipe.ingredients || []).map((ing) => ({
+          ingredient_name: ing.ingredient_name,
+          needed_qty: Number(ing.quantity) * factor,
+          available_qty: null,
+          unit: ing.ingredient_unit || ing.unit || "",
+          enough: null,
+        })),
+      });
+      if (!form.recipe_id) {
+        setForm((f) => ({ ...f, recipe_id: String(recipe.id) }));
       }
     } catch (err) {
-      setError(err.message || "Could not preview ingredients");
+      setPlan(null);
+      setError(err.message || "Could not load ingredients");
     } finally {
       setPlanning(false);
     }
   };
+
+  useEffect(() => {
+    if (disabled || refLoading) return;
+    if (!form.item_id || !form.quantity_produced) {
+      setPlan(null);
+      return;
+    }
+    const timer = setTimeout(() => {
+      loadIngredients();
+    }, 250);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    form.item_id,
+    form.branch_id,
+    form.quantity_produced,
+    form.recipe_id,
+    disabled,
+    refLoading,
+    authFetch,
+    recipes,
+  ]);
 
   const leaveForm = () => {
     clearFormDraft(DRAFT_KEY);
@@ -220,11 +279,15 @@ export default function CreateRun() {
       return;
     }
     if (!plan) {
-      setError("Preview ingredients first, then confirm the bake.");
+      setError("Ingredients are still loading. Wait a moment, then confirm the bake.");
       return;
     }
-    if (!plan.can_produce) {
+    if (plan.can_produce === false) {
       setError("Not enough ingredients (kacha maal) at this branch to complete the bake.");
+      return;
+    }
+    if (plan.can_produce == null) {
+      setError("Select a branch to check ingredient stock, then confirm the bake.");
       return;
     }
     setSaving(true);
@@ -254,17 +317,21 @@ export default function CreateRun() {
     {
       key: "needed_qty",
       label: "Needed",
-      format: (v, row) => `${Number(v || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })} ${row.unit || ""}`.trim(),
+      format: (v, row) =>
+        `${Number(v || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })} ${row.unit || ""}`.trim(),
     },
     {
       key: "available_qty",
       label: "Available",
-      format: (v, row) => `${Number(v || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })} ${row.unit || ""}`.trim(),
+      format: (v, row) =>
+        v == null
+          ? "Select branch"
+          : `${Number(v || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })} ${row.unit || ""}`.trim(),
     },
     {
       key: "enough",
       label: "Enough?",
-      format: (v) => (v ? "Yes" : "No"),
+      format: (v) => (v == null ? "—" : v ? "Yes" : "No"),
     },
   ];
 
@@ -285,13 +352,14 @@ export default function CreateRun() {
               <Button
                 type="submit"
                 form="create-run-form"
-                disabled={saving || disabled || !plan || !plan.can_produce}
+                disabled={saving || disabled || !plan || plan.can_produce !== true}
               >
                 {saving ? "Baking…" : "Confirm Bake"}
               </Button>
             </>
           }
         />
+        {/* Bake form: ingredients auto-load — no preview button */}
         <form id="create-run-form" onSubmit={submit} className="wh-form-stack wh-inv-split-form">
           <div className="wh-inv-split">
             <aside className="wh-inv-split__left">
@@ -387,22 +455,32 @@ export default function CreateRun() {
               </FormBlock>
 
               <FormBlock
-                title="Ingredients preview"
-                description="Check kacha maal needed vs available at the branch before confirming."
+                title="Ingredients"
+                description="Shows automatically for the selected finished item and quantity."
               >
-                <div style={{ marginBottom: 12 }}>
-                  <Button type="button" variant="secondary" onClick={previewPlan} disabled={disabled || planning}>
-                    {planning ? "Checking…" : "Preview ingredients"}
-                  </Button>
-                </div>
-                {!plan && <p className="wh-muted">Click “Preview ingredients” to see what this bake will use.</p>}
-                {plan && (
+                {planning && <p className="wh-muted">Loading ingredients…</p>}
+                {!planning && !plan && (
+                  <p className="wh-muted">
+                    Select a finished product (with a recipe) to see ingredients here.
+                  </p>
+                )}
+                {!planning && plan && (
                   <>
-                    <p className={plan.can_produce ? "wh-alert wh-alert--success" : "wh-alert wh-alert--error"}>
-                      {plan.can_produce
-                        ? `Ready to bake with recipe “${plan.recipe_name}”.`
-                        : `Not enough stock for recipe “${plan.recipe_name}”. Add stock or lower quantity made.`}
-                    </p>
+                    {plan.can_produce === true && (
+                      <p className="wh-alert wh-alert--success">
+                        Ready to bake with recipe “{plan.recipe_name}”.
+                      </p>
+                    )}
+                    {plan.can_produce === false && (
+                      <p className="wh-alert wh-alert--error">
+                        Not enough stock for recipe “{plan.recipe_name}”. Add stock or lower quantity made.
+                      </p>
+                    )}
+                    {plan.can_produce == null && (
+                      <p className="wh-muted">
+                        Recipe “{plan.recipe_name}”. Select a branch above to check stock availability.
+                      </p>
+                    )}
                     <DataTable columns={planColumns} rows={plan.lines || []} pageSize={100} />
                   </>
                 )}

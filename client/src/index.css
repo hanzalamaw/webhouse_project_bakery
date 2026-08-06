@@ -4977,10 +4977,12 @@ select.wh-field__input option {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg, 12px);
   background: var(--card-bg, var(--color-bg));
-  padding: 16px;
+  padding: 0;
   display: flex;
   flex-direction: column;
   min-width: 0;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
 }
 
 .wh-catalog-picker__head {
@@ -4988,29 +4990,37 @@ select.wh-field__input option {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 10px;
+  margin: 0;
+  padding: 14px 16px;
+  background: var(--surface-bg);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .wh-catalog-picker__title {
   margin: 0 0 4px;
-  font-size: var(--text-lg, 1.125rem);
-  font-weight: 700;
+  font-size: var(--text-md);
+  font-weight: 600;
   color: var(--text-primary, #1e293b);
 }
 
 .wh-catalog-picker__hint {
   margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  line-height: 1.45;
 }
 
 .wh-catalog-picker__search {
-  margin-bottom: 10px;
+  margin: 0;
+  padding: 16px 16px 0;
 }
 
 .wh-catalog-picker__categories {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: 12px;
+  margin: 0;
+  padding: 12px 16px 0;
 }
 
 .wh-catalog-picker__chip {
@@ -5043,7 +5053,7 @@ select.wh-field__input option {
   overflow-y: auto;
   overflow-x: hidden;
   min-height: 120px;
-  padding-right: 2px;
+  padding: 12px 16px 16px;
 }
 
 .wh-catalog-picker__grid {
@@ -5128,11 +5138,555 @@ select.wh-field__input option {
   margin: 8px 0 0;
 }
 
-.wh-catalog-picker--flush {
-  border: none;
-  border-radius: 0;
-  background: transparent;
+.wh-print-preview--invoice {
+  max-width: 860px;
+}
+
+.wh-print-preview--narrow {
+  max-width: 340px;
+}
+
+.wh-print-doc--invoice,
+.wh-print-doc--receipt,
+.wh-print-doc--packing {
+  background: #fff;
+  color: #1f2937;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.wh-print-doc--invoice {
+  font-family: "Inter", Helvetica, Arial, sans-serif;
+  position: relative;
+  overflow: hidden;
+  padding: 8px 4px 20px;
+  font-size: 12px;
+}
+
+.wh-print-doc--receipt,
+.wh-print-doc--packing {
+  font-family: "Roboto Mono", "Courier New", Courier, monospace;
+}
+
+.wh-print-doc--invoice .inv-sheet {
+  position: relative;
+  min-height: 297mm;
   padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+}
+
+.wh-print-doc--invoice .inv-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0 16mm;
+}
+
+.wh-print-doc--invoice .accent-corner {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 50%;
+  height: 36px;
+  margin: 0;
+  background: #e11d48;
+  border-bottom-left-radius: 40px;
+}
+
+.wh-print-doc--invoice .inv-top {
+  display: grid;
+  grid-template-columns: 1fr minmax(320px, 38%);
+  gap: 28px;
+  align-items: start;
+  margin-bottom: 36px;
+  padding-top: 72px;
+  position: relative;
+  z-index: 1;
+}
+
+.wh-print-doc--invoice .inv-title {
+  margin: 0;
+  font-size: 42px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: #374151;
+  text-transform: uppercase;
+}
+
+.wh-print-doc--invoice .brand {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.wh-print-doc--invoice .brand-logo {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  display: block;
+}
+
+.wh-print-doc--invoice .brand-name {
+  font-size: 16px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.wh-print-doc--invoice .inv-meta {
+  display: grid;
+  grid-template-columns: 1fr minmax(320px, 38%);
+  gap: 28px;
+  margin-bottom: 32px;
+  align-items: start;
+}
+
+.wh-print-doc--invoice .party-label {
+  color: #9ca3af;
+  font-size: 12px;
+  margin: 0 0 6px;
+}
+
+.wh-print-doc--invoice .party-name {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.wh-print-doc--invoice .party-line {
+  margin: 0 0 2px;
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.wh-print-doc--invoice .party-block + .party-block {
+  margin-top: 22px;
+}
+
+.wh-print-doc--invoice .side-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.wh-print-doc--invoice .info-chip {
+  background: #f3f4f6;
+  border-radius: 12px;
+  padding: 20px 22px;
+  height: 92px;
+  min-height: 92px;
+  max-height: 92px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  overflow: hidden;
+}
+
+.wh-print-doc--invoice .info-chip.grand {
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: nowrap;
+}
+
+.wh-print-doc--invoice .info-chip.grand .chip-label {
+  font-weight: 700;
+  font-size: 13px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.wh-print-doc--invoice .info-chip.grand .chip-value {
+  font-size: 22px;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.wh-print-doc--invoice .date-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  width: 100%;
+  text-align: center;
+  align-items: center;
+}
+
+.wh-print-doc--invoice .date-grid .chip-label {
+  color: #9ca3af;
+  font-size: 12px;
+  display: block;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.wh-print-doc--invoice .date-grid .chip-value {
+  display: block;
+  margin-top: 8px;
+  font-weight: 700;
+  font-size: 13px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.wh-print-doc--invoice table.lines {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.wh-print-doc--invoice table.lines col.col-desc { width: 40%; }
+.wh-print-doc--invoice table.lines col.col-unit { width: 20%; }
+.wh-print-doc--invoice table.lines col.col-qty { width: 20%; }
+.wh-print-doc--invoice table.lines col.col-sub { width: 20%; }
+
+.wh-print-doc--invoice table.lines thead th {
+  background: #000;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 14px 12px;
+}
+
+.wh-print-doc--invoice table.lines thead th.desc {
+  text-align: left;
+}
+
+.wh-print-doc--invoice table.lines thead th.num {
+  text-align: center;
+}
+
+.wh-print-doc--invoice table.lines thead th.amt {
+  text-align: right;
+}
+
+.wh-print-doc--invoice table.lines tbody td {
+  padding: 14px 12px;
+  border-bottom: none;
+  font-size: 13px;
+  color: #4b5563;
+  background: #fff;
+}
+
+.wh-print-doc--invoice table.lines tbody tr:nth-child(even) td {
+  background: #f3f4f6;
+}
+
+.wh-print-doc--invoice table.lines tbody td.desc {
+  text-align: left;
+}
+
+.wh-print-doc--invoice table.lines tbody td.num {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.wh-print-doc--invoice table.lines tbody td.amt {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.wh-print-doc--invoice .totals-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin-top: 24px;
+}
+
+.wh-print-doc--invoice .totals-table col.col-desc { width: 40%; }
+.wh-print-doc--invoice .totals-table col.col-unit { width: 20%; }
+.wh-print-doc--invoice .totals-table col.col-qty { width: 20%; }
+.wh-print-doc--invoice .totals-table col.col-sub { width: 20%; }
+
+.wh-print-doc--invoice .totals-table td {
+  padding: 8px 12px;
+  border: none;
+  font-size: 13px;
+  color: #111827;
+  vertical-align: middle;
+}
+
+.wh-print-doc--invoice .totals-table .tot-label {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.wh-print-doc--invoice .totals-table .amt {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.wh-print-doc--invoice .totals-table tr.rule-row td {
+  padding-top: 14px;
+  border-top: 1px solid #d1d5db;
+}
+
+.wh-print-doc--invoice .totals-table tr.grand td {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.wh-print-doc--invoice .inv-footer {
+  flex: 0 0 auto;
+  margin-top: auto;
+  padding: 16px 16mm 18px;
+  position: relative;
+  z-index: 1;
+}
+
+.wh-print-doc--invoice .disclaimer {
+  margin: 0;
+  text-align: center;
+  font-style: italic;
+  font-size: 14px;
+  color: #6b7280;
+  line-height: 1.4;
+}
+
+.wh-print-doc--invoice .accent-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 8px;
+  background: #e11d48;
+}
+
+.wh-print-doc--receipt,
+.wh-print-doc--packing {
+  max-width: 300px;
+  padding: 8px 4px 16px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #111;
+}
+
+.wh-print-doc--receipt .center,
+.wh-print-doc--packing .center {
+  text-align: center;
+}
+
+.wh-print-doc--receipt .store,
+.wh-print-doc--packing .store {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0 0 6px;
+}
+
+.wh-print-doc--receipt .muted,
+.wh-print-doc--packing .muted {
+  color: #666;
+  font-size: 11px;
+  margin: 2px 0;
+}
+
+.wh-print-doc--receipt .order-line,
+.wh-print-doc--packing .order-line {
+  margin: 12px 0 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.wh-print-doc--receipt .dash,
+.wh-print-doc--packing .dash {
+  border: none;
+  border-top: 1px dashed #bbb;
+  margin: 6px 0;
+}
+
+.wh-print-doc--receipt .solid {
+  border: none;
+  border-top: 1.5px solid #111;
+  margin: 6px 0 10px;
+}
+
+.wh-print-doc--receipt .section,
+.wh-print-doc--packing .section {
+  margin: 6px 0;
+  font-size: 11px;
+  text-align: left;
+}
+
+.wh-print-doc--receipt .section strong,
+.wh-print-doc--packing .section strong {
+  display: block;
+  margin-bottom: 2px;
+}
+
+.wh-print-doc--receipt .item,
+.wh-print-doc--packing .item {
+  padding: 8px 0;
+}
+
+.wh-print-doc--receipt .item-meta,
+.wh-print-doc--packing .item-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: #9a9a9a;
+  font-size: 11px;
+  margin-bottom: 3px;
+}
+
+.wh-print-doc--receipt .item-row,
+.wh-print-doc--packing .item-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.wh-print-doc--receipt .item-sub,
+.wh-print-doc--packing .item-sub {
+  color: #666;
+  font-size: 10px;
+  margin-top: 2px;
+}
+
+.wh-print-doc--receipt .row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 2px 0;
+  font-size: 12px;
+}
+
+.wh-print-doc--receipt .total-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  margin: 4px 0 10px;
+}
+
+.wh-print-doc--receipt .copy-label,
+.wh-print-doc--packing .copy-label {
+  text-align: center;
+  font-size: 12px;
+  margin: 8px 0 4px;
+}
+
+.wh-print-doc--receipt .thanks,
+.wh-print-doc--packing .thanks {
+  text-align: center;
+  font-size: 11px;
+  margin-top: 8px;
+  line-height: 1.45;
+}
+
+.wh-print-doc--receipt .barcode,
+.wh-print-doc--packing .barcode {
+  text-align: center;
+  margin-top: 6px;
+  letter-spacing: 2px;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .wh-print-doc,
+  .wh-print-doc * {
+    visibility: visible;
+  }
+
+  .wh-print-doc {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    max-width: none !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .wh-print-controls,
+  .wh-page-header,
+  .wh-sidebar,
+  .wh-topbar,
+  .wh-nav,
+  .wh-card__actions {
+    display: none !important;
+  }
+
+  .wh-print-doc--invoice .accent-corner,
+  .wh-print-doc--invoice .accent-bar,
+  .wh-print-doc--invoice .info-chip,
+  .wh-print-doc--invoice table.lines thead th,
+  .wh-print-doc--invoice table.lines tbody tr:nth-child(even) td {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+.wh-color-picker-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.wh-color-swatch {
+  width: 44px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.wh-color-picker-row .wh-field {
+  flex: 1;
+  margin: 0;
+}
+
+.wh-invoice-accent-preview {
+  position: relative;
+  height: 72px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: #fff;
+  overflow: hidden;
+}
+
+.wh-invoice-accent-preview__blob {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 50%;
+  height: 14px;
+  border-radius: 0 0 0 14px;
+  background: var(--accent, #e11d48);
+}
+
+.wh-invoice-accent-preview__bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 8px;
+  background: var(--accent, #e11d48);
+}
+
+.wh-catalog-picker--flush .wh-catalog-picker__head {
+  border-radius: var(--radius-md);
 }
 
 .wh-catalog-picker--fill {

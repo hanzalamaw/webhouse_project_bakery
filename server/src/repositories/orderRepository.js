@@ -11,11 +11,16 @@ function tw(alias, tenantId) {
 const ORDER_LIST_SELECT = `
   SELECT o.*,
          c.customer_name,
+         c.company_name AS customer_company,
+         c.phone AS customer_phone,
+         c.email AS customer_email,
          u.name AS created_by_name,
          b.branch_name,
          (SELECT op.payment_method FROM order_payments op
             WHERE op.order_id = o.id AND op.tenant_id = o.tenant_id AND op.deleted_at IS NULL
             ORDER BY op.id DESC LIMIT 1) AS payment_method,
+         (SELECT COALESCE(SUM(op.amount), 0) FROM order_payments op
+            WHERE op.order_id = o.id AND op.tenant_id = o.tenant_id AND op.deleted_at IS NULL) AS amount_paid,
          EXISTS (SELECT 1 FROM order_cancellations oc
             WHERE oc.order_id = o.id AND oc.tenant_id = o.tenant_id AND oc.deleted_at IS NULL) AS has_cancellation,
          EXISTS (SELECT 1 FROM order_returns ort

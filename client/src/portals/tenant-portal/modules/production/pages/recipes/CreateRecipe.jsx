@@ -471,27 +471,14 @@ export default function CreateRecipe() {
                   <FormField
                     id="yield_unit"
                     label="Yield unit (stock)"
-                    as="select"
                     value={
                       finished_items.find((i) => String(i.id) === String(form.item_id))?.unit ||
                       form.yield_unit ||
                       "piece"
                     }
-                    disabled
+                    displayOnly
                     title="Must match the finished item’s stock unit"
-                  >
-                    <option
-                      value={
-                        finished_items.find((i) => String(i.id) === String(form.item_id))?.unit ||
-                        form.yield_unit ||
-                        "piece"
-                      }
-                    >
-                      {finished_items.find((i) => String(i.id) === String(form.item_id))?.unit ||
-                        form.yield_unit ||
-                        "piece"}
-                    </option>
-                  </FormField>
+                  />
                   <div className="wh-field">
                     <span className="wh-field__label">Prep time</span>
                     <div className="wh-month-day-row">
@@ -607,13 +594,10 @@ export default function CreateRecipe() {
                             <FormField
                               id={`unit_${index}`}
                               label="Unit (stock)"
-                              as="select"
                               value={stockUnit}
-                              disabled
+                              displayOnly
                               title="Must match the item’s stock unit"
-                            >
-                              <option value={stockUnit}>{stockUnit}</option>
-                            </FormField>
+                            />
                             <FormField
                               id={`notes_${index}`}
                               label="Notes"

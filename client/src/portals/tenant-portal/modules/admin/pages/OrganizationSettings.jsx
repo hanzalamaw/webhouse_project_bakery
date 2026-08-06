@@ -73,12 +73,22 @@ function MonthDayFields({ month, day, onChange, idPrefix, disabled = false, t })
 const EMPTY_FORM = {
   company_name: "",
   logo_url: "",
+  company_address: "",
+  company_phone: "",
+  invoice_accent_color: "#E11D48",
   timezone: DEFAULT_TIMEZONE,
   currency: DEFAULT_CURRENCY,
   language: DEFAULT_LANGUAGE,
   fiscal_year_start: fiscalToStorage(1, 1),
   fiscal_year_end: fiscalToStorage(12, 31),
 };
+
+function normalizeAccentHex(value) {
+  const raw = String(value || "").trim();
+  if (/^#[0-9A-Fa-f]{6}$/.test(raw)) return raw.toUpperCase();
+  if (/^[0-9A-Fa-f]{6}$/.test(raw)) return `#${raw.toUpperCase()}`;
+  return "#E11D48";
+}
 
 export default function OrganizationSettings() {
   const { authFetch } = useAuth();
@@ -101,6 +111,9 @@ export default function OrganizationSettings() {
         const next = {
           company_name: data.company_name || "",
           logo_url: data.logo_url || "",
+          company_address: data.company_address || "",
+          company_phone: data.company_phone || "",
+          invoice_accent_color: normalizeAccentHex(data.invoice_accent_color),
           timezone: data.timezone || DEFAULT_TIMEZONE,
           currency: data.currency || DEFAULT_CURRENCY,
           language: normalizeLanguage(data.language),
@@ -141,6 +154,7 @@ export default function OrganizationSettings() {
     setSaving(true);
     setError("");
     setMessage("");
+    const accent = normalizeAccentHex(form.invoice_accent_color);
     try {
       await apiFetch(
         "/tenant/organization-settings",
@@ -149,6 +163,9 @@ export default function OrganizationSettings() {
           body: JSON.stringify({
             company_name: form.company_name.trim(),
             logo_url: form.logo_url.trim() || null,
+            company_address: form.company_address.trim() || null,
+            company_phone: form.company_phone.trim() || null,
+            invoice_accent_color: accent,
             timezone: form.timezone || DEFAULT_TIMEZONE,
             currency: form.currency || DEFAULT_CURRENCY,
             language: normalizeLanguage(form.language),
@@ -158,8 +175,10 @@ export default function OrganizationSettings() {
         },
         authFetch
       );
+      const next = { ...form, invoice_accent_color: accent };
+      setForm(next);
       setMessage(t("org.saved"));
-      setBaseline(JSON.stringify(form));
+      setBaseline(JSON.stringify(next));
       window.dispatchEvent(new CustomEvent("tenant-org-updated"));
     } catch (err) {
       setError(err.message || t("org.saveFailed"));
@@ -216,6 +235,22 @@ export default function OrganizationSettings() {
                     />
                   </div>
                 )}
+                <FormField
+                  id="company_address"
+                  label={t("org.companyAddress")}
+                  value={form.company_address}
+                  onChange={(e) => setForm((f) => ({ ...f, company_address: e.target.value }))}
+                  placeholder="Street, city"
+                  disabled={!canEdit}
+                />
+                <FormField
+                  id="company_phone"
+                  label={t("org.companyPhone")}
+                  value={form.company_phone}
+                  onChange={(e) => setForm((f) => ({ ...f, company_phone: e.target.value }))}
+                  placeholder="+92…"
+                  disabled={!canEdit}
+                />
                 <SearchableSelect
                   id="timezone"
                   label={t("org.timezone")}
@@ -248,6 +283,54 @@ export default function OrganizationSettings() {
                     </option>
                   ))}
                 </FormField>
+              </div>
+            </FormBlock>
+            <FormBlock title={t("org.invoiceBranding")} description={t("org.invoiceBrandingDesc")}>
+              <div className="wh-form-grid">
+                <div className="wh-field">
+                  <label className="wh-field__label" htmlFor="invoice_accent_color">
+                    {t("org.invoiceAccentColor")}
+                  </label>
+                  <div className="wh-color-picker-row">
+                    <input
+                      id="invoice_accent_color_swatch"
+                      type="color"
+                      className="wh-color-swatch"
+                      value={normalizeAccentHex(form.invoice_accent_color)}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, invoice_accent_color: e.target.value.toUpperCase() }))
+                      }
+                      disabled={!canEdit}
+                      aria-label={t("org.invoiceAccentColor")}
+                    />
+                    <FormField
+                      id="invoice_accent_color"
+                      value={form.invoice_accent_color}
+                      onChange={(e) => setForm((f) => ({ ...f, invoice_accent_color: e.target.value }))}
+                      onBlur={() =>
+                        setForm((f) => ({
+                          ...f,
+                          invoice_accent_color: normalizeAccentHex(f.invoice_accent_color),
+                        }))
+                      }
+                      placeholder="#E11D48"
+                      disabled={!canEdit}
+                    />
+                  </div>
+                  <p className="wh-muted" style={{ marginTop: 6 }}>
+                    {t("org.invoiceAccentHint")}
+                  </p>
+                </div>
+                <div className="wh-field">
+                  <span className="wh-field__label">Preview</span>
+                  <div
+                    className="wh-invoice-accent-preview"
+                    style={{ "--accent": normalizeAccentHex(form.invoice_accent_color) }}
+                  >
+                    <span className="wh-invoice-accent-preview__blob" />
+                    <span className="wh-invoice-accent-preview__bar" />
+                  </div>
+                </div>
               </div>
             </FormBlock>
             <FormBlock title={t("org.fiscalYear")} description={t("org.fiscalYearDesc")}>

@@ -72,10 +72,17 @@ export function SearchableSelect({
     inputRef.current?.focus();
   };
 
+  const openList = () => {
+    if (disabled || loading) return;
+    setOpen(true);
+    setQuery("");
+  };
+
   const closeIfFocusLeft = () => {
     requestAnimationFrame(() => {
       if (!rootRef.current?.contains(document.activeElement)) {
         setOpen(false);
+        setQuery("");
       }
     });
   };
@@ -94,18 +101,13 @@ export function SearchableSelect({
           type="text"
           className="wh-field__input wh-search-select__input"
           value={loading ? loadingText : displayValue}
-          placeholder={loading ? loadingText : placeholderText}
+          placeholder={loading ? loadingText : (open ? placeholderText || "Type to search…" : (selected?.label ? "" : placeholderText))}
           disabled={disabled || loading}
           autoComplete="off"
           role="combobox"
           aria-expanded={open}
           aria-autocomplete="list"
-          onFocus={() => {
-            if (!disabled && !loading) {
-              setOpen(true);
-              setQuery(selected?.label || "");
-            }
-          }}
+          onFocus={() => openList()}
           onChange={(e) => {
             setQuery(e.target.value);
             setOpen(true);
@@ -113,14 +115,12 @@ export function SearchableSelect({
           onKeyDown={(e) => {
             if (e.key === "Escape") {
               setOpen(false);
+              setQuery("");
               return;
             }
             if (e.key === "ArrowDown" || e.key === "ArrowUp") {
               e.preventDefault();
-              if (!open) {
-                setOpen(true);
-                setQuery(selected?.label || "");
-              }
+              if (!open) openList();
               const buttons = rootRef.current?.querySelectorAll(".wh-search-select__option");
               if (!buttons?.length) return;
               const active = document.activeElement;
@@ -135,7 +135,10 @@ export function SearchableSelect({
               e.preventDefault();
               pick(filtered[0]);
             }
-            if (e.key === "Tab") setOpen(false);
+            if (e.key === "Tab") {
+              setOpen(false);
+              setQuery("");
+            }
           }}
         />
         <button
@@ -146,9 +149,11 @@ export function SearchableSelect({
           aria-label={open ? "Close list" : "Open list"}
           onClick={() => {
             if (disabled || loading) return;
-            setOpen((v) => !v);
-            if (!open) {
-              setQuery(selected?.label || "");
+            if (open) {
+              setOpen(false);
+              setQuery("");
+            } else {
+              openList();
               inputRef.current?.focus();
             }
           }}
