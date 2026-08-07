@@ -44,11 +44,23 @@ export const productionService = {
   RUN_STATUSES,
 
   async dashboard(tenantId) {
-    const [stats, recent_runs] = await Promise.all([
-      productionRepository.dashboardStats(tenantId),
-      productionRepository.listRuns(tenantId, { limit: 8, offset: 0 }),
-    ]);
-    return { stats, recent_runs: recent_runs.rows };
+    const [stats, recent_runs, top_items, runs_by_status, bakes_by_branch, recent_recipes] =
+      await Promise.all([
+        productionRepository.dashboardStats(tenantId),
+        productionRepository.listRuns(tenantId, { limit: 8, offset: 0 }),
+        productionRepository.dashboardTopItems(tenantId, { days: 30, limit: 8 }),
+        productionRepository.dashboardRunsByStatus(tenantId),
+        productionRepository.dashboardBakesByBranch(tenantId, { days: 30 }),
+        productionRepository.dashboardRecentRecipes(tenantId, { limit: 6 }),
+      ]);
+    return {
+      stats,
+      recent_runs: recent_runs.rows,
+      top_items,
+      runs_by_status,
+      bakes_by_branch,
+      recent_recipes,
+    };
   },
 
   async referenceData(tenantId) {

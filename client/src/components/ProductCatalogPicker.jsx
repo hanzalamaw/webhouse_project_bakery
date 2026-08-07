@@ -83,6 +83,22 @@ export default function ProductCatalogPicker({
     return (selectedIds || []).map(String);
   }, [value, selectedIds]);
 
+  const selectedCountByCategory = useMemo(() => {
+    const counts = { all: 0 };
+    if (!activeIds.length) return counts;
+    const selected = new Set(activeIds);
+    for (const p of list) {
+      const id = productId(p);
+      if (!id || !selected.has(id)) continue;
+      counts.all += 1;
+      const cat = p.category_name || "";
+      if (cat) counts[cat] = (counts[cat] || 0) + 1;
+    }
+    return counts;
+  }, [list, activeIds]);
+
+  const showTagCounts = mode === "single" || mode === "multi";
+
   const hint =
     description ??
     [
@@ -106,6 +122,13 @@ export default function ProductCatalogPicker({
 
   const isSelected = (product) => activeIds.includes(productId(product));
   const hasHeadActions = showRefresh || (onAddNew && !disabled);
+
+  const categoryLabel = (category) => {
+    const name = category === "all" ? "All" : category;
+    if (!showTagCounts) return name;
+    const count = category === "all" ? selectedCountByCategory.all : selectedCountByCategory[category] || 0;
+    return `${name} (${count})`;
+  };
 
   return (
     <section className={`wh-catalog-picker ${className}`.trim()}>
@@ -161,7 +184,7 @@ export default function ProductCatalogPicker({
                 onClick={() => setActiveCategory(category)}
                 disabled={disabled}
               >
-                {category === "all" ? "All" : category}
+                {categoryLabel(category)}
               </button>
             );
           })}
@@ -218,12 +241,6 @@ export default function ProductCatalogPicker({
         )}
       </div>
 
-      {mode === "multi" && activeIds.length > 0 ? (
-        <p className="wh-muted wh-catalog-picker__count">{activeIds.length} selected</p>
-      ) : null}
-      {mode === "single" && activeIds.length > 0 ? (
-        <p className="wh-muted wh-catalog-picker__count">1 selected</p>
-      ) : null}
     </section>
   );
 }

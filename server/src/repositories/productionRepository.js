@@ -222,12 +222,82 @@ export const productionRepository = {
     const [[stats]] = await readDb.query(
       `SELECT
          (SELECT COUNT(*) FROM recipes WHERE tenant_id = ? AND deleted_at IS NULL) AS recipe_count,
+         (SELECT COUNT(*) FROM recipes WHERE tenant_id = ? AND deleted_at IS NULL AND status = 'active') AS active_recipe_count,
          (SELECT COUNT(*) FROM production_runs WHERE tenant_id = ? AND deleted_at IS NULL) AS run_count,
          (SELECT COUNT(*) FROM production_runs WHERE tenant_id = ? AND deleted_at IS NULL AND DATE(produced_on) = CURDATE()) AS runs_today,
          (SELECT COALESCE(SUM(quantity_produced),0) FROM production_runs WHERE tenant_id = ? AND deleted_at IS NULL AND DATE(produced_on) = CURDATE()) AS produced_today,
-         (SELECT COALESCE(SUM(total_cost),0) FROM production_runs WHERE tenant_id = ? AND deleted_at IS NULL AND produced_on >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)) AS cost_30d`,
-      Array(5).fill(tenantId)
+         (SELECT COUNT(*) FROM production_runs WHERE tenant_id = ? AND deleted_at IS NULL AND produced_on >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) AND status != 'cancelled') AS runs_7d,
+         (SELECT COALESCE(SUM(quantity_produced),0) FROM production_runs WHERE tenant_id = ? AND deleted_at IS NULL AND produced_on >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) AND status != 'cancelled') AS produced_7d,
+         (SELECT COALESCE(SUM(quantity_produced),0) FROM production_runs WHERE tenant_id = ? AND deleted_at IS NULL AND produced_on >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) AND status != 'cancelled') AS produced_30d,
+         (SELECT COALESCE(SUM(total_cost),0) FROM production_runs WHERE tenant_id = ? AND deleted_at IS NULL AND produced_on >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) AND status != 'cancelled') AS cost_30d,
+         (SELECT COALESCE(AVG(total_cost),0) FROM production_runs WHERE tenant_id = ? AND deleted_at IS NULL AND produced_on >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) AND status != 'cancelled') AS avg_cost_30d,
+         (SELECT COUNT(*) FROM production_runs WHERE tenant_id = ? AND deleted_at IS NULL AND status = 'cancelled') AS cancelled_count,
+         (SELECT COUNT(DISTINCT item_id) FROM recipes WHERE tenant_id = ? AND deleted_at IS NULL AND status = 'active') AS finished_with_recipe`,
+      Array(12).fill(tenantId)
     );
     return stats;
+  },
+
+  async dashboardTopItems(tenantId, { days = 30, limit = 8 } = {}) {
+    const [rows] = await readDb.query(
+      `SELECT i.item_name AS label,
+              COALESCE(SUM(pr.quantity_produced), 0) AS qty,
+              COUNT(*) AS bake_count,
+              COALESCE(SUM(pr.total_cost), 0) AS cost
+       FROM production_runs pr
+       JOIN items i ON i.id = pr.item_id AND i.deleted_at IS NULL
+       WHERE pr.tenant_id = ? AND pr.deleted_at IS NULL
+         AND pr.status != 'cancelled'
+         AND pr.produced_on >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+       GROUP BY pr.item_id, i.item_name
+       ORDER BY qty DESC
+       LIMIT ?`,
+      [tenantId, days, limit]
+    );
+    return rows;
+  },
+
+  async dashboardRunsByStatus(tenantId) {
+    const [rows] = await readDb.query(
+      `SELECT status AS label, COUNT(*) AS value
+       FROM production_runs
+       WHERE tenant_id = ? AND deleted_at IS NULL
+       GROUP BY status
+       ORDER BY value DESC`,
+      [tenantId]
+    );
+    return rows;
+  },
+
+  async dashboardBakesByBranch(tenantId, { days = 30 } = {}) {
+    const [rows] = await readDb.query(
+      `SELECT br.branch_name AS label,
+              COUNT(*) AS bake_count,
+              COALESCE(SUM(pr.quantity_produced), 0) AS qty,
+              COALESCE(SUM(pr.total_cost), 0) AS cost
+       FROM production_runs pr
+       JOIN branches br ON br.id = pr.branch_id AND br.deleted_at IS NULL
+       WHERE pr.tenant_id = ? AND pr.deleted_at IS NULL
+         AND pr.status != 'cancelled'
+         AND pr.produced_on >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+       GROUP BY pr.branch_id, br.branch_name
+       ORDER BY qty DESC`,
+      [tenantId, days]
+    );
+    return rows;
+  },
+
+  async dashboardRecentRecipes(tenantId, { limit = 6 } = {}) {
+    const [rows] = await readDb.query(
+      `SELECT r.id, r.recipe_name, r.yield_qty, r.yield_unit, r.status, r.updated_at, r.created_at,
+              i.item_name AS finished_item_name
+       FROM recipes r
+       JOIN items i ON i.id = r.item_id AND i.deleted_at IS NULL
+       WHERE r.tenant_id = ? AND r.deleted_at IS NULL
+       ORDER BY COALESCE(r.updated_at, r.created_at) DESC
+       LIMIT ?`,
+      [tenantId, limit]
+    );
+    return rows;
   },
 };
