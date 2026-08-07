@@ -113,11 +113,12 @@ export const financeService = {
       const expenseId = await financeRepository.createExpense(tenantId, {
         expense_title: row.title,
         amount: row.amount,
-        payment_method: row.bank_account_id ? "bank_transfer" : "other",
+        payment_method: row.bank_account_id ? "bank_transfer" : "cash",
         expense_date: row.next_due_date,
         notes: `Auto-deducted recurring expense #${row.id}`,
         category_id: row.category_id,
         sub_category_id: row.sub_category_id,
+        bank_account_id: row.bank_account_id || null,
       });
 
       if (row.bank_account_id) {
@@ -127,7 +128,7 @@ export const financeService = {
       await financeRepository.createTransaction(tenantId, {
         transaction_type: TRANSACTION_TYPES.RECURRING_EXPENSE,
         amount: row.amount,
-        payment_method: row.bank_account_id ? "bank_transfer" : "other",
+        payment_method: row.bank_account_id ? "bank_transfer" : "cash",
         reference: `recurring:${row.id}`,
         notes: `Recurring: ${row.title} (expense #${expenseId})`,
         transaction_at: new Date(),
@@ -241,12 +242,34 @@ export const financeService = {
     ]).then(([, categories, subCategories]) => ({ categories, sub_categories: subCategories }));
   },
 
+  async resolveExpensePayment(tenantId, body) {
+    const payment_method = body.payment_method || "cash";
+    let bank_account_id = null;
+    if (payment_method === "bank_transfer") {
+      bank_account_id = Number(body.bank_account_id);
+      if (!bank_account_id) throw new Error("Select the bank account for this expense.");
+      const account = await financeRepository.getBankAccount(tenantId, bank_account_id);
+      if (!account) throw new Error("Bank account not found");
+    }
+    return { payment_method, bank_account_id };
+  },
+
   async createExpense(tenantId, body) {
-    const id = await financeRepository.createExpense(tenantId, body);
+    const { payment_method, bank_account_id } = await this.resolveExpensePayment(tenantId, body);
+    const amount = Number(body.amount) || 0;
+    const id = await financeRepository.createExpense(tenantId, {
+      ...body,
+      amount,
+      payment_method,
+      bank_account_id,
+    });
+    if (bank_account_id) {
+      await financeRepository.adjustBankBalance(tenantId, bank_account_id, -amount);
+    }
     await financeRepository.createTransaction(tenantId, {
       transaction_type: TRANSACTION_TYPES.EXPENSE,
-      amount: body.amount,
-      payment_method: body.payment_method,
+      amount,
+      payment_method,
       reference: `expense:${id}`,
       notes: body.expense_title,
       transaction_at: body.expense_date,
@@ -255,8 +278,26 @@ export const financeService = {
   },
 
   async updateExpense(tenantId, id, body) {
-    const ok = await financeRepository.updateExpense(tenantId, id, body);
-    return ok ? financeRepository.getExpense(tenantId, id) : null;
+    const existing = await financeRepository.getExpense(tenantId, id);
+    if (!existing) return null;
+    const { payment_method, bank_account_id } = await this.resolveExpensePayment(tenantId, body);
+    const amount = Number(body.amount) || 0;
+    const prevAmount = Number(existing.amount) || 0;
+    const prevBankId = existing.bank_account_id ? Number(existing.bank_account_id) : null;
+    if (prevBankId) {
+      await financeRepository.adjustBankBalance(tenantId, prevBankId, prevAmount);
+    }
+    const ok = await financeRepository.updateExpense(tenantId, id, {
+      ...body,
+      amount,
+      payment_method,
+      bank_account_id,
+    });
+    if (!ok) return null;
+    if (bank_account_id) {
+      await financeRepository.adjustBankBalance(tenantId, bank_account_id, -amount);
+    }
+    return financeRepository.getExpense(tenantId, id);
   },
 
   deleteExpense(tenantId, id) {

@@ -10,7 +10,8 @@ import { Button } from "../../../../../components/Button";
 import { RecordViewSummary, DetailGrid, DetailValue } from "../../../../../components/RecordView";
 import { formatPKR } from "../../../../../utils/currency";
 import { formatDate } from "../../../../../utils/dateTime";
-import { MODULE_BASE, PAYMENT_METHOD_LABELS, labelFor } from "../constants";
+import { MODULE_BASE, PAYMENT_METHOD_LABELS } from "../constants";
+import { formatPaymentViaLabel } from "../../../../../utils/paymentVia";
 
 export default function ViewExpense() {
   const { expenseId } = useParams();
@@ -86,7 +87,7 @@ export default function ViewExpense() {
               <DetailValue label="Date">{formatDate(expense.expense_date)}</DetailValue>
               <DetailValue label="Category">{expense.category_name}</DetailValue>
               <DetailValue label="Sub-category">{expense.sub_category_name || "—"}</DetailValue>
-              <DetailValue label="Payment method">{labelFor(PAYMENT_METHOD_LABELS, expense.payment_method)}</DetailValue>
+              <DetailValue label="Payment via">{formatPaymentViaLabel(expense, PAYMENT_METHOD_LABELS)}</DetailValue>
               <DetailValue label="Notes" fullWidth multiline>{expense.notes || "—"}</DetailValue>
             </DetailGrid>
           </FormBlock>

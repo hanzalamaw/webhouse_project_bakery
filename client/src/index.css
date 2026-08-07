@@ -5698,3 +5698,125 @@ select.wh-field__input option {
   flex: 1;
   max-height: none !important;
 }
+
+/* Finance — expense categories */
+.wh-finance-category-add-card .wh-card__title {
+  margin: 0 0 12px;
+}
+
+.wh-finance-category-add-form,
+.wh-finance-subcategory-add-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.wh-finance-category-add-form__field,
+.wh-finance-subcategory-add-form__field {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.wh-finance-category-add-form .wh-field,
+.wh-finance-subcategory-add-form .wh-field {
+  margin: 0;
+}
+
+.wh-finance-category-add-form .wh-btn,
+.wh-finance-subcategory-add-form .wh-btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  align-self: flex-end;
+  margin-bottom: 2px;
+}
+
+.wh-finance-category-list-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.wh-finance-category-empty {
+  margin: 0;
+  padding: 18px 20px;
+}
+
+.wh-finance-category-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.wh-finance-category-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  padding: 14px 18px;
+  border: 0;
+  border-bottom: 1px solid var(--border-color);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.wh-finance-category-list li:last-child .wh-finance-category-row {
+  border-bottom: none;
+}
+
+.wh-finance-category-row:hover {
+  background: var(--surface-muted, rgba(15, 23, 42, 0.04));
+}
+
+.wh-finance-category-row__main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.wh-finance-category-row__name {
+  font-weight: 600;
+  color: var(--text-primary, #0f172a);
+}
+
+.wh-finance-category-row__meta {
+  font-size: var(--text-sm, 0.875rem);
+  color: var(--text-muted, #64748b);
+}
+
+.wh-finance-category-row__action {
+  flex-shrink: 0;
+  font-size: var(--text-sm, 0.875rem);
+  font-weight: 600;
+  color: var(--color-accent, var(--accent, #e11d48));
+}
+
+.wh-finance-subcategory-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.wh-finance-subcategory-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.wh-finance-subcategory-list__item {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--card-bg, #fff);
+}
+
+.wh-finance-subcategory-list__item:last-child {
+  border-bottom: none;
+}
+

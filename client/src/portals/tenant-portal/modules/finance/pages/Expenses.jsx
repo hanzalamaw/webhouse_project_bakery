@@ -13,12 +13,13 @@ import { EMPTY_TOOLBAR } from "../../../../../utils/tableFilters";
 import { useToolbarFilteredRows } from "../../../../../hooks/useToolbarFilteredRows";
 import { formatPKR } from "../../../../../utils/currency";
 import { formatDate } from "../../../../../utils/dateTime";
-import { MODULE_BASE, PAYMENT_METHOD_LABELS, labelFor } from "../constants";
+import { MODULE_BASE, PAYMENT_METHOD_LABELS } from "../constants";
+import { formatPaymentViaLabel } from "../../../../../utils/paymentVia";
 
 const TOOLBAR_FILTERS = [
   { key: "expense_title", label: "Title" },
   { key: "category_name", label: "Category" },
-  { key: "payment_method", label: "Method" },
+  { key: "payment_via_label", label: "Paid via" },
 ];
 
 export default function Expenses() {
@@ -39,7 +40,13 @@ export default function Expenses() {
     setLoading(true);
     setError("");
     try {
-      setRows(await fetchAllTableRows("/finance/expenses", authFetch));
+      const data = await fetchAllTableRows("/finance/expenses", authFetch);
+      setRows(
+        (data || []).map((row) => ({
+          ...row,
+          payment_via_label: formatPaymentViaLabel(row, PAYMENT_METHOD_LABELS),
+        }))
+      );
     } catch (e) {
       setError(e.message);
       setRows([]);
@@ -70,7 +77,7 @@ export default function Expenses() {
     { key: "expense_title", label: "Title" },
     { key: "category_name", label: "Category" },
     { key: "sub_category_name", label: "Sub-category", format: (v) => v || "—" },
-    { key: "payment_method", label: "Method", format: (v) => labelFor(PAYMENT_METHOD_LABELS, v) },
+    { key: "payment_via_label", label: "Paid via" },
     { key: "amount", label: "Amount", format: (v) => formatPKR(v) },
     {
       label: "Actions",

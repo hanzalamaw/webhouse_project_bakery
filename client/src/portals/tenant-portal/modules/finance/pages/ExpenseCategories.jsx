@@ -102,8 +102,8 @@ export default function ExpenseCategories() {
   const selectedSubs = selectedCategory ? subsFor(selectedCategory.id) : [];
 
   return (
-    <div className="wh-page">
-      <FormPageLayout>
+    <div className="wh-page wh-page--wide">
+      <FormPageLayout wide>
         <PageHeader
           title="Expense categories"
           description="Organize expenses with categories and sub-categories. Pick them when recording expenses or recurring schedules."
@@ -114,46 +114,55 @@ export default function ExpenseCategories() {
           <Card className="wh-finance-category-add-card">
             <h3 className="wh-card__title">New category</h3>
             <form className="wh-finance-category-add-form" onSubmit={addCategory}>
-              <FormField
-                id="new-expense-category"
-                label="Category name"
-                value={newCategory}
-                onChange={(e) => setNewCategory(e.target.value)}
-                disabled={!canCreate || savingCategory}
-                placeholder="e.g. Office supplies"
-              />
+              <div className="wh-finance-category-add-form__field">
+                <FormField
+                  id="new-expense-category"
+                  label="Category name"
+                  value={newCategory}
+                  onChange={(e) => setNewCategory(e.target.value)}
+                  disabled={!canCreate || savingCategory}
+                  placeholder="e.g. Office supplies"
+                />
+              </div>
               <Button type="submit" disabled={!canCreate || savingCategory || !newCategory.trim()}>
                 {savingCategory ? "Adding…" : "Add category"}
               </Button>
             </form>
           </Card>
 
-          {loading ? (
-            <p className="wh-muted">Loading categories…</p>
-          ) : categories.length === 0 ? (
-            <Card><p className="wh-muted" style={{ margin: 0 }}>No categories yet. Add your first category above.</p></Card>
-          ) : (
-            <Card>
-              <div className="wh-finance-category-list">
+          <Card className="wh-finance-category-list-card">
+            <div className="wh-card-table__head">
+              <h3 className="wh-card__title">All categories</h3>
+            </div>
+            {loading ? (
+              <p className="wh-muted wh-finance-category-empty">Loading categories…</p>
+            ) : categories.length === 0 ? (
+              <p className="wh-muted wh-finance-category-empty">No categories yet. Add your first category above.</p>
+            ) : (
+              <ul className="wh-finance-category-list">
                 {categories.map((cat) => {
                   const count = subsFor(cat.id).length;
                   return (
-                    <button
-                      key={cat.id}
-                      type="button"
-                      className="wh-finance-category-row"
-                      onClick={() => openCategory(cat)}
-                    >
-                      <span className="wh-finance-category-row__name">{cat.category_name}</span>
-                      <span className="wh-finance-category-row__meta">
-                        {count} sub-categor{count === 1 ? "y" : "ies"}
-                      </span>
-                    </button>
+                    <li key={cat.id}>
+                      <button
+                        type="button"
+                        className="wh-finance-category-row"
+                        onClick={() => openCategory(cat)}
+                      >
+                        <span className="wh-finance-category-row__main">
+                          <span className="wh-finance-category-row__name">{cat.category_name}</span>
+                          <span className="wh-finance-category-row__meta">
+                            {count} sub-categor{count === 1 ? "y" : "ies"}
+                          </span>
+                        </span>
+                        <span className="wh-finance-category-row__action">Manage</span>
+                      </button>
+                    </li>
                   );
                 })}
-              </div>
-            </Card>
-          )}
+              </ul>
+            )}
+          </Card>
         </div>
 
         <Modal
@@ -168,7 +177,7 @@ export default function ExpenseCategories() {
           }
         >
           {selectedCategory && (
-            <>
+            <div className="wh-finance-subcategory-modal">
               {selectedSubs.length === 0 ? (
                 <p className="wh-muted" style={{ marginTop: 0 }}>No sub-categories yet. Add one below.</p>
               ) : (
@@ -182,22 +191,24 @@ export default function ExpenseCategories() {
               )}
 
               <form className="wh-finance-subcategory-add-form" onSubmit={addSubCategory}>
-                <FormField
-                  id="new-expense-subcategory"
-                  label="Add sub-category"
-                  value={newSubCategory}
-                  onChange={(e) => setNewSubCategory(e.target.value)}
-                  disabled={!canCreate || savingSubCategory}
-                  placeholder="e.g. Stationery"
-                />
+                <div className="wh-finance-subcategory-add-form__field">
+                  <FormField
+                    id="new-expense-subcategory"
+                    label="Add sub-category"
+                    value={newSubCategory}
+                    onChange={(e) => setNewSubCategory(e.target.value)}
+                    disabled={!canCreate || savingSubCategory}
+                    placeholder="e.g. Stationery"
+                  />
+                </div>
                 <Button
                   type="submit"
                   disabled={!canCreate || savingSubCategory || !newSubCategory.trim()}
                 >
-                  {savingSubCategory ? "Adding…" : "Add sub-category"}
+                  {savingSubCategory ? "Adding…" : "Add"}
                 </Button>
               </form>
-            </>
+            </div>
           )}
         </Modal>
       </FormPageLayout>

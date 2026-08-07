@@ -403,10 +403,12 @@ export const financeRepository = {
 
   async listExpenses(tenantId) {
     const [rows] = await readDb.query(
-      `SELECT e.*, c.category_name, sc.sub_category_name
+      `SELECT e.*, c.category_name, sc.sub_category_name,
+              ba.bank_name, ba.account_title, ba.account_number
        FROM finance_expenses e
        INNER JOIN finance_expense_categories c ON c.id = e.category_id AND ${joinOnTenant("e", "c")}
        LEFT JOIN finance_expense_sub_categories sc ON sc.id = e.sub_category_id AND ${joinOnTenant("e", "sc")}
+       LEFT JOIN finance_bank_accounts ba ON ba.id = e.bank_account_id AND ${joinOnTenant("e", "ba")}
        WHERE ${tw("e", tenantId)}
        ORDER BY e.expense_date DESC, e.id DESC`,
       [tenantId]
@@ -416,10 +418,12 @@ export const financeRepository = {
 
   async getExpense(tenantId, id) {
     const [rows] = await readDb.query(
-      `SELECT e.*, c.category_name, sc.sub_category_name
+      `SELECT e.*, c.category_name, sc.sub_category_name,
+              ba.bank_name, ba.account_title, ba.account_number
        FROM finance_expenses e
        INNER JOIN finance_expense_categories c ON c.id = e.category_id AND ${joinOnTenant("e", "c")}
        LEFT JOIN finance_expense_sub_categories sc ON sc.id = e.sub_category_id AND ${joinOnTenant("e", "sc")}
+       LEFT JOIN finance_bank_accounts ba ON ba.id = e.bank_account_id AND ${joinOnTenant("e", "ba")}
        WHERE e.id = ? AND ${tw("e", tenantId)} LIMIT 1`,
       [id, tenantId]
     );
@@ -429,8 +433,8 @@ export const financeRepository = {
   async createExpense(tenantId, data) {
     const [result] = await writeDb.query(
       `INSERT INTO finance_expenses
-       (expense_title, amount, payment_method, expense_date, notes, category_id, sub_category_id, tenant_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+       (expense_title, amount, payment_method, expense_date, notes, category_id, sub_category_id, bank_account_id, tenant_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         data.expense_title,
         Number(data.amount) || 0,
@@ -439,6 +443,7 @@ export const financeRepository = {
         data.notes || null,
         data.category_id,
         data.sub_category_id || null,
+        data.bank_account_id || null,
         tenantId,
       ]
     );
@@ -449,7 +454,7 @@ export const financeRepository = {
     const [result] = await writeDb.query(
       `UPDATE finance_expenses
        SET expense_title = ?, amount = ?, payment_method = ?, expense_date = ?, notes = ?,
-           category_id = ?, sub_category_id = ?
+           category_id = ?, sub_category_id = ?, bank_account_id = ?
        WHERE id = ? AND ${tw("finance_expenses", tenantId)}`,
       [
         data.expense_title,
@@ -459,6 +464,7 @@ export const financeRepository = {
         data.notes || null,
         data.category_id,
         data.sub_category_id || null,
+        data.bank_account_id || null,
         id,
         tenantId,
       ]

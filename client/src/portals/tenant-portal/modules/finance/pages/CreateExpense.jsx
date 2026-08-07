@@ -9,15 +9,17 @@ import { FormPageLayout, FormPageAlerts, FormActions } from "../../../../../comp
 import { FormBlock } from "../../../../../components/FormBlock";
 import { FormField } from "../../../../../components/FormField";
 import { Button } from "../../../../../components/Button";
+import { PaymentViaSelect } from "../../../../../components/PaymentViaSelect";
 import { UnsavedChangesDialog } from "../../../../../components/UnsavedChangesDialog";
 import { useFormUnsavedGuard } from "../../../../../hooks/useFormUnsavedGuard";
-import { MODULE_BASE, EXPENSE_PAYMENT_METHODS, PAYMENT_METHOD_LABELS } from "../constants";
+import { encodePaymentVia, parsePaymentVia } from "../../../../../utils/paymentVia";
+import { MODULE_BASE } from "../constants";
 import { toInputDate } from "../../../../../utils/billing";
 
 const emptyForm = () => ({
   expense_title: "",
   amount: "",
-  payment_method: "cash",
+  payment_via: "cash",
   expense_date: toInputDate(new Date()),
   notes: "",
   category_id: "",
@@ -56,7 +58,10 @@ export default function CreateExpense() {
           const next = {
             expense_title: row.expense_title || "",
             amount: String(row.amount ?? ""),
-            payment_method: row.payment_method || "cash",
+            payment_via: encodePaymentVia({
+              payment_method: row.payment_method || "cash",
+              bank_account_id: row.bank_account_id,
+            }),
             expense_date: toInputDate(row.expense_date),
             notes: row.notes || "",
             category_id: String(row.category_id || ""),
@@ -93,9 +98,14 @@ export default function CreateExpense() {
     setSaving(true);
     setError("");
     try {
+      const { payment_method, bank_account_id } = parsePaymentVia(form.payment_via);
       const body = {
-        ...form,
+        expense_title: form.expense_title,
         amount: Number(form.amount),
+        payment_method,
+        bank_account_id,
+        expense_date: form.expense_date,
+        notes: form.notes,
         category_id: Number(form.category_id),
         sub_category_id: form.sub_category_id ? Number(form.sub_category_id) : null,
       };
@@ -128,7 +138,7 @@ export default function CreateExpense() {
         />
         <FormPageAlerts error={error} message={message} />
         <form className="wh-form-stack" onSubmit={submit}>
-          <FormBlock title="Expense details" description="Title, amount, category, and payment method. Sub-category is optional for finer reporting.">
+          <FormBlock title="Expense details" description="Title, amount, category, and payment via. Sub-category is optional for finer reporting.">
             <div className="wh-form-grid">
               <FormField id="expense_title" label="Title" value={form.expense_title} onChange={(e) => setForm((f) => ({ ...f, expense_title: e.target.value }))} required disabled={disabled} />
               <FormField id="amount" label={amountLabel("Amount")} type="number" step="0.01" min="0" value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))} required disabled={disabled} />
@@ -140,9 +150,13 @@ export default function CreateExpense() {
                 <option value="">{filteredSubs.length ? "—" : "No sub-categories for this category"}</option>
                 {filteredSubs.map((s) => <option key={s.id} value={s.id}>{s.sub_category_name}</option>)}
               </FormField>
-              <FormField id="payment_method" label="Payment method" as="select" value={form.payment_method} onChange={(e) => setForm((f) => ({ ...f, payment_method: e.target.value }))} disabled={disabled}>
-                {EXPENSE_PAYMENT_METHODS.map((m) => <option key={m} value={m}>{PAYMENT_METHOD_LABELS[m] || m}</option>)}
-              </FormField>
+              <PaymentViaSelect
+                authFetch={authFetch}
+                value={form.payment_via}
+                onChange={(e) => setForm((f) => ({ ...f, payment_via: e.target.value }))}
+                disabled={disabled}
+                required
+              />
               <FormField id="expense_date" label="Expense date" type="date" value={form.expense_date} onChange={(e) => setForm((f) => ({ ...f, expense_date: e.target.value }))} required disabled={disabled} />
             </div>
           </FormBlock>
