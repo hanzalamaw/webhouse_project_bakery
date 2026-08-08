@@ -5,6 +5,7 @@ import { API_BASE } from "../../../config/api";
 import { FormField } from "../../../components/FormField";
 import { Button } from "../../../components/Button";
 import { Modal } from "../../../components/Modal";
+import { LoginFooter, LoginTermsAgree } from "../../../components/LoginLegal";
 import { formatDateTime } from "../../../utils/dateTime";
 import { friendlyError } from "../../../utils/friendlyError";
 import "../../wh-portal/pages/Login.css";
@@ -14,6 +15,7 @@ const PORTAL_LABELS = { erp1: "ERP 1", erp2: "ERP 2", erp3: "ERP 3" };
 export default function ErpLogin({ portal }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [agreeTerms, setAgreeTerms] = useState(true);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [conflict, setConflict] = useState(null);
@@ -58,6 +60,10 @@ export default function ErpLogin({ portal }) {
       setError("Please enter your username and password.");
       return;
     }
+    if (!agreeTerms) {
+      setError("Please agree to the Terms and Conditions to continue.");
+      return;
+    }
     setIsSubmitting(true);
     try {
       await doLogin(false);
@@ -69,6 +75,10 @@ export default function ErpLogin({ portal }) {
   };
 
   const handleForceLogin = async () => {
+    if (!agreeTerms) {
+      setError("Please agree to the Terms and Conditions to continue.");
+      return;
+    }
     setIsSubmitting(true);
     setError("");
     try {
@@ -93,14 +103,18 @@ export default function ErpLogin({ portal }) {
           <form onSubmit={handleSubmit} noValidate>
             <FormField id="username" label="Username" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" />
             <FormField id="password" label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
-            <Button type="submit" className="login-submit" disabled={isSubmitting}>
+            <LoginTermsAgree
+              checked={agreeTerms}
+              onChange={setAgreeTerms}
+              id={`login-terms-${portal}`}
+              showForgot
+            />
+            <Button type="submit" className="login-submit" disabled={isSubmitting || !agreeTerms}>
               {isSubmitting ? "Signing in..." : "Sign in"}
             </Button>
           </form>
         </div>
-        <footer className="login-footer">
-          <p>© 2026 WebHouse Inc. All Rights Reserved</p>
-        </footer>
+        <LoginFooter />
       </div>
       <div className="login-image-panel">
         <div className="login-image-frame">
@@ -117,7 +131,7 @@ export default function ErpLogin({ portal }) {
             <Button variant="secondary" onClick={() => setConflict(null)}>
               Cancel
             </Button>
-            <Button onClick={handleForceLogin} disabled={isSubmitting}>
+            <Button onClick={handleForceLogin} disabled={isSubmitting || !agreeTerms}>
               {isSubmitting ? "Signing in…" : "Log out other device and continue"}
             </Button>
           </>

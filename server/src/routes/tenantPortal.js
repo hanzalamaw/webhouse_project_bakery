@@ -1,36 +1,28 @@
 import { tenantPortalController, createTenantPortalMiddleware } from "../controllers/tenantPortalController.js";
-
 import { sessionRepository } from "../repositories/sessionRepository.js";
-
 import { createTenantPermissionMiddleware, ADMIN_MODULE } from "../middleware/tenantPermissions.js";
 import { impersonationAudit } from "../middleware/impersonationAudit.js";
+import { rejectBodyTenantOverride } from "../middleware/tenantRouteAuth.js";
 
-
-
-async function assertTenantSessionActive(sessionId) {
-
+async function assertTenantSessionActive(sessionId, tenantId) {
   if (!sessionId) return false;
-
-  return sessionRepository.isActive(sessionId);
-
+  return sessionRepository.isActive(sessionId, tenantId);
 }
 
-
-
 export function registerTenantPortalRoutes(app, verifyToken) {
-
   const { requireTenant, requireSession } = createTenantPortalMiddleware({ assertTenantSessionActive });
-
   const { loadPermissions, requirePermission } = createTenantPermissionMiddleware();
-
-  const guard = [verifyToken, requireTenant, impersonationAudit, requireSession, loadPermissions];
-
+  const guard = [
+    verifyToken,
+    requireTenant,
+    rejectBodyTenantOverride,
+    impersonationAudit,
+    requireSession,
+    loadPermissions,
+  ];
   const view = requirePermission(ADMIN_MODULE, "view");
-
   const create = requirePermission(ADMIN_MODULE, "create");
-
   const edit = requirePermission(ADMIN_MODULE, "edit");
-
   const del = requirePermission(ADMIN_MODULE, "delete");
 
 

@@ -8,11 +8,23 @@ import { supportTicketController } from "../controllers/supportTicketController.
 import { createImpersonationService } from "../services/impersonationService.js";
 import { createImpersonationController } from "../controllers/impersonationController.js";
 
+import { runWithTenantContext } from "../utils/tenantContext.js";
+
 export function requireWhAdmin(req, res, next) {
   if (req.userRole !== "wh_admin") {
     return res.status(403).json({ message: "Forbidden" });
   }
-  next();
+  // Platform context: not tenant-enforced (may query across tenants by design).
+  return runWithTenantContext(
+    {
+      enforced: false,
+      bypass: false,
+      tenantId: null,
+      userId: req.userId ?? null,
+      impersonatedBy: null,
+    },
+    () => next()
+  );
 }
 
 export function registerWhPortalRoutes(app, verifyToken, jwtConfig = {}) {

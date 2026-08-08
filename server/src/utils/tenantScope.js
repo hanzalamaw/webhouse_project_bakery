@@ -56,7 +56,7 @@ export const TENANT_SCOPED_TABLES = new Set([
   "finance_recurring_expenses",
   "finance_bank_accounts",
   "finance_transactions",
-  // POS (branches-based; no outlets / catalog tables)
+  // POS
   "pos_terminals",
   "pos_sales",
   "pos_sale_items",
@@ -64,7 +64,10 @@ export const TENANT_SCOPED_TABLES = new Set([
   "pos_refunds",
 ]);
 
-/** Finance + stock/order tables that require write audit logging. */
+/**
+ * High-liability Finance + Inventory tables — automatic write audit logging.
+ * (Production/POS/Orders remain out of scope for auto-audit per product request.)
+ */
 export const AUDITED_WRITE_TABLES = new Set([
   "branches",
   "item_categories",
@@ -77,10 +80,6 @@ export const AUDITED_WRITE_TABLES = new Set([
   "purchase_orders",
   "purchase_order_items",
   "wastage",
-  "recipes",
-  "recipe_ingredients",
-  "production_runs",
-  "production_run_consumption",
   "finance_vendor_bills",
   "finance_vendor_payments",
   "finance_expense_categories",
@@ -89,18 +88,6 @@ export const AUDITED_WRITE_TABLES = new Set([
   "finance_recurring_expenses",
   "finance_bank_accounts",
   "finance_transactions",
-  "pos_terminals",
-  "pos_sales",
-  "pos_sale_items",
-  "pos_cash_registers",
-  "pos_refunds",
-  "orders",
-  "order_items",
-  "order_payments",
-  "order_cancellations",
-  "order_returns",
-  "order_exchanges",
-  "order_refunds",
 ]);
 
 /**
@@ -156,6 +143,8 @@ export function extractTableNames(sql) {
     /\bJOIN\s+([a-z_][a-z0-9_]*)/gi,
     /\bINTO\s+([a-z_][a-z0-9_]*)/gi,
     /\bUPDATE\s+([a-z_][a-z0-9_]*)/gi,
+    /\bDELETE\s+FROM\s+([a-z_][a-z0-9_]*)/gi,
+    /\bDELETE\s+([a-z_][a-z0-9_]*)\s+FROM/gi,
   ];
   for (const re of patterns) {
     let m;
@@ -196,8 +185,7 @@ export function assertTenantScopedQuery(sql, ctx) {
   const normalized = sql.replace(/\s+/g, " ").toLowerCase();
 
   if (op === "INSERT") {
-    const missingTenantCol = scoped.some((t) => !normalized.includes(`${t} (`) && !normalized.includes("tenant_id"));
-    if (missingTenantCol && !normalized.includes("tenant_id")) {
+    if (!normalized.includes("tenant_id")) {
       throw new Error(`Tenant isolation: INSERT on scoped table(s) [${scoped.join(", ")}] missing tenant_id`);
     }
     return;
@@ -216,4 +204,27 @@ export function stripTenantIdFromBody(body) {
   if (!body || typeof body !== "object" || Array.isArray(body)) return body;
   const { tenant_id: _ignored, tenantId: _ignored2, ...rest } = body;
   return rest;
+}
+
+/**
+ * Best-effort record id for audit rows.
+ * @param {string} sql
+ * @param {unknown[]} params
+ * @param {any} result
+ * @param {string|null} op
+ */
+export function extractRecordId(sql, params, result, op) {
+  if (op === "INSERT") {
+    const insertId = result?.insertId ?? result?.[0]?.insertId;
+    if (insertId) return insertId;
+  }
+  const normalized = sql.replace(/\s+/g, " ");
+  const m = normalized.match(/\b(?:WHERE|AND)\s+(?:`?\w+`?\.)?`?id`?\s*=\s*\?/i);
+  if (m && Array.isArray(params)) {
+    const before = normalized.slice(0, m.index);
+    const paramIndex = (before.match(/\?/g) || []).length;
+    const id = params[paramIndex];
+    if (id != null && id !== "") return id;
+  }
+  return null;
 }

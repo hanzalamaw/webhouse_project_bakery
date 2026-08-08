@@ -1,5 +1,6 @@
 import { orderRepository } from "../repositories/orderRepository.js";
 import { financeRepository } from "../repositories/financeRepository.js";
+import { inventoryRepository } from "../repositories/inventoryRepository.js";
 import { crmService } from "./crmService.js";
 import { crmRepository } from "../repositories/crmRepository.js";
 import { cascadeSoftDeleteOrder } from "../utils/orderSoftDelete.js";
@@ -246,6 +247,24 @@ async function mapOrderPayload(tenantId, body, items) {
   const branch_id = body.branch_id || body.warehouse_id
     ? Number(body.branch_id || body.warehouse_id)
     : null;
+  const customer_id = body.customer_id ? Number(body.customer_id) : null;
+
+  if (customer_id) {
+    const customer = await crmRepository.getCustomer(tenantId, customer_id);
+    if (!customer) throw new Error("Customer not found");
+  }
+  if (branch_id && Number.isFinite(branch_id) && branch_id > 0) {
+    const branch = await inventoryRepository.getBranchById(tenantId, branch_id);
+    if (!branch) throw new Error("Branch not found");
+  }
+
+  for (const line of items || []) {
+    const itemId = Number(line.item_id || line.product_id || line.id);
+    if (!itemId) continue;
+    const item = await inventoryRepository.getItemById(tenantId, itemId);
+    if (!item) throw new Error(`Item not found: ${itemId}`);
+  }
+
   return {
     order_source,
     order_status,
@@ -256,7 +275,7 @@ async function mapOrderPayload(tenantId, body, items) {
     delivery_address: body.delivery_address ? String(body.delivery_address).trim() : null,
     delivery_date: body.delivery_date || null,
     notes: body.notes ? String(body.notes).trim() : null,
-    customer_id: body.customer_id ? Number(body.customer_id) : null,
+    customer_id: customer_id && Number.isFinite(customer_id) && customer_id > 0 ? customer_id : null,
     branch_id: branch_id && Number.isFinite(branch_id) && branch_id > 0 ? branch_id : null,
   };
 }

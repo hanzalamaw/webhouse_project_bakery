@@ -1,4 +1,5 @@
 import { readDb, writeDb } from "../database/db.js";
+import { joinOnTenant } from "../utils/tenantScope.js";
 
 // Stock & Purchasing repository — unified bakery items, branches, batches, stock,
 // suppliers, purchase orders and wastage. All queries are tenant-scoped and
@@ -19,8 +20,8 @@ const ITEM_SELECT = `
 
 const ITEM_FROM = `
   FROM items i
-  LEFT JOIN item_categories c ON c.id = i.category_id AND c.deleted_at IS NULL
-  LEFT JOIN stock_levels sl ON sl.item_id = i.id AND sl.deleted_at IS NULL
+  LEFT JOIN item_categories c ON c.id = i.category_id AND ${joinOnTenant("i", "c")}
+  LEFT JOIN stock_levels sl ON sl.item_id = i.id AND ${joinOnTenant("i", "sl")}
 `;
 
 function tw(alias) {
@@ -41,7 +42,7 @@ export const inventoryRepository = {
          (SELECT COUNT(*) FROM suppliers WHERE tenant_id = ? AND deleted_at IS NULL) AS supplier_count,
          (SELECT COALESCE(SUM(available_qty), 0) FROM stock_levels WHERE tenant_id = ? AND deleted_at IS NULL) AS total_available,
          (SELECT COALESCE(SUM(sl.available_qty * i.cost_price), 0)
-            FROM stock_levels sl JOIN items i ON i.id = sl.item_id AND i.deleted_at IS NULL
+            FROM stock_levels sl JOIN items i ON i.id = sl.item_id AND ${joinOnTenant("sl", "i")}
            WHERE sl.tenant_id = ? AND sl.deleted_at IS NULL) AS stock_value_cost,
          (SELECT COUNT(*) FROM purchase_orders WHERE tenant_id = ? AND deleted_at IS NULL AND status IN ('draft','ordered','partial')) AS open_purchase_orders,
          (SELECT COUNT(*) FROM stock_batches
@@ -60,7 +61,7 @@ export const inventoryRepository = {
       `SELECT COUNT(*) AS low_stock_count FROM (
          SELECT i.id
            FROM items i
-           JOIN stock_levels sl ON sl.item_id = i.id AND sl.deleted_at IS NULL
+           JOIN stock_levels sl ON sl.item_id = i.id AND ${joinOnTenant("i", "sl")}
           WHERE i.tenant_id = ? AND i.deleted_at IS NULL AND i.low_stock_threshold > 0
           GROUP BY i.id, i.low_stock_threshold
          HAVING SUM(sl.available_qty) <= i.low_stock_threshold
@@ -75,8 +76,8 @@ export const inventoryRepository = {
       `SELECT i.id, i.item_name, i.sku, i.unit, i.item_type, i.low_stock_threshold,
               c.category_name, COALESCE(SUM(sl.available_qty), 0) AS available_qty
        FROM items i
-       LEFT JOIN item_categories c ON c.id = i.category_id AND c.deleted_at IS NULL
-       LEFT JOIN stock_levels sl ON sl.item_id = i.id AND sl.deleted_at IS NULL
+       LEFT JOIN item_categories c ON c.id = i.category_id AND ${joinOnTenant("i", "c")}
+       LEFT JOIN stock_levels sl ON sl.item_id = i.id AND ${joinOnTenant("i", "sl")}
        WHERE i.tenant_id = ? AND i.deleted_at IS NULL AND i.low_stock_threshold > 0
        GROUP BY i.id
        HAVING available_qty <= i.low_stock_threshold
@@ -93,8 +94,8 @@ export const inventoryRepository = {
               b.item_id, b.branch_id, i.item_name, i.unit, br.branch_name,
               DATEDIFF(b.expiry_date, CURDATE()) AS days_left
        FROM stock_batches b
-       JOIN items i ON i.id = b.item_id AND i.deleted_at IS NULL
-       JOIN branches br ON br.id = b.branch_id AND br.deleted_at IS NULL
+       JOIN items i ON i.id = b.item_id AND ${joinOnTenant("b", "i")}
+       JOIN branches br ON br.id = b.branch_id AND ${joinOnTenant("b", "br")}
        WHERE b.tenant_id = ? AND b.deleted_at IS NULL AND b.status = 'active'
          AND b.qty_remaining > 0 AND b.expiry_date IS NOT NULL
          AND b.expiry_date <= DATE_ADD(CURDATE(), INTERVAL ? DAY)
@@ -110,9 +111,9 @@ export const inventoryRepository = {
       `SELECT m.id, m.movement_type, m.qty, m.unit_cost, m.notes, m.created_at,
               i.item_name, i.unit, br.branch_name, u.name AS created_by_name
        FROM stock_movements m
-       JOIN items i ON i.id = m.item_id AND i.deleted_at IS NULL
-       JOIN branches br ON br.id = m.branch_id AND br.deleted_at IS NULL
-       LEFT JOIN users u ON u.id = m.created_by
+       JOIN items i ON i.id = m.item_id AND ${joinOnTenant("m", "i")}
+       JOIN branches br ON br.id = m.branch_id AND ${joinOnTenant("m", "br")}
+       LEFT JOIN users u ON u.id = m.created_by AND ${joinOnTenant("m", "u")}
        WHERE m.tenant_id = ? AND m.deleted_at IS NULL
        ORDER BY m.created_at DESC, m.id DESC
        LIMIT ?`,
@@ -128,8 +129,8 @@ export const inventoryRepository = {
               COALESCE(SUM(sl.available_qty), 0) AS available_qty,
               COALESCE(SUM(sl.available_qty * i.cost_price), 0) AS value_cost
        FROM branches br
-       LEFT JOIN stock_levels sl ON sl.branch_id = br.id AND sl.deleted_at IS NULL
-       LEFT JOIN items i ON i.id = sl.item_id AND i.deleted_at IS NULL
+       LEFT JOIN stock_levels sl ON sl.branch_id = br.id AND ${joinOnTenant("br", "sl")}
+       LEFT JOIN items i ON i.id = sl.item_id AND ${joinOnTenant("sl", "i")}
        WHERE br.tenant_id = ? AND br.deleted_at IS NULL
        GROUP BY br.id, br.branch_name
        ORDER BY value_cost DESC`,
@@ -144,7 +145,7 @@ export const inventoryRepository = {
       `SELECT c.id, c.category_name, c.item_type, c.status, c.created_at, c.tenant_id,
               COUNT(i.id) AS item_count
        FROM item_categories c
-       LEFT JOIN items i ON i.category_id = c.id AND i.deleted_at IS NULL
+       LEFT JOIN items i ON i.category_id = c.id AND ${joinOnTenant("c", "i")}
        WHERE ${tw("c")}
        GROUP BY c.id
        ORDER BY c.category_name ASC
@@ -244,7 +245,7 @@ export const inventoryRepository = {
       `SELECT sl.id, sl.available_qty, sl.reserved_qty, sl.damaged_qty, sl.updated_at,
               sl.item_id, sl.branch_id, br.branch_name, br.city
        FROM stock_levels sl
-       JOIN branches br ON br.id = sl.branch_id AND br.deleted_at IS NULL
+       JOIN branches br ON br.id = sl.branch_id AND ${joinOnTenant("sl", "br")}
        WHERE sl.item_id = ? AND ${tw("sl")} ORDER BY br.branch_name ASC`,
       [itemId, tenantId]
     );
@@ -257,7 +258,7 @@ export const inventoryRepository = {
               b.made_on, b.expiry_date, b.status, b.branch_id, br.branch_name,
               DATEDIFF(b.expiry_date, CURDATE()) AS days_left
        FROM stock_batches b
-       JOIN branches br ON br.id = b.branch_id AND br.deleted_at IS NULL
+       JOIN branches br ON br.id = b.branch_id AND ${joinOnTenant("b", "br")}
        WHERE b.item_id = ? AND ${tw("b")} AND b.qty_remaining > 0
        ORDER BY (b.expiry_date IS NULL) ASC, b.expiry_date ASC`,
       [itemId, tenantId]
@@ -321,7 +322,7 @@ export const inventoryRepository = {
       `SELECT i.id, i.item_name, i.sku, i.unit, i.item_type, i.selling_price, i.cost_price,
               i.shelf_life_days, i.shelf_life_unit, i.is_sold, i.is_purchased, i.is_produced, i.category_id, c.category_name
        FROM items i
-       LEFT JOIN item_categories c ON c.id = i.category_id AND c.deleted_at IS NULL
+       LEFT JOIN item_categories c ON c.id = i.category_id AND ${joinOnTenant("i", "c")}
        WHERE ${tw("i")}${extra} ORDER BY i.item_name ASC`,
       params
     );
@@ -336,7 +337,7 @@ export const inventoryRepository = {
               COUNT(DISTINCT sl.item_id) AS item_count,
               COALESCE(SUM(sl.available_qty), 0) AS total_units
        FROM branches br
-       LEFT JOIN stock_levels sl ON sl.branch_id = br.id AND sl.deleted_at IS NULL
+       LEFT JOIN stock_levels sl ON sl.branch_id = br.id AND ${joinOnTenant("br", "sl")}
        WHERE ${tw("br")}
        GROUP BY br.id ORDER BY br.branch_name ASC LIMIT ? OFFSET ?`,
       [tenantId, limit, offset]
@@ -356,8 +357,8 @@ export const inventoryRepository = {
               COALESCE(SUM(sl.available_qty), 0) AS total_units,
               COALESCE(SUM(sl.available_qty * i.cost_price), 0) AS stock_value
        FROM branches br
-       LEFT JOIN stock_levels sl ON sl.branch_id = br.id AND sl.deleted_at IS NULL
-       LEFT JOIN items i ON i.id = sl.item_id AND i.deleted_at IS NULL
+       LEFT JOIN stock_levels sl ON sl.branch_id = br.id AND ${joinOnTenant("br", "sl")}
+       LEFT JOIN items i ON i.id = sl.item_id AND ${joinOnTenant("sl", "i")}
        WHERE br.id = ? AND ${tw("br")}
        GROUP BY br.id LIMIT 1`,
       [id, tenantId]
@@ -370,7 +371,7 @@ export const inventoryRepository = {
       `SELECT sl.id, sl.available_qty, sl.reserved_qty, sl.damaged_qty, sl.updated_at,
               sl.item_id, i.item_name, i.sku, i.unit, i.item_type, i.cost_price, i.low_stock_threshold
        FROM stock_levels sl
-       JOIN items i ON i.id = sl.item_id AND i.deleted_at IS NULL
+       JOIN items i ON i.id = sl.item_id AND ${joinOnTenant("sl", "i")}
        WHERE sl.branch_id = ? AND ${tw("sl")}
        ORDER BY i.item_name ASC`,
       [branchId, tenantId]
@@ -383,8 +384,8 @@ export const inventoryRepository = {
       `SELECT m.id, m.movement_type, m.qty, m.unit_cost, m.notes, m.created_at,
               m.item_id, i.item_name, i.unit, u.name AS created_by_name
        FROM stock_movements m
-       JOIN items i ON i.id = m.item_id AND i.deleted_at IS NULL
-       LEFT JOIN users u ON u.id = m.created_by
+       JOIN items i ON i.id = m.item_id AND ${joinOnTenant("m", "i")}
+       LEFT JOIN users u ON u.id = m.created_by AND ${joinOnTenant("m", "u")}
        WHERE m.branch_id = ? AND m.tenant_id = ? AND m.deleted_at IS NULL
        ORDER BY m.created_at DESC, m.id DESC LIMIT ?`,
       [branchId, tenantId, limit]
@@ -478,10 +479,10 @@ export const inventoryRepository = {
               m.item_id, m.branch_id, m.batch_id, m.reference_type, m.reference_id,
               i.item_name, i.unit, br.branch_name, u.name AS created_by_name, b.batch_no
        FROM stock_movements m
-       JOIN items i ON i.id = m.item_id AND i.deleted_at IS NULL
-       JOIN branches br ON br.id = m.branch_id AND br.deleted_at IS NULL
-       LEFT JOIN stock_batches b ON b.id = m.batch_id
-       LEFT JOIN users u ON u.id = m.created_by
+       JOIN items i ON i.id = m.item_id AND ${joinOnTenant("m", "i")}
+       JOIN branches br ON br.id = m.branch_id AND ${joinOnTenant("m", "br")}
+       LEFT JOIN stock_batches b ON b.id = m.batch_id AND ${joinOnTenant("m", "b")}
+       LEFT JOIN users u ON u.id = m.created_by AND ${joinOnTenant("m", "u")}
        WHERE m.tenant_id = ? AND m.deleted_at IS NULL${filter}
        ORDER BY m.created_at DESC, m.id DESC LIMIT ? OFFSET ?`,
       params
@@ -512,8 +513,8 @@ export const inventoryRepository = {
               b.made_on, b.expiry_date, b.status, b.created_at, b.item_id, b.branch_id,
               i.item_name, i.unit, br.branch_name, DATEDIFF(b.expiry_date, CURDATE()) AS days_left
        FROM stock_batches b
-       JOIN items i ON i.id = b.item_id AND i.deleted_at IS NULL
-       JOIN branches br ON br.id = b.branch_id AND br.deleted_at IS NULL
+       JOIN items i ON i.id = b.item_id AND ${joinOnTenant("b", "i")}
+       JOIN branches br ON br.id = b.branch_id AND ${joinOnTenant("b", "br")}
        WHERE b.tenant_id = ? AND b.deleted_at IS NULL${filter}
        ORDER BY (b.expiry_date IS NULL) ASC, b.expiry_date ASC, b.id DESC
        LIMIT ? OFFSET ?`,
@@ -558,9 +559,9 @@ export const inventoryRepository = {
               t.item_id, t.from_branch_id, t.to_branch_id,
               i.item_name, i.unit, fb.branch_name AS from_branch_name, tb.branch_name AS to_branch_name
        FROM stock_transfers t
-       JOIN items i ON i.id = t.item_id AND i.deleted_at IS NULL
-       JOIN branches fb ON fb.id = t.from_branch_id AND fb.deleted_at IS NULL
-       JOIN branches tb ON tb.id = t.to_branch_id AND tb.deleted_at IS NULL
+       JOIN items i ON i.id = t.item_id AND ${joinOnTenant("t", "i")}
+       JOIN branches fb ON fb.id = t.from_branch_id AND ${joinOnTenant("t", "fb")}
+       JOIN branches tb ON tb.id = t.to_branch_id AND ${joinOnTenant("t", "tb")}
        WHERE t.tenant_id = ? AND t.deleted_at IS NULL
        ORDER BY t.created_at DESC LIMIT ? OFFSET ?`,
       [tenantId, limit, offset]
@@ -576,9 +577,9 @@ export const inventoryRepository = {
     const [rows] = await readDb.query(
       `SELECT t.*, i.item_name, i.unit, fb.branch_name AS from_branch_name, tb.branch_name AS to_branch_name
        FROM stock_transfers t
-       JOIN items i ON i.id = t.item_id AND i.deleted_at IS NULL
-       JOIN branches fb ON fb.id = t.from_branch_id AND fb.deleted_at IS NULL
-       JOIN branches tb ON tb.id = t.to_branch_id AND tb.deleted_at IS NULL
+       JOIN items i ON i.id = t.item_id AND ${joinOnTenant("t", "i")}
+       JOIN branches fb ON fb.id = t.from_branch_id AND ${joinOnTenant("t", "fb")}
+       JOIN branches tb ON tb.id = t.to_branch_id AND ${joinOnTenant("t", "tb")}
        WHERE t.id = ? AND t.tenant_id = ? AND t.deleted_at IS NULL LIMIT 1`,
       [id, tenantId]
     );
@@ -599,7 +600,7 @@ export const inventoryRepository = {
               s.status, s.notes, s.created_at, s.tenant_id,
               COUNT(po.id) AS purchase_order_count
        FROM suppliers s
-       LEFT JOIN purchase_orders po ON po.supplier_id = s.id AND po.deleted_at IS NULL
+       LEFT JOIN purchase_orders po ON po.supplier_id = s.id AND ${joinOnTenant("s", "po")}
        WHERE ${tw("s")}
        GROUP BY s.id ORDER BY s.supplier_name ASC LIMIT ? OFFSET ?`,
       [tenantId, limit, offset]
@@ -619,7 +620,7 @@ export const inventoryRepository = {
               COALESCE(SUM(CASE WHEN po.status NOT IN ('cancelled') THEN po.payable_amount ELSE 0 END), 0) AS total_spend,
               COALESCE(SUM(CASE WHEN po.status IN ('draft', 'ordered', 'partial') THEN 1 ELSE 0 END), 0) AS open_po_count
        FROM suppliers s
-       LEFT JOIN purchase_orders po ON po.supplier_id = s.id AND po.deleted_at IS NULL
+       LEFT JOIN purchase_orders po ON po.supplier_id = s.id AND ${joinOnTenant("s", "po")}
        WHERE s.id = ? AND ${tw("s")}
        GROUP BY s.id LIMIT 1`,
       [id, tenantId]
@@ -632,8 +633,8 @@ export const inventoryRepository = {
       `SELECT po.id, po.po_no, po.order_date, po.expected_date, po.status, po.payable_amount,
               po.created_at, br.branch_name, COUNT(poi.id) AS line_count
        FROM purchase_orders po
-       JOIN branches br ON br.id = po.branch_id
-       LEFT JOIN purchase_order_items poi ON poi.purchase_order_id = po.id AND poi.deleted_at IS NULL
+       JOIN branches br ON br.id = po.branch_id AND ${joinOnTenant("po", "br")}
+       LEFT JOIN purchase_order_items poi ON poi.purchase_order_id = po.id AND ${joinOnTenant("po", "poi")}
        WHERE po.supplier_id = ? AND po.tenant_id = ? AND po.deleted_at IS NULL
        GROUP BY po.id
        ORDER BY po.created_at DESC LIMIT ?`,
@@ -719,9 +720,9 @@ export const inventoryRepository = {
               po.supplier_id, po.branch_id, s.supplier_name, br.branch_name,
               COUNT(poi.id) AS line_count
        FROM purchase_orders po
-       JOIN suppliers s ON s.id = po.supplier_id
-       JOIN branches br ON br.id = po.branch_id
-       LEFT JOIN purchase_order_items poi ON poi.purchase_order_id = po.id AND poi.deleted_at IS NULL
+       JOIN suppliers s ON s.id = po.supplier_id AND ${joinOnTenant("po", "s")}
+       JOIN branches br ON br.id = po.branch_id AND ${joinOnTenant("po", "br")}
+       LEFT JOIN purchase_order_items poi ON poi.purchase_order_id = po.id AND ${joinOnTenant("po", "poi")}
        WHERE po.tenant_id = ? AND po.deleted_at IS NULL${filter}
        GROUP BY po.id ORDER BY po.created_at DESC LIMIT ? OFFSET ?`,
       params
@@ -738,9 +739,9 @@ export const inventoryRepository = {
     const [rows] = await readDb.query(
       `SELECT po.*, s.supplier_name, br.branch_name, u.name AS created_by_name
        FROM purchase_orders po
-       JOIN suppliers s ON s.id = po.supplier_id
-       JOIN branches br ON br.id = po.branch_id
-       LEFT JOIN users u ON u.id = po.created_by
+       JOIN suppliers s ON s.id = po.supplier_id AND ${joinOnTenant("po", "s")}
+       JOIN branches br ON br.id = po.branch_id AND ${joinOnTenant("po", "br")}
+       LEFT JOIN users u ON u.id = po.created_by AND ${joinOnTenant("po", "u")}
        WHERE po.id = ? AND po.tenant_id = ? AND po.deleted_at IS NULL LIMIT 1`,
       [id, tenantId]
     );
@@ -749,7 +750,7 @@ export const inventoryRepository = {
       `SELECT poi.id, poi.qty, poi.unit_cost, poi.discount, poi.total_price, poi.received_qty,
               poi.expiry_date, poi.item_id, i.item_name, i.unit
        FROM purchase_order_items poi
-       JOIN items i ON i.id = poi.item_id
+       JOIN items i ON i.id = poi.item_id AND ${joinOnTenant("poi", "i")}
        WHERE poi.purchase_order_id = ? AND poi.tenant_id = ? AND poi.deleted_at IS NULL`,
       [id, tenantId]
     );
@@ -765,10 +766,10 @@ export const inventoryRepository = {
     return rows;
   },
 
-  async markPoItemReceived(conn, poItemId, receivedQty) {
+  async markPoItemReceived(conn, tenantId, poItemId, receivedQty) {
     await conn.execute(
-      `UPDATE purchase_order_items SET received_qty = ? WHERE id = ?`,
-      [receivedQty, poItemId]
+      `UPDATE purchase_order_items SET received_qty = ? WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL`,
+      [receivedQty, poItemId, tenantId]
     );
   },
 
@@ -803,9 +804,9 @@ export const inventoryRepository = {
       `SELECT w.id, w.qty, w.reason, w.wastage_date, w.estimated_cost, w.notes, w.created_at,
               w.item_id, w.branch_id, i.item_name, i.unit, br.branch_name, u.name AS created_by_name
        FROM wastage w
-       JOIN items i ON i.id = w.item_id AND i.deleted_at IS NULL
-       JOIN branches br ON br.id = w.branch_id AND br.deleted_at IS NULL
-       LEFT JOIN users u ON u.id = w.created_by
+       JOIN items i ON i.id = w.item_id AND ${joinOnTenant("w", "i")}
+       JOIN branches br ON br.id = w.branch_id AND ${joinOnTenant("w", "br")}
+       LEFT JOIN users u ON u.id = w.created_by AND ${joinOnTenant("w", "u")}
        WHERE w.tenant_id = ? AND w.deleted_at IS NULL
        ORDER BY w.wastage_date DESC, w.id DESC LIMIT ? OFFSET ?`,
       [tenantId, limit, offset]
@@ -823,10 +824,10 @@ export const inventoryRepository = {
               w.item_id, w.branch_id, w.batch_id, i.item_name, i.sku, i.unit, i.cost_price,
               br.branch_name, br.city, u.name AS created_by_name, b.batch_no
        FROM wastage w
-       JOIN items i ON i.id = w.item_id AND i.deleted_at IS NULL
-       JOIN branches br ON br.id = w.branch_id AND br.deleted_at IS NULL
-       LEFT JOIN users u ON u.id = w.created_by
-       LEFT JOIN stock_batches b ON b.id = w.batch_id
+       JOIN items i ON i.id = w.item_id AND ${joinOnTenant("w", "i")}
+       JOIN branches br ON br.id = w.branch_id AND ${joinOnTenant("w", "br")}
+       LEFT JOIN users u ON u.id = w.created_by AND ${joinOnTenant("w", "u")}
+       LEFT JOIN stock_batches b ON b.id = w.batch_id AND ${joinOnTenant("w", "b")}
        WHERE w.id = ? AND w.tenant_id = ? AND w.deleted_at IS NULL LIMIT 1`,
       [id, tenantId]
     );

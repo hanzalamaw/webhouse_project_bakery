@@ -12,13 +12,22 @@ function auditCtx(req) {
 export function createTenantPortalMiddleware({ assertTenantSessionActive }) {
   const requireTenant = (req, res, next) => {
     if (req.userRole !== "tenant") return res.status(403).json({ message: "Forbidden" });
+    const tenantId = Number(req.tenantId);
+    if (!Number.isInteger(tenantId) || tenantId <= 0) {
+      return res.status(403).json({ message: "Tenant context required" });
+    }
+    req.tenantId = tenantId;
+    if (req.body && typeof req.body === "object" && !Array.isArray(req.body)) {
+      delete req.body.tenant_id;
+      delete req.body.tenantId;
+    }
     next();
   };
 
   const requireSession = async (req, res, next) => {
     if (req.userRole !== "tenant") return next();
     if (req.impersonatedBy) return next();
-    const active = await assertTenantSessionActive(req.sessionId);
+    const active = await assertTenantSessionActive(req.sessionId, req.tenantId);
     if (!active) return res.status(401).json({ message: "Session terminated" });
     next();
   };

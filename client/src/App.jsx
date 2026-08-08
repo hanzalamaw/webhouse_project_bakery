@@ -23,6 +23,7 @@ import LogDetail from "./portals/wh-portal/pages/logs/LogDetail";
 import ErpLogin from "./portals/tenant-portal/pages/ErpLogin";
 import ModuleHub from "./portals/tenant-portal/pages/ModuleHub";
 import ModulePlaceholder from "./portals/tenant-portal/pages/ModulePlaceholder";
+import TermsAndConditions from "./pages/TermsAndConditions";
 import TenantLayout from "./components/layout/TenantLayout";
 import TenantModuleGuard from "./components/TenantModuleGuard";
 import {
@@ -119,6 +120,7 @@ const router = createBrowserRouter([
   { path: "/erp1", element: <ErpLogin portal="erp1" /> },
   { path: "/erp2", element: <ErpLogin portal="erp2" /> },
   { path: "/erp3", element: <ErpLogin portal="erp3" /> },
+  { path: "/terms", element: <TermsAndConditions /> },
   {
     element: (
       <WhProtectedRoute>

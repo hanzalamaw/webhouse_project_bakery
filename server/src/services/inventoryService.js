@@ -684,7 +684,7 @@ export const inventoryService = {
             expiryDate: expiry, referenceType: "purchase_order", referenceId: id,
             notes: `PO ${po.po_no} received`, createdBy: userId,
           });
-          await inventoryRepository.markPoItemReceived(conn, line.id, Number(line.received_qty) + toReceive);
+          await inventoryRepository.markPoItemReceived(conn, tenantId, line.id, Number(line.received_qty) + toReceive);
         }
         const newReceived = Number(line.received_qty) + (toReceive > 0 ? toReceive : 0);
         if (newReceived < Number(line.qty)) allReceived = false;

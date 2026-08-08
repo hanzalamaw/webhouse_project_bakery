@@ -2,6 +2,7 @@ import { readDb, writeDb } from "../database/db.js";
 import { ACTIVE_CUSTOMER_DAYS } from "../utils/crmConstants.js";
 import { logCrmActivity, mapAuditRow } from "../utils/crmAudit.js";
 import { parseTags, serializeTags, tagsToObjects } from "../utils/crmTags.js";
+import { joinOnTenant } from "../utils/tenantScope.js";
 
 function tw(alias, tenantId) {
   return `${alias}.tenant_id = ? AND ${alias}.deleted_at IS NULL`;
@@ -15,7 +16,7 @@ export const crmRepository = {
     const [rows] = await readDb.query(
       `SELECT DISTINCT u.id, u.name, u.email
        FROM users u
-       INNER JOIN roles r ON r.id = u.role_id AND r.deleted_at IS NULL
+       INNER JOIN roles r ON r.id = u.role_id AND ${joinOnTenant("u", "r")}
        WHERE u.tenant_id = ? AND u.deleted_at IS NULL AND u.status = 'active'
          AND (
            r.role_name = 'Super Admin'
@@ -95,7 +96,7 @@ export const crmRepository = {
       `SELECT al.id, al.action, al.new_value, al.created_at, u.name AS user_name
        FROM audit_logs al
        INNER JOIN modules m ON m.id = al.module_id AND m.module_name = 'CRM' AND m.deleted_at IS NULL
-       LEFT JOIN users u ON u.id = al.user_id AND u.deleted_at IS NULL
+       LEFT JOIN users u ON u.id = al.user_id AND ${joinOnTenant("al", "u")}
        WHERE al.tenant_id = ? AND al.deleted_at IS NULL
        ORDER BY al.created_at DESC
        LIMIT ?`,
@@ -201,7 +202,7 @@ export const crmRepository = {
       `SELECT al.id, al.action, al.new_value, al.created_at, u.name AS user_name
        FROM audit_logs al
        INNER JOIN modules m ON m.id = al.module_id AND m.module_name = 'CRM' AND m.deleted_at IS NULL
-       LEFT JOIN users u ON u.id = al.user_id AND u.deleted_at IS NULL
+       LEFT JOIN users u ON u.id = al.user_id AND ${joinOnTenant("al", "u")}
        WHERE al.tenant_id = ? AND al.deleted_at IS NULL
          AND JSON_UNQUOTE(JSON_EXTRACT(al.new_value, '$.entity_type')) = 'customer'
          AND CAST(JSON_UNQUOTE(JSON_EXTRACT(al.new_value, '$.entity_id')) AS UNSIGNED) = ?
@@ -321,7 +322,7 @@ export const crmRepository = {
               a.address AS billing_address, a.city AS billing_city, a.state AS billing_state, a.postal_code AS billing_postal_code
        FROM crm_customers c
        LEFT JOIN crm_customer_addresses a
-         ON a.customer_id = c.id AND a.tenant_id = c.tenant_id AND a.deleted_at IS NULL
+         ON a.customer_id = c.id AND ${joinOnTenant("c", "a")}
          AND a.is_default = 1
        WHERE c.tenant_id = ? AND c.deleted_at IS NULL
        ORDER BY c.customer_name ASC`,
@@ -563,9 +564,9 @@ export const crmRepository = {
     const [rows] = await readDb.query(
       `SELECT cmp.*, c.customer_name, u.name AS created_by_name, au.name AS assigned_to_name
        FROM crm_customer_complaints cmp
-       INNER JOIN crm_customers c ON c.id = cmp.customer_id AND c.deleted_at IS NULL
-       LEFT JOIN users u ON u.id = cmp.user_id AND u.deleted_at IS NULL
-       LEFT JOIN users au ON au.id = cmp.assigned_to AND au.deleted_at IS NULL
+       INNER JOIN crm_customers c ON c.id = cmp.customer_id AND ${joinOnTenant("cmp", "c")}
+       LEFT JOIN users u ON u.id = cmp.user_id AND ${joinOnTenant("cmp", "u")}
+       LEFT JOIN users au ON au.id = cmp.assigned_to AND ${joinOnTenant("cmp", "au")}
        WHERE ${tw("cmp", tenantId)}
        ORDER BY cmp.created_at DESC`,
       [tenantId]
@@ -577,9 +578,9 @@ export const crmRepository = {
     const [rows] = await readDb.query(
       `SELECT cmp.*, c.customer_name, u.name AS created_by_name, au.name AS assigned_to_name
        FROM crm_customer_complaints cmp
-       INNER JOIN crm_customers c ON c.id = cmp.customer_id AND c.deleted_at IS NULL
-       LEFT JOIN users u ON u.id = cmp.user_id AND u.deleted_at IS NULL
-       LEFT JOIN users au ON au.id = cmp.assigned_to AND au.deleted_at IS NULL
+       INNER JOIN crm_customers c ON c.id = cmp.customer_id AND ${joinOnTenant("cmp", "c")}
+       LEFT JOIN users u ON u.id = cmp.user_id AND ${joinOnTenant("cmp", "u")}
+       LEFT JOIN users au ON au.id = cmp.assigned_to AND ${joinOnTenant("cmp", "au")}
        WHERE cmp.id = ? AND ${tw("cmp", tenantId)} LIMIT 1`,
       [id, tenantId]
     );

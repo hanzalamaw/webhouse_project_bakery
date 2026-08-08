@@ -133,15 +133,16 @@ async function tenantLogin(
   return { token, refreshToken, user: toTenantUserPayload(user, tenant) };
 }
 
-async function assertTenantSessionActive(sessionId) {
+async function assertTenantSessionActive(sessionId, tenantId = null) {
   if (!sessionId) return false;
-  return sessionRepository.isActive(sessionId);
+  return sessionRepository.isActive(sessionId, tenantId);
 }
 
 export function registerAuthRoutes(app, db, { JWT_SECRET, JWT_EXPIRES_IN, JWT_REFRESH_EXPIRES_IN, verifyToken }) {
   const requireActiveTenantSession = async (req, res, next) => {
     if (req.userRole !== "tenant") return next();
-    const active = await assertTenantSessionActive(req.sessionId);
+    if (req.impersonatedBy) return next();
+    const active = await assertTenantSessionActive(req.sessionId, req.tenantId);
     if (!active) {
       return res.status(401).json({ message: "Session terminated" });
     }
@@ -239,7 +240,7 @@ export function registerAuthRoutes(app, db, { JWT_SECRET, JWT_EXPIRES_IN, JWT_RE
           [decoded.id]
         );
         if (!rows.length) return res.status(401).json({ message: "Invalid refresh token" });
-        if (!decoded.sessionId || !(await assertTenantSessionActive(decoded.sessionId))) {
+        if (!decoded.sessionId || !(await assertTenantSessionActive(decoded.sessionId, decoded.tenantId))) {
           return res.status(401).json({ message: "Session terminated" });
         }
         const tokenPayload = {
@@ -261,7 +262,7 @@ export function registerAuthRoutes(app, db, { JWT_SECRET, JWT_EXPIRES_IN, JWT_RE
 
   app.post("/api/logout", verifyToken, async (req, res) => {
     if (req.userRole === "tenant" && req.sessionId) {
-      await sessionRepository.terminate(req.sessionId);
+      await sessionRepository.terminate(req.sessionId, req.tenantId || null);
     }
     res.json({ ok: true });
   });

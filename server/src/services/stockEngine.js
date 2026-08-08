@@ -57,8 +57,8 @@ export async function addStock(conn, tenantId, {
 
   if (batchNo == null) {
     await conn.execute(
-      `UPDATE stock_batches SET batch_no = ? WHERE id = ?`,
-      [`B-${String(batchId).padStart(6, "0")}`, batchId]
+      `UPDATE stock_batches SET batch_no = ? WHERE id = ? AND tenant_id = ?`,
+      [`B-${String(batchId).padStart(6, "0")}`, batchId, tenantId]
     );
   }
 
@@ -125,8 +125,8 @@ export async function consumeStock(conn, tenantId, {
     await conn.execute(
       `UPDATE stock_batches
           SET qty_remaining = ?, status = ?
-        WHERE id = ?`,
-      [newRemaining, newRemaining <= 0 ? "finished" : "active", batch.id]
+        WHERE id = ? AND tenant_id = ?`,
+      [newRemaining, newRemaining <= 0 ? "finished" : "active", batch.id, tenantId]
     );
     await conn.execute(
       `INSERT INTO stock_movements
@@ -181,8 +181,9 @@ async function upsertLevelDelta(conn, tenantId, itemId, branchId, deltaAvailable
     const available = Math.max(0, toNum(rows[0].available_qty) + toNum(deltaAvailable));
     const damaged = Math.max(0, toNum(rows[0].damaged_qty) + toNum(deltaDamaged));
     await conn.execute(
-      `UPDATE stock_levels SET available_qty = ?, damaged_qty = ?, deleted_at = NULL WHERE id = ?`,
-      [available, damaged, rows[0].id]
+      `UPDATE stock_levels SET available_qty = ?, damaged_qty = ?, deleted_at = NULL
+       WHERE id = ? AND tenant_id = ?`,
+      [available, damaged, rows[0].id, tenantId]
     );
     return rows[0].id;
   }

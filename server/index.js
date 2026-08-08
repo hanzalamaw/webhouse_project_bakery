@@ -16,6 +16,7 @@ import { registerOrderRoutes } from "./src/routes/orders.js";
 import { registerFinanceRoutes } from "./src/routes/finance.js";
 import { registerTenantPortalRoutes } from "./src/routes/tenantPortal.js";
 import { purgeSoftDeleted } from "./src/jobs/purgeSoftDeleted.js";
+import { runWithPlatformBypass } from "./src/utils/tenantContext.js";
 
 dotenv.config();
 
@@ -62,7 +63,7 @@ const startServer = async () => {
 
   const runPurge = async () => {
     try {
-      const results = await purgeSoftDeleted();
+      const results = await runWithPlatformBypass(() => purgeSoftDeleted());
       const total = Object.values(results).reduce((a, b) => a + b, 0);
       if (total > 0) console.log(`Purged ${total} soft-deleted row(s)`);
     } catch (err) {

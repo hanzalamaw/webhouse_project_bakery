@@ -43,15 +43,61 @@
   margin-bottom: 24px;
 }
 
-.login-forgot a {
+.login-forgot a,
+.login-forgot-link {
   font-size: 14px;
   color: var(--color-primary);
   text-decoration: none;
   font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
-.login-forgot a:hover {
+.login-forgot a:hover,
+.login-forgot-link:hover {
   text-decoration: underline;
+}
+
+.login-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 4px 0 20px;
+  flex-wrap: wrap;
+}
+
+.login-terms {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary, #334155);
+  cursor: pointer;
+  user-select: none;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.login-terms input {
+  margin-top: 3px;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-accent, var(--accent, #e11d48));
+  cursor: pointer;
+}
+
+.login-terms a {
+  color: var(--color-accent, var(--accent, #e11d48));
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.login-terms a:hover {
+  opacity: 0.85;
 }
 
 .login-submit {
@@ -83,6 +129,17 @@
   font-size: 13px;
   color: #94a3b8;
   margin: 0;
+}
+
+.login-footer a {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.login-footer a:hover {
+  color: var(--color-accent, var(--accent, #e11d48));
 }
 
 .login-image-panel {

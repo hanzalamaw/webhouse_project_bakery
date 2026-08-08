@@ -1,5 +1,6 @@
 import { readDb, writeDb, getPool } from "../database/db.js";
 import { consumeStock } from "../services/stockEngine.js";
+import { joinOnTenant } from "../utils/tenantScope.js";
 
 // POS repository — re-pointed onto the unified bakery model:
 //   * "outlets"/"stores" are rows in `branches` (aliased as outlet_* for the UI)
@@ -47,9 +48,9 @@ export const posRepository = {
       `SELECT s.id, s.sale_no, s.payable_amount, s.payment_status, s.payment_method, s.created_at,
               b.branch_name AS outlet_name, t.terminal_name, u.name AS cashier_name
        FROM pos_sales s
-       INNER JOIN branches b ON b.id = s.branch_id AND b.deleted_at IS NULL
-       INNER JOIN pos_terminals t ON t.id = s.terminal_id AND t.deleted_at IS NULL
-       INNER JOIN users u ON u.id = s.created_by
+       INNER JOIN branches b ON b.id = s.branch_id AND ${joinOnTenant("s", "b")}
+       INNER JOIN pos_terminals t ON t.id = s.terminal_id AND ${joinOnTenant("s", "t")}
+       INNER JOIN users u ON u.id = s.created_by AND ${joinOnTenant("s", "u")}
        WHERE ${tw("s")}
        ORDER BY s.created_at DESC LIMIT ?`,
       [tenantId, limit]
@@ -147,7 +148,7 @@ export const posRepository = {
       `SELECT t.id, t.terminal_name, t.device_code, t.status, t.opening_balance, t.created_at,
               t.branch_id AS outlet_id, b.branch_name AS outlet_name
        FROM pos_terminals t
-       INNER JOIN branches b ON b.id = t.branch_id AND b.deleted_at IS NULL
+       INNER JOIN branches b ON b.id = t.branch_id AND ${joinOnTenant("t", "b")}
        WHERE ${tw("t")} ORDER BY t.created_at DESC`,
       [tenantId]
     );
@@ -161,7 +162,7 @@ export const posRepository = {
               b.open_time AS store_open_time, b.close_time AS store_close_time,
               b.opening_balance AS store_opening_balance, b.city AS outlet_city
        FROM pos_terminals t
-       INNER JOIN branches b ON b.id = t.branch_id AND b.deleted_at IS NULL
+       INNER JOIN branches b ON b.id = t.branch_id AND ${joinOnTenant("t", "b")}
        WHERE t.id = ? AND ${tw("t")} LIMIT 1`,
       [id, tenantId]
     );
@@ -177,7 +178,7 @@ export const posRepository = {
                  b.open_time AS store_open_time, b.close_time AS store_close_time,
                  b.opening_balance AS store_opening_balance
                FROM pos_terminals t
-               INNER JOIN branches b ON b.id = t.branch_id AND b.deleted_at IS NULL
+               INNER JOIN branches b ON b.id = t.branch_id AND ${joinOnTenant("t", "b")}
                WHERE ${tw("t")} AND t.device_code = ?`;
     if (excludeId != null) { sql += " AND t.id != ?"; params.push(excludeId); }
     const [rows] = await readDb.query(sql + " LIMIT 1", params);
@@ -233,8 +234,8 @@ export const posRepository = {
               i.selling_price, i.tax, i.discount, c.category_name,
               COALESCE(sl.available_qty, 0) AS available_qty
        FROM items i
-       LEFT JOIN item_categories c ON c.id = i.category_id AND c.deleted_at IS NULL
-       LEFT JOIN stock_levels sl ON sl.item_id = i.id AND sl.branch_id = ? AND sl.deleted_at IS NULL
+       LEFT JOIN item_categories c ON c.id = i.category_id AND ${joinOnTenant("i", "c")}
+       LEFT JOIN stock_levels sl ON sl.item_id = i.id AND sl.branch_id = ? AND ${joinOnTenant("i", "sl")}
        WHERE ${tw("i")} AND i.is_sold = 1 AND i.status = 'active'
        ORDER BY c.category_name ASC, i.item_name ASC`,
       [branchId, tenantId]
@@ -248,10 +249,10 @@ export const posRepository = {
       `SELECT s.*, s.branch_id AS outlet_id, b.branch_name AS outlet_name, t.terminal_name,
               u.name AS cashier_name, c.customer_name
        FROM pos_sales s
-       INNER JOIN branches b ON b.id = s.branch_id AND b.deleted_at IS NULL
-       INNER JOIN pos_terminals t ON t.id = s.terminal_id AND t.deleted_at IS NULL
-       INNER JOIN users u ON u.id = s.created_by
-       LEFT JOIN crm_customers c ON c.id = s.crm_customers_id AND c.deleted_at IS NULL
+       INNER JOIN branches b ON b.id = s.branch_id AND ${joinOnTenant("s", "b")}
+       INNER JOIN pos_terminals t ON t.id = s.terminal_id AND ${joinOnTenant("s", "t")}
+       INNER JOIN users u ON u.id = s.created_by AND ${joinOnTenant("s", "u")}
+       LEFT JOIN crm_customers c ON c.id = s.crm_customers_id AND ${joinOnTenant("s", "c")}
        WHERE ${tw("s")} ORDER BY s.created_at DESC`,
       [tenantId]
     );
@@ -263,10 +264,10 @@ export const posRepository = {
       `SELECT s.*, s.branch_id AS outlet_id, b.branch_name AS outlet_name, t.terminal_name,
               u.name AS cashier_name, c.customer_name
        FROM pos_sales s
-       INNER JOIN branches b ON b.id = s.branch_id AND b.deleted_at IS NULL
-       INNER JOIN pos_terminals t ON t.id = s.terminal_id AND t.deleted_at IS NULL
-       INNER JOIN users u ON u.id = s.created_by
-       LEFT JOIN crm_customers c ON c.id = s.crm_customers_id AND c.deleted_at IS NULL
+       INNER JOIN branches b ON b.id = s.branch_id AND ${joinOnTenant("s", "b")}
+       INNER JOIN pos_terminals t ON t.id = s.terminal_id AND ${joinOnTenant("s", "t")}
+       INNER JOIN users u ON u.id = s.created_by AND ${joinOnTenant("s", "u")}
+       LEFT JOIN crm_customers c ON c.id = s.crm_customers_id AND ${joinOnTenant("s", "c")}
        WHERE s.id = ? AND ${tw("s")} LIMIT 1`,
       [id, tenantId]
     );
@@ -404,10 +405,10 @@ export const posRepository = {
       `SELECT r.*, r.branch_id AS outlet_id, b.branch_name AS outlet_name, t.terminal_name,
               ob.name AS opened_by_name, cb.name AS closed_by_name
        FROM pos_cash_registers r
-       INNER JOIN branches b ON b.id = r.branch_id AND b.deleted_at IS NULL
-       INNER JOIN pos_terminals t ON t.id = r.terminal_id AND t.deleted_at IS NULL
-       INNER JOIN users ob ON ob.id = r.opened_by
-       LEFT JOIN users cb ON cb.id = r.closed_by
+       INNER JOIN branches b ON b.id = r.branch_id AND ${joinOnTenant("r", "b")}
+       INNER JOIN pos_terminals t ON t.id = r.terminal_id AND ${joinOnTenant("r", "t")}
+       INNER JOIN users ob ON ob.id = r.opened_by AND ${joinOnTenant("r", "ob")}
+       LEFT JOIN users cb ON cb.id = r.closed_by AND ${joinOnTenant("r", "cb")}
        WHERE ${tw("r")} ORDER BY r.opened_at DESC`,
       [tenantId]
     );
@@ -420,8 +421,8 @@ export const posRepository = {
               b.branch_name AS outlet_name, r.id AS register_id, r.opening_balance, r.cash_collected, r.opened_at,
               CASE WHEN r.id IS NOT NULL AND r.closed_at IS NULL THEN 'open' ELSE 'closed' END AS shift_status
        FROM pos_terminals t
-       INNER JOIN branches b ON b.id = t.branch_id AND b.deleted_at IS NULL
-       LEFT JOIN pos_cash_registers r ON r.terminal_id = t.id AND r.tenant_id = t.tenant_id AND r.deleted_at IS NULL AND r.closed_at IS NULL
+       INNER JOIN branches b ON b.id = t.branch_id AND ${joinOnTenant("t", "b")}
+       LEFT JOIN pos_cash_registers r ON r.terminal_id = t.id AND ${joinOnTenant("t", "r")} AND r.closed_at IS NULL
        WHERE ${tw("t")} ORDER BY b.branch_name ASC, t.terminal_name ASC`,
       [tenantId]
     );
@@ -438,8 +439,8 @@ export const posRepository = {
     const [registers] = await readDb.query(
       `SELECT r.*, ob.name AS opened_by_name, cb.name AS closed_by_name
        FROM pos_cash_registers r
-       INNER JOIN users ob ON ob.id = r.opened_by
-       LEFT JOIN users cb ON cb.id = r.closed_by
+       INNER JOIN users ob ON ob.id = r.opened_by AND ${joinOnTenant("r", "ob")}
+       LEFT JOIN users cb ON cb.id = r.closed_by AND ${joinOnTenant("r", "cb")}
        WHERE r.terminal_id = ? AND ${tw("r")} ORDER BY r.opened_at DESC LIMIT 50`,
       [terminalId, tenantId]
     );
@@ -447,8 +448,8 @@ export const posRepository = {
       `SELECT s.id, s.sale_no, s.payable_amount, s.payment_status, s.total_amount, s.discount_amount, s.created_at,
               u.name AS cashier_name, c.customer_name
        FROM pos_sales s
-       INNER JOIN users u ON u.id = s.created_by
-       LEFT JOIN crm_customers c ON c.id = s.crm_customers_id AND c.deleted_at IS NULL
+       INNER JOIN users u ON u.id = s.created_by AND ${joinOnTenant("s", "u")}
+       LEFT JOIN crm_customers c ON c.id = s.crm_customers_id AND ${joinOnTenant("s", "c")}
        WHERE s.terminal_id = ? AND ${tw("s")} ORDER BY s.created_at DESC LIMIT 50`,
       [terminalId, tenantId]
     );
@@ -477,8 +478,8 @@ export const posRepository = {
     const [recent_sales] = await readDb.query(
       `SELECT s.id, s.sale_no, s.payable_amount, s.payment_status, s.created_at, t.terminal_name, u.name AS cashier_name
        FROM pos_sales s
-       INNER JOIN pos_terminals t ON t.id = s.terminal_id AND t.deleted_at IS NULL
-       INNER JOIN users u ON u.id = s.created_by
+       INNER JOIN pos_terminals t ON t.id = s.terminal_id AND ${joinOnTenant("s", "t")}
+       INNER JOIN users u ON u.id = s.created_by AND ${joinOnTenant("s", "u")}
        WHERE s.branch_id = ? AND ${tw("s")} ORDER BY s.created_at DESC LIMIT 10`,
       [outletId, tenantId]
     );

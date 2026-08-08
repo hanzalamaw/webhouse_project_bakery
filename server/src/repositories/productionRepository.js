@@ -1,4 +1,5 @@
 import { readDb, writeDb } from "../database/db.js";
+import { joinOnTenant } from "../utils/tenantScope.js";
 
 // Production repository — recipes (what makes each bakery item) and production
 // runs (a baking batch that consumes ingredients and yields finished goods).
@@ -19,8 +20,8 @@ export const productionRepository = {
               r.created_at, r.item_id, i.item_name AS finished_item_name, i.unit AS finished_unit,
               COUNT(ri.id) AS ingredient_count
        FROM recipes r
-       JOIN items i ON i.id = r.item_id AND i.deleted_at IS NULL
-       LEFT JOIN recipe_ingredients ri ON ri.recipe_id = r.id AND ri.deleted_at IS NULL
+       JOIN items i ON i.id = r.item_id AND ${joinOnTenant("r", "i")}
+       LEFT JOIN recipe_ingredients ri ON ri.recipe_id = r.id AND ${joinOnTenant("r", "ri")}
        WHERE r.tenant_id = ? AND r.deleted_at IS NULL${filter}
        GROUP BY r.id ORDER BY r.recipe_name ASC LIMIT ? OFFSET ?`,
       params
@@ -37,7 +38,7 @@ export const productionRepository = {
     const [rows] = await readDb.query(
       `SELECT r.*, i.item_name AS finished_item_name, i.unit AS finished_unit, i.shelf_life_days, i.shelf_life_unit
        FROM recipes r
-       JOIN items i ON i.id = r.item_id AND i.deleted_at IS NULL
+       JOIN items i ON i.id = r.item_id AND ${joinOnTenant("r", "i")}
        WHERE r.id = ? AND r.tenant_id = ? AND r.deleted_at IS NULL LIMIT 1`,
       [id, tenantId]
     );
@@ -46,7 +47,7 @@ export const productionRepository = {
       `SELECT ri.id, ri.quantity, ri.unit, ri.notes, ri.ingredient_item_id,
               i.item_name AS ingredient_name, i.unit AS ingredient_unit, i.cost_price
        FROM recipe_ingredients ri
-       JOIN items i ON i.id = ri.ingredient_item_id AND i.deleted_at IS NULL
+       JOIN items i ON i.id = ri.ingredient_item_id AND ${joinOnTenant("ri", "i")}
        WHERE ri.recipe_id = ? AND ri.tenant_id = ? AND ri.deleted_at IS NULL
        ORDER BY i.item_name ASC`,
       [id, tenantId]
@@ -176,9 +177,9 @@ export const productionRepository = {
               i.item_name AS finished_item_name, i.unit AS finished_unit,
               br.branch_name, u.name AS created_by_name
        FROM production_runs pr
-       JOIN items i ON i.id = pr.item_id AND i.deleted_at IS NULL
-       JOIN branches br ON br.id = pr.branch_id AND br.deleted_at IS NULL
-       LEFT JOIN users u ON u.id = pr.created_by
+       JOIN items i ON i.id = pr.item_id AND ${joinOnTenant("pr", "i")}
+       JOIN branches br ON br.id = pr.branch_id AND ${joinOnTenant("pr", "br")}
+       LEFT JOIN users u ON u.id = pr.created_by AND ${joinOnTenant("pr", "u")}
        WHERE pr.tenant_id = ? AND pr.deleted_at IS NULL${filter}
        ORDER BY pr.created_at DESC LIMIT ? OFFSET ?`,
       params
@@ -199,9 +200,9 @@ export const productionRepository = {
       `SELECT pr.*, i.item_name AS finished_item_name, i.unit AS finished_unit,
               br.branch_name, u.name AS created_by_name
        FROM production_runs pr
-       JOIN items i ON i.id = pr.item_id AND i.deleted_at IS NULL
-       JOIN branches br ON br.id = pr.branch_id AND br.deleted_at IS NULL
-       LEFT JOIN users u ON u.id = pr.created_by
+       JOIN items i ON i.id = pr.item_id AND ${joinOnTenant("pr", "i")}
+       JOIN branches br ON br.id = pr.branch_id AND ${joinOnTenant("pr", "br")}
+       LEFT JOIN users u ON u.id = pr.created_by AND ${joinOnTenant("pr", "u")}
        WHERE pr.id = ? AND pr.tenant_id = ? AND pr.deleted_at IS NULL LIMIT 1`,
       [id, tenantId]
     );
@@ -210,8 +211,8 @@ export const productionRepository = {
       `SELECT c.id, c.qty_consumed, c.unit_cost, c.ingredient_item_id,
               i.item_name AS ingredient_name, i.unit AS ingredient_unit, c.batch_id, b.batch_no
        FROM production_run_consumption c
-       JOIN items i ON i.id = c.ingredient_item_id AND i.deleted_at IS NULL
-       LEFT JOIN stock_batches b ON b.id = c.batch_id
+       JOIN items i ON i.id = c.ingredient_item_id AND ${joinOnTenant("c", "i")}
+       LEFT JOIN stock_batches b ON b.id = c.batch_id AND ${joinOnTenant("c", "b")}
        WHERE c.production_run_id = ? AND c.tenant_id = ? AND c.deleted_at IS NULL`,
       [id, tenantId]
     );
@@ -245,7 +246,7 @@ export const productionRepository = {
               COUNT(*) AS bake_count,
               COALESCE(SUM(pr.total_cost), 0) AS cost
        FROM production_runs pr
-       JOIN items i ON i.id = pr.item_id AND i.deleted_at IS NULL
+       JOIN items i ON i.id = pr.item_id AND ${joinOnTenant("pr", "i")}
        WHERE pr.tenant_id = ? AND pr.deleted_at IS NULL
          AND pr.status != 'cancelled'
          AND pr.produced_on >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
@@ -276,7 +277,7 @@ export const productionRepository = {
               COALESCE(SUM(pr.quantity_produced), 0) AS qty,
               COALESCE(SUM(pr.total_cost), 0) AS cost
        FROM production_runs pr
-       JOIN branches br ON br.id = pr.branch_id AND br.deleted_at IS NULL
+       JOIN branches br ON br.id = pr.branch_id AND ${joinOnTenant("pr", "br")}
        WHERE pr.tenant_id = ? AND pr.deleted_at IS NULL
          AND pr.status != 'cancelled'
          AND pr.produced_on >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
@@ -292,7 +293,7 @@ export const productionRepository = {
       `SELECT r.id, r.recipe_name, r.yield_qty, r.yield_unit, r.status, r.updated_at, r.created_at,
               i.item_name AS finished_item_name
        FROM recipes r
-       JOIN items i ON i.id = r.item_id AND i.deleted_at IS NULL
+       JOIN items i ON i.id = r.item_id AND ${joinOnTenant("r", "i")}
        WHERE r.tenant_id = ? AND r.deleted_at IS NULL
        ORDER BY COALESCE(r.updated_at, r.created_at) DESC
        LIMIT ?`,
