@@ -1,25 +1,72 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useAuth } from "../../../context/AuthContext";
-import { API_BASE } from "../../../config/api";
-import { FormField } from "../../../components/FormField";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "../../../components/Button";
 import { Modal } from "../../../components/Modal";
-import { LoginFooter, LoginTermsAgree } from "../../../components/LoginLegal";
-import { formatDateTime } from "../../../utils/dateTime";
-import { friendlyError } from "../../../utils/friendlyError";
-import "../../wh-portal/pages/Login.css";
+import { EyeIcon, EyeOffIcon } from "../../../components/icons";
+import { useTenantLogin } from "./useTenantLogin";
+import "./ErpLogin.css";
 
 const PORTAL_LABELS = { erp1: "ERP 1", erp2: "ERP 2", erp3: "ERP 3" };
 
+function BakeryLogo() {
+  return (
+    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path
+        d="M14 22c0-5.523 4.477-10 10-10s10 4.477 10 10v2H14v-2z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M12 24h24v8c0 4.418-3.582 8-8 8H20c-4.418 0-8-3.582-8-8v-8z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M20 14c0-2 1-3 2-4M24 12c0-2 1-3 2-4M28 14c0-2 1-3 2-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M18 32h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function UserIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </svg>
+  );
+}
+
+function LockIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+    </svg>
+  );
+}
+
 export default function ErpLogin({ portal }) {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [agreeTerms, setAgreeTerms] = useState(true);
-  const [error, setError] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [conflict, setConflict] = useState(null);
-  const { login, user } = useAuth();
+  const [showPassword, setShowPassword] = useState(false);
+  const {
+    username,
+    setUsername,
+    password,
+    setPassword,
+    agreeTerms,
+    setAgreeTerms,
+    error,
+    isSubmitting,
+    conflict,
+    setConflict,
+    user,
+    handleSubmit,
+    handleForceLogin,
+    formatDateTime,
+  } = useTenantLogin(portal);
   const navigate = useNavigate();
 
   if (user?.portal === "tenant") {
@@ -27,98 +74,98 @@ export default function ErpLogin({ portal }) {
     return null;
   }
 
-  const doLogin = async (forceLogoutOthers = false) => {
-    const response = await fetch(`${API_BASE}/tenant/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        username: username.trim(),
-        password,
-        portal,
-        forceLogoutOthers,
-      }),
-    });
-    const data = await response.json();
-    if (response.status === 409 && data.code === "SESSION_CONFLICT") {
-      setConflict(data.existingSession || {});
-      return { conflict: true };
-    }
-    if (response.ok) {
-      login(data.user, data.token, data.refreshToken ?? null);
-      navigate("/app");
-      return { ok: true };
-    }
-    setError(friendlyError(data.message, response.status));
-    return { error: true };
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-    setConflict(null);
-    if (!username.trim() || !password) {
-      setError("Please enter your username and password.");
-      return;
-    }
-    if (!agreeTerms) {
-      setError("Please agree to the Terms and Conditions to continue.");
-      return;
-    }
-    setIsSubmitting(true);
-    try {
-      await doLogin(false);
-    } catch {
-      setError(friendlyError("Failed to fetch"));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleForceLogin = async () => {
-    if (!agreeTerms) {
-      setError("Please agree to the Terms and Conditions to continue.");
-      return;
-    }
-    setIsSubmitting(true);
-    setError("");
-    try {
-      const result = await doLogin(true);
-      if (!result?.conflict) setConflict(null);
-    } catch {
-      setError(friendlyError("Failed to fetch"));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   return (
-    <div className="login-page">
-      <div className="login-form-panel">
-        <div className="login-form-content">
-          <header className="login-header">
-            <h1>{PORTAL_LABELS[portal] || portal}</h1>
-            <p>Sign in to your organization workspace.</p>
-          </header>
+    <div className="erp-login-page">
+      <div className="erp-login-left">
+        <div className="erp-login-card">
+          <div className="erp-login-logo">
+            <BakeryLogo />
+          </div>
+
+          <h1>Log in to continue</h1>
+          <p className="erp-login-subtitle">
+            Please log in to access {PORTAL_LABELS[portal] || portal}.
+          </p>
+
           {error && <div className="login-error">{error}</div>}
+
           <form onSubmit={handleSubmit} noValidate>
-            <FormField id="username" label="Username" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" />
-            <FormField id="password" label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
-            <LoginTermsAgree
-              checked={agreeTerms}
-              onChange={setAgreeTerms}
-              id={`login-terms-${portal}`}
-              showForgot
-            />
-            <Button type="submit" className="login-submit" disabled={isSubmitting || !agreeTerms}>
-              {isSubmitting ? "Signing in..." : "Sign in"}
+            <div className="erp-login-field">
+              <span className="erp-login-field-icon">
+                <UserIcon />
+              </span>
+              <input
+                id="username"
+                type="text"
+                placeholder="Username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                autoComplete="username"
+              />
+            </div>
+
+            <div className="erp-login-field">
+              <span className="erp-login-field-icon">
+                <LockIcon />
+              </span>
+              <input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+              />
+              <button
+                type="button"
+                className="erp-login-field-toggle"
+                onClick={() => setShowPassword((s) => !s)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+              </button>
+            </div>
+
+            <div className="erp-login-meta">
+              <label className="erp-login-terms" htmlFor={`login-terms-${portal}`}>
+                <input
+                  id={`login-terms-${portal}`}
+                  type="checkbox"
+                  checked={agreeTerms}
+                  onChange={(e) => setAgreeTerms(e.target.checked)}
+                />
+                <span>
+                  I agree to the{" "}
+                  <Link to="/terms" target="_blank" rel="noopener noreferrer">
+                    Terms and Conditions
+                  </Link>
+                </span>
+              </label>
+              <Link className="erp-login-forgot" to="/forgot-password">
+                Forgot Password?
+              </Link>
+            </div>
+
+            <Button type="submit" className="erp-login-submit" disabled={isSubmitting || !agreeTerms}>
+              {isSubmitting ? "Logging in..." : "Log in"}
             </Button>
           </form>
         </div>
-        <LoginFooter />
+
+        <footer className="erp-login-footer">
+          <p>
+            © 2026 Project X. All Rights Reserved | Powered by{" "}
+            <a href="https://webhouseinc.co/" target="_blank" rel="noopener noreferrer">
+              WebHouse Inc
+            </a>
+            .
+          </p>
+        </footer>
       </div>
-      <div className="login-image-panel">
-        <div className="login-image-frame">
-          <img src="/login-image.png" alt="ERP login" />
+
+      <div className="erp-login-right">
+        <div className="erp-login-image-frame">
+          <img src="/erp-login-image.png" alt="Bakery workspace" />
         </div>
       </div>
 

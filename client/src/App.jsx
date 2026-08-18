@@ -21,6 +21,8 @@ import ManageSubscriptions from "./portals/wh-portal/pages/subscriptions/ManageS
 import Logs from "./portals/wh-portal/pages/logs/Logs";
 import LogDetail from "./portals/wh-portal/pages/logs/LogDetail";
 import ErpLogin from "./portals/tenant-portal/pages/ErpLogin";
+import Erp2Login from "./portals/tenant-portal/pages/Erp2Login";
+import Erp3Login from "./portals/tenant-portal/pages/Erp3Login";
 import ModuleHub from "./portals/tenant-portal/pages/ModuleHub";
 import ModulePlaceholder from "./portals/tenant-portal/pages/ModulePlaceholder";
 import TermsAndConditions from "./pages/TermsAndConditions";
@@ -118,8 +120,8 @@ const router = createBrowserRouter([
   { path: "/webhouse-portal", element: <WhLoginGate /> },
   { path: "/webhouse-portal/impersonate/session", element: <ImpersonationHandoff /> },
   { path: "/erp1", element: <ErpLogin portal="erp1" /> },
-  { path: "/erp2", element: <ErpLogin portal="erp2" /> },
-  { path: "/erp3", element: <ErpLogin portal="erp3" /> },
+  { path: "/erp2", element: <Erp2Login /> },
+  { path: "/erp3", element: <Erp3Login /> },
   { path: "/terms", element: <TermsAndConditions /> },
   {
     element: (

@@ -1,0 +1,812 @@
+.erp3-login-page {
+  --erp3-paper: #f7f1e8;
+  --erp3-ink: var(--text-primary);
+  --erp3-oven: #c47a32;
+
+  position: relative;
+  min-height: 100vh;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 40px 20px 56px;
+
+  overflow: hidden;
+
+  font-family: var(--font-sans);
+
+  background:
+    radial-gradient(
+      1200px 700px at 50% 120%,
+      rgba(196, 122, 50, 0.35),
+      transparent 55%
+    ),
+    linear-gradient(
+      180deg,
+      #0f172a 0%,
+      var(--color-primary) 48%,
+      #1a2740 100%
+    );
+
+  color: var(--erp3-ink);
+}
+
+
+/* =========================
+   ORIGINAL SCENE
+========================= */
+
+.erp3-scene {
+  position: absolute;
+  inset: 0;
+
+  pointer-events: none;
+  overflow: hidden;
+}
+
+
+.erp3-scene__oven {
+  position: absolute;
+
+  left: 50%;
+  bottom: -18%;
+
+  width: min(920px, 140vw);
+  height: 48vh;
+
+  transform: translateX(-50%);
+
+  background:
+    radial-gradient(
+      ellipse at center,
+      rgba(196, 122, 50, 0.55) 0%,
+      rgba(37, 99, 235, 0.12) 42%,
+      transparent 70%
+    );
+
+  filter: blur(8px);
+
+  animation: erp3-oven-pulse 6s ease-in-out infinite;
+}
+
+
+.erp3-scene__shelf {
+  position: absolute;
+
+  top: 10%;
+
+  width: 180px;
+  height: 70%;
+
+  opacity: 0.18;
+
+  background-image:
+    radial-gradient(
+      circle at 50% 18%,
+      #f7f1e8 0 18px,
+      transparent 19px
+    ),
+    radial-gradient(
+      ellipse 70px 22px at 50% 38%,
+      #e8d5b5 0 100%,
+      transparent 101%
+    ),
+    radial-gradient(
+      ellipse 58px 18px at 50% 58%,
+      #dcc4a0 0 100%,
+      transparent 101%
+    ),
+    linear-gradient(
+      #c4b39a,
+      #c4b39a
+    );
+
+  background-size:
+    auto,
+    auto,
+    auto,
+    72% 3px;
+
+  background-repeat: no-repeat;
+
+  background-position:
+    center 8%,
+    center 36%,
+    center 56%,
+    center 24%;
+}
+
+
+.erp3-scene__shelf--left {
+  left: max(12px, 6vw);
+
+  transform: rotate(-6deg);
+}
+
+
+.erp3-scene__shelf--right {
+  right: max(12px, 6vw);
+
+  transform: rotate(6deg) scaleX(-1);
+}
+
+
+/* =========================
+   NEW 3D SVG BAKERY ELEMENTS
+========================= */
+
+.erp3-3d {
+  position: absolute;
+
+  pointer-events: none;
+
+  z-index: 0;
+
+  will-change: transform;
+
+  animation:
+    erp3-3d-float
+    8s
+    ease-in-out
+    infinite;
+}
+
+
+.erp3-3d--bread {
+  width: min(250px, 24vw);
+
+  left: 6%;
+  top: 8%;
+
+  transform:
+    rotate(-13deg)
+    translateZ(0);
+
+  animation-delay: -1s;
+}
+
+
+.erp3-3d--croissant {
+  width: min(280px, 28vw);
+
+  right: 5%;
+  top: 12%;
+
+  transform:
+    rotate(11deg)
+    translateZ(0);
+
+  animation-delay: -3s;
+}
+
+
+.erp3-3d--pastry {
+  width: min(170px, 18vw);
+
+  left: 10%;
+  bottom: 10%;
+
+  transform:
+    rotate(-8deg)
+    translateZ(0);
+
+  animation-delay: -5s;
+}
+
+
+.erp3-3d--rolling {
+  width: min(280px, 25vw);
+
+  right: 8%;
+  bottom: 13%;
+
+  transform:
+    rotate(-20deg)
+    translateZ(0);
+
+  animation-delay: -2s;
+}
+
+
+/* =========================
+   ORIGINAL STEAM
+========================= */
+
+.erp3-steam span {
+  position: absolute;
+
+  bottom: 12%;
+  left: 50%;
+
+  width: 90px;
+  height: 220px;
+
+  border-radius: 50%;
+
+  background:
+    linear-gradient(
+      180deg,
+      transparent,
+      rgba(247, 241, 232, 0.22)
+    );
+
+  filter: blur(18px);
+
+  animation: erp3-steam 7s ease-in-out infinite;
+}
+
+
+.erp3-steam span:nth-child(1) {
+  margin-left: -160px;
+  animation-delay: 0s;
+}
+
+
+.erp3-steam span:nth-child(2) {
+  margin-left: -40px;
+  animation-delay: 1.6s;
+  height: 260px;
+}
+
+
+.erp3-steam span:nth-child(3) {
+  margin-left: 80px;
+  animation-delay: 3.1s;
+}
+
+
+/* =========================
+   ORIGINAL FLOUR
+========================= */
+
+.erp3-flour i {
+  position: absolute;
+
+  top: 110%;
+
+  left:
+    calc(
+      6% +
+      (var(--i) * 5%)
+    );
+
+  width: 5px;
+  height: 5px;
+
+  border-radius: 50%;
+
+  background:
+    rgba(247, 241, 232, 0.55);
+
+  animation: erp3-flour 14s linear infinite;
+
+  animation-delay:
+    calc(var(--i) * -0.7s);
+}
+
+
+.erp3-flour i:nth-child(odd) {
+  width: 3px;
+  height: 3px;
+
+  opacity: 0.7;
+}
+
+
+/* =========================
+   ORIGINAL ANIMATIONS
+========================= */
+
+@keyframes erp3-oven-pulse {
+  0%,
+  100% {
+    opacity: 0.7;
+
+    transform:
+      translateX(-50%)
+      scale(1);
+  }
+
+  50% {
+    opacity: 1;
+
+    transform:
+      translateX(-50%)
+      scale(1.06);
+  }
+}
+
+
+@keyframes erp3-steam {
+  0% {
+    transform:
+      translateY(20px)
+      scaleX(0.8);
+
+    opacity: 0;
+  }
+
+  20% {
+    opacity: 0.7;
+  }
+
+  100% {
+    transform:
+      translateY(-220px)
+      scaleX(1.2);
+
+    opacity: 0;
+  }
+}
+
+
+@keyframes erp3-flour {
+  0% {
+    transform:
+      translateY(0)
+      rotate(0deg);
+
+    opacity: 0;
+  }
+
+  12% {
+    opacity: 0.8;
+  }
+
+  100% {
+    transform:
+      translateY(-120vh)
+      rotate(220deg);
+
+    opacity: 0;
+  }
+}
+
+
+/* NEW 3D FLOAT */
+
+@keyframes erp3-3d-float {
+  0%,
+  100% {
+    margin-top: 0;
+
+    filter:
+      drop-shadow(
+        0 18px 20px rgba(0, 0, 0, 0.12)
+      );
+  }
+
+  50% {
+    margin-top: -18px;
+
+    filter:
+      drop-shadow(
+        0 30px 28px rgba(0, 0, 0, 0.28)
+      );
+  }
+}
+
+
+/* =========================
+   ORIGINAL TICKET
+========================= */
+
+.erp3-ticket {
+  position: relative;
+
+  z-index: 1;
+
+  width: 100%;
+  max-width: 420px;
+
+  background: var(--erp3-paper);
+
+  color: var(--text-primary);
+
+  padding: 28px 32px 24px;
+
+  border-radius:
+    4px
+    4px
+    18px
+    18px;
+
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.7) inset,
+    0 28px 60px rgba(15, 23, 42, 0.45);
+}
+
+
+.erp3-ticket::before {
+  content: "";
+
+  position: absolute;
+
+  inset: 10px;
+
+  border:
+    1px dashed
+    rgba(30, 41, 59, 0.12);
+
+  border-radius:
+    2px
+    2px
+    12px
+    12px;
+
+  pointer-events: none;
+}
+
+
+.erp3-ticket__perforation {
+  position: absolute;
+
+  top: -10px;
+
+  left: 12px;
+  right: 12px;
+
+  height: 20px;
+
+  background:
+    radial-gradient(
+      circle at 10px 10px,
+      var(--color-primary) 6px,
+      transparent 7px
+    );
+
+  background-size: 20px 20px;
+
+  background-repeat: repeat-x;
+}
+
+
+.erp3-ticket__head {
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: flex-start;
+
+  margin-bottom: 22px;
+
+  padding-top: 8px;
+}
+
+
+.erp3-ticket__stamp {
+  display: inline-block;
+
+  padding: 4px 10px;
+
+  border:
+    2px solid
+    var(--color-accent);
+
+  color:
+    var(--color-accent);
+
+  font-size: 11px;
+
+  font-weight: 800;
+
+  letter-spacing: 0.16em;
+
+  transform: rotate(-6deg);
+}
+
+
+.erp3-ticket__mark p {
+  margin: 10px 0 0;
+
+  font-size: 11px;
+
+  letter-spacing: 0.18em;
+
+  text-transform: uppercase;
+
+  color: var(--text-muted);
+}
+
+
+.erp3-ticket__no {
+  margin: 0;
+
+  font-variant-numeric: tabular-nums;
+
+  font-size: 13px;
+
+  color: var(--text-secondary);
+}
+
+
+.erp3-ticket h1 {
+  margin: 0 0 6px;
+
+  font-size: 30px;
+
+  letter-spacing: -0.6px;
+
+  color: var(--color-primary);
+}
+
+
+.erp3-ticket__lede {
+  margin: 0 0 22px;
+
+  font-size: var(--text-md);
+
+  color: var(--text-secondary);
+
+  line-height: 1.5;
+}
+
+
+.erp3-field {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 7px;
+
+  margin-bottom: 16px;
+
+  font-size: 12px;
+
+  font-weight: 600;
+
+  letter-spacing: 0.04em;
+
+  text-transform: uppercase;
+
+  color: var(--text-secondary);
+}
+
+
+.erp3-field input,
+.erp3-field__input input {
+  width: 100%;
+
+  border: none;
+
+  border-bottom:
+    1.5px solid
+    var(--border-strong);
+
+  background: transparent;
+
+  padding: 8px 0 10px;
+
+  font-size: 15px;
+
+  font-weight: 500;
+
+  letter-spacing: 0;
+
+  text-transform: none;
+
+  color: var(--text-primary);
+
+  font-family: inherit;
+
+  outline: none;
+
+  border-radius: 0;
+}
+
+
+.erp3-field input:focus,
+.erp3-field__input input:focus {
+  border-bottom-color:
+    var(--color-accent);
+
+  box-shadow:
+    0 1px 0
+    var(--color-accent);
+}
+
+
+.erp3-field input::placeholder,
+.erp3-field__input input::placeholder {
+  color: var(--text-muted);
+
+  font-weight: 400;
+}
+
+
+.erp3-field__input {
+  position: relative;
+
+  display: flex;
+
+  align-items: center;
+}
+
+
+.erp3-field__input input {
+  padding-right: 36px;
+}
+
+
+.erp3-field__toggle {
+  position: absolute;
+
+  right: 0;
+
+  bottom: 6px;
+
+  border: none;
+
+  background: none;
+
+  color: var(--text-muted);
+
+  cursor: pointer;
+
+  padding: 4px;
+
+  display: flex;
+}
+
+
+.erp3-field__toggle:hover {
+  color: var(--text-secondary);
+}
+
+
+.erp3-ticket__row {
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  gap: 12px;
+
+  margin: 4px 0 22px;
+}
+
+
+.erp3-terms {
+  display: flex;
+
+  align-items: flex-start;
+
+  gap: 8px;
+
+  margin: 0;
+
+  font-size: 12px;
+
+  font-weight: 400;
+
+  letter-spacing: 0;
+
+  text-transform: none;
+
+  color: var(--text-secondary);
+
+  cursor: pointer;
+}
+
+
+.erp3-terms input {
+  margin-top: 2px;
+
+  accent-color:
+    var(--color-accent);
+}
+
+
+.erp3-terms a,
+.erp3-forgot,
+.erp3-ticket__foot a {
+  color:
+    var(--color-accent);
+
+  font-weight: 600;
+
+  text-decoration: none;
+}
+
+
+.erp3-terms a:hover,
+.erp3-forgot:hover,
+.erp3-ticket__foot a:hover {
+  text-decoration: underline;
+}
+
+
+.erp3-forgot {
+  font-size: 12px;
+
+  white-space: nowrap;
+}
+
+
+.erp3-ticket__submit {
+  width: 100%;
+
+  padding: 12px 16px;
+
+  font-size: 15px;
+
+  font-weight: 600;
+
+  letter-spacing: 0.02em;
+}
+
+
+.erp3-ticket__foot {
+  margin-top: 22px;
+
+  text-align: center;
+
+  font-size: 11px;
+
+  color: var(--text-muted);
+}
+
+
+/* =========================
+   RESPONSIVE
+========================= */
+
+@media (max-width: 900px) {
+  .erp3-3d--bread {
+    width: 180px;
+    left: 2%;
+  }
+
+  .erp3-3d--croissant {
+    width: 200px;
+    right: 1%;
+  }
+
+  .erp3-3d--pastry {
+    width: 130px;
+  }
+
+  .erp3-3d--rolling {
+    width: 200px;
+  }
+}
+
+
+@media (max-width: 720px) {
+  .erp3-scene__shelf {
+    opacity: 0.08;
+  }
+
+  .erp3-3d {
+    opacity: 0.45;
+  }
+
+  .erp3-3d--bread {
+    width: 150px;
+    top: 4%;
+    left: -30px;
+  }
+
+  .erp3-3d--croissant {
+    width: 160px;
+    right: -40px;
+    top: 8%;
+  }
+
+  .erp3-3d--pastry,
+  .erp3-3d--rolling {
+    display: none;
+  }
+}
+
+
+@media (prefers-reduced-motion: reduce) {
+  .erp3-scene__oven,
+  .erp3-steam span,
+  .erp3-flour i,
+  .erp3-3d {
+    animation: none;
+  }
+}
